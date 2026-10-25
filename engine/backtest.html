@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>V5 Backtest</title>
+<style>
+:root{--bg:#0b0e14;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
+--good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)}.num{font-variant-numeric:tabular-nums}
+header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.96);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+h1{font-size:15px;margin:0;letter-spacing:.04em}h1 b{color:var(--accent)}
+main{padding:12px 16px 48px;display:flex;flex-direction:column;gap:18px;max-width:1400px}
+h2{font-size:12px;letter-spacing:.08em;color:var(--ink2);margin:0 0 8px;text-transform:uppercase}
+p.note{color:var(--ink2);margin:0 0 8px;max-width:900px}
+.verdict{background:#2a1416;border:1px solid #5a2a2e;border-radius:10px;padding:12px 14px;max-width:1000px}
+.verdict b{color:#ffb3b3}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:5px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--ink3);font-weight:500}td.r,th.r{text-align:right}
+.good{color:var(--good)}.bad{color:var(--bad)}.muted{color:var(--ink3)}
+select,button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
+button[aria-pressed=true]{background:#1f2a44;border-color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:10px}
+.gallery figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:zoom-in}
+.gallery img{display:block;width:100%;height:auto}
+.gallery figcaption{padding:6px 9px;color:var(--ink2);font-size:12px}
+#big{position:fixed;inset:0;background:rgba(5,7,11,.92);display:none;z-index:20;align-items:center;justify-content:center;cursor:zoom-out}
+#big img{max-width:96vw;max-height:94vh}
+@media (max-width:520px){.gallery{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1><b>V5</b> BACKTEST</h1>
+  <span class="muted num" id="period">loading…</span>
+  <a href="/">← live dashboard</a>
+</header>
+<main>
+  <div class="verdict" id="verdict"></div>
+
+  <section>
+    <h2>The engine as it trades now — by swing size</h2>
+    <p class="note">M15 + M30 entries that pass every live check, fixed stop and structure target. Train = the older 60 %, test = the newer 40 %
+      (a result has to hold in both). "Managed" = the live Mode A / B, layer and trailing, in normal-R.</p>
+    <div class="tw"><table class="num" id="runs"></table></div>
+  </section>
+
+  <section>
+    <h2>Entry and stop variants (same setups, same target)</h2>
+    <div class="tw"><table class="num" id="variants"></table></div>
+  </section>
+
+  <section>
+    <h2>The live filters — what the refused setups would have done</h2>
+    <p class="note">A filter earns its keep when the setups it refuses do worse than the ones it lets through.</p>
+    <div class="tw"><table class="num" id="filters"></table></div>
+  </section>
+
+  <section>
+    <h2>Targets — a fixed R target instead of the structure target</h2>
+    <div class="tw"><table class="num" id="targets"></table></div>
+  </section>
+
+  <section>
+    <h2>Trained filters — found on train, judged on test</h2>
+    <div class="tw"><table class="num" id="rules"></table></div>
+  </section>
+
+  <section>
+    <h2>Chart features</h2>
+    <div class="row"><select id="feat"></select><span class="muted">buckets set on the train part</span></div>
+    <div class="tw"><table class="num" id="buckets"></table></div>
+  </section>
+
+  <section>
+    <h2>Per symbol</h2>
+    <div class="tw"><table class="num" id="symbols"></table></div>
+  </section>
+
+  <section>
+    <h2>Charts — winners and losers</h2>
+    <div class="row" id="gfilter">
+      <button data-f="all" aria-pressed="true">all</button><button data-f="win">winners</button><button data-f="loss">losers</button>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+</main>
+<div id="big"><img alt=""></div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const R = x => x == null ? "–" : `<span class="${x > 0 ? "good" : x < 0 ? "bad" : ""}">${x > 0 ? "+" : ""}${x.toFixed(2)}R</span>`;
+const pct = x => x == null ? "–" : (100 * x).toFixed(1) + "%";
+const cells = s => !s || !s.n ? `<td class="r muted" colspan="3">none</td>` : `<td class="r">${s.n}</td><td class="r">${pct(s.win)}</td><td class="r">${R(s.avg)}</td>`;
+const head2 = first => `<tr><th>${first}</th><th class="r">train n</th><th class="r">win</th><th class="r">avg</th><th class="r">test n</th><th class="r">win</th><th class="r">avg</th></tr>`;
+let D, GF = "all";
+
+function render() {
+  const runs = D.runs, main = runs.main;
+  if (!main) { $("#verdict").textContent = "No backtest yet: python3 -m engine.backtest run && python3 -m engine.backtest report"; return; }
+  $("#period").textContent = `${main.from} → ${main.to} · train before ${main.cut}`;
+  const e = main.engine, rnd = (D.variants || []).find(v => v.note);
+  $("#verdict").innerHTML = `<b>V5 as coded has no edge on this history.</b> ${e.all.fixed.n} trades, ${pct(e.all.fixed.win)} winners,
+    ${R(e.all.fixed.avg)} per trade (managed ${R(e.all.managed.avg)}); train ${R(e.train.fixed.avg)}, test ${R(e.test.fixed.avg)}.
+    ${rnd ? "Random entries with the same side, stop size and target: " + esc(rnd.note) + "." : ""}
+    No chart-feature filter, bigger swings (3 / 5 / 8), wider stop, deeper entry or M5 confirmation made it reliably positive on the newer months.`;
+  const order = Object.keys(runs).sort((a, b) => (a === "main" ? 2 : +a.replace(/\D/g, "")) - (b === "main" ? 2 : +b.replace(/\D/g, "")));
+  $("#runs").innerHTML = `<tr><th>run</th><th class="r">trades</th><th class="r">win</th><th class="r">avg fixed</th><th class="r">sum</th>
+      <th class="r">train avg</th><th class="r">test avg</th><th class="r">managed avg</th><th class="r">M15</th><th class="r">M30</th><th class="r">crypto</th><th class="r">forex</th></tr>` +
+    order.map(k => { const g = runs[k].engine; return `<tr><td>${k === "main" ? "swing 2 (V5 default, live)" : esc(k.replace("swing", "swing "))}</td>
+      <td class="r">${g.all.fixed.n}</td><td class="r">${pct(g.all.fixed.win)}</td><td class="r">${R(g.all.fixed.avg)}</td><td class="r">${R(g.all.fixed.sum)}</td>
+      <td class="r">${R(g.train.fixed.avg)}</td><td class="r">${R(g.test.fixed.avg)}</td><td class="r">${R(g.all.managed.avg)}</td>
+      <td class="r">${R(g.M15.fixed.avg)}</td><td class="r">${R(g.M30.fixed.avg)}</td><td class="r">${R(g.crypto.fixed.avg)}</td><td class="r">${R(g.forex.fixed.avg)}</td></tr>`; }).join("");
+  $("#variants").innerHTML = head2("variant") + (D.variants || []).filter(v => !v.note).map(v => `<tr><td>${esc(v.variant)}</td>${cells(v.train)}${cells(v.test)}</tr>`).join("");
+  $("#filters").innerHTML = `<tr><th>what happened at the pullback</th><th class="r">setups</th><th class="r">win</th><th class="r">avg</th></tr>` +
+    Object.entries(main.filters).map(([k, s]) => `<tr><td>${k === "TRADED" ? "<b>traded</b>" : "refused: " + esc(k)}</td><td class="r">${s.n}</td><td class="r">${pct(s.win)}</td><td class="r">${R(s.avg)}</td></tr>`).join("");
+  $("#targets").innerHTML = `<tr><th>target</th><th class="r">reached before the stop</th><th class="r">avg per trade</th></tr>` +
+    main.targets.map(t => `<tr><td>${t.target_r}R</td><td class="r">${pct(t.hit)}</td><td class="r">${R(t.avg)}</td></tr>`).join("");
+  $("#rules").innerHTML = head2("rule") + `<tr><td class="muted">no filter (baseline)</td>${cells(e.train.fixed)}${cells(e.test.fixed)}</tr>` +
+    main.rules_single.slice(0, 15).map(x => `<tr><td>${esc(x.rule)}</td>${cells(x.train)}${cells(x.test)}</tr>`).join("");
+  const feats = Object.keys(main.features);
+  $("#feat").innerHTML = feats.map(f => `<option>${esc(f)}</option>`).join("");
+  $("#feat").onchange = drawBuckets; drawBuckets();
+  $("#symbols").innerHTML = head2("symbol") + Object.entries(main.symbols)
+    .sort((a, b) => ((b[1].train.sum || 0) + (b[1].test.sum || 0)) - ((a[1].train.sum || 0) + (a[1].test.sum || 0)))
+    .map(([s, v]) => `<tr><td>${esc(s)}</td>${cells(v.train)}${cells(v.test)}</tr>`).join("");
+  drawGallery();
+}
+function drawBuckets() {
+  const rows = D.runs.main.features[$("#feat").value] || [];
+  $("#buckets").innerHTML = head2("bucket") + rows.map(r => `<tr><td>${esc(r.bucket)}</td>${cells(r.train)}${cells(r.test)}</tr>`).join("");
+}
+function drawGallery() {
+  const xs = (D.charts || []).filter(c => GF === "all" || (GF === "win" ? c.r > 0 : c.r < 0));
+  $("#gallery").innerHTML = xs.map(c => `<figure data-id="${esc(c.id)}"><img loading="lazy" src="/bt/chart?id=${encodeURIComponent(c.id)}" alt="${esc(c.id)}">
+    <figcaption>${esc(c.id)} · ${R(c.r)}</figcaption></figure>`).join("") || `<p class="muted">no charts: python3 -m engine.bt_charts</p>`;
+}
+document.querySelectorAll("#gfilter button").forEach(b => b.onclick = () => {
+  GF = b.dataset.f; document.querySelectorAll("#gfilter button").forEach(x => x.setAttribute("aria-pressed", x === b)); drawGallery(); });
+$("#gallery").onclick = e => { const f = e.target.closest("figure"); if (!f) return;
+  $("#big img").src = "/bt/chart?id=" + encodeURIComponent(f.dataset.id); $("#big").style.display = "flex"; };
+$("#big").onclick = () => $("#big").style.display = "none";
+fetch("/api/backtest").then(r => r.json()).then(d => { D = d; render(); })
+  .catch(e => $("#verdict").textContent = "could not load the backtest: " + e);
+</script>
+</body>
+</html>

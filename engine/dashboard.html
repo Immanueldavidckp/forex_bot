@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>V5 Engine</title>
+<style>
+:root{--bg:#0b0e14;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
+--up:#26a69a;--down:#ef5350;--supply:239,83,80;--demand:38,166,154;--fvg:245,197,66;--mb:179,136,255;--disp:#ff9800;--bos:#4fc3f7;
+--entry:#e6e9ef;--sl:#ef5350;--tp:#66bb6a;--tp1:#26c6da;--layer:#ffa726;--good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.num{font-variant-numeric:tabular-nums}a{color:var(--accent)}
+header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.96);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+h1{font-size:15px;margin:0;letter-spacing:.04em}h1 b{color:var(--accent)}
+.kv{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink2)}.kv b{color:var(--ink)}
+button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}button[aria-pressed=true]{background:#1f2a44;border-color:var(--accent)}
+button.danger{border-color:#5a2a2e;color:#ffb3b3}button.arm{background:#5a2a2e;color:#fff}
+.toggle.on{background:#123a2c;border-color:var(--good);color:var(--good)}.toggle.off{color:var(--warn)}
+.filters{display:flex;gap:6px;flex-wrap:wrap}input[type=search]{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 9px;font:inherit;width:150px}
+section{padding:12px 16px}section h2{font-size:12px;letter-spacing:.08em;color:var(--ink2);margin:0 0 8px;text-transform:uppercase}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--ink3);font-weight:500}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.empty{color:var(--ink3);padding:8px}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.muted{color:var(--ink3)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--ink2);font-size:12px;margin:0 16px}.legend i{display:inline-block;width:12px;height:10px;margin-right:4px;vertical-align:-1px;border-radius:2px}
+main{padding:4px 16px 40px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card.trade{border-color:#2d4b8a}.card.bos{border-color:#5b5320}
+.ch{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+.sym{font-weight:700;font-size:14px;min-width:110px}.mk{font-size:11px;color:var(--ink3);text-transform:uppercase;margin-left:4px}
+.badge{border-radius:999px;padding:2px 8px;font-size:12px;border:1px solid var(--line)}
+.b-buy{background:rgba(38,166,154,.15);border-color:rgba(38,166,154,.6);color:#7ee0d3}.b-sell{background:rgba(239,83,80,.15);border-color:rgba(239,83,80,.6);color:#ffaaa8}.b-none{color:var(--ink3)}
+.chips{display:flex;gap:4px;flex-wrap:wrap}.chip{font-size:11px;padding:2px 7px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--ink3)}
+.chip.ok{color:var(--good);border-color:#1f5a45}.chip.wait{color:var(--warn);border-color:#5b5320}.chip.opt{color:#cdb8ff;border-color:#3d3366}.chip.no{color:var(--bad);border-color:#5a2a2a}
+.stage{font-size:12px;color:var(--ink2)}.why{font-size:12px;color:var(--ink3);max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;padding:8px}
+.cw{min-width:0;background:#0e121b;border:1px solid var(--line);border-radius:6px;position:relative;cursor:zoom-in}
+.cw canvas{display:block;width:100%;height:240px}
+.layers{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:6px 16px 0;font-size:12px;color:var(--ink2)}.layers button{padding:2px 8px;font-size:12px}
+#mlayers button[aria-pressed=false]{color:var(--ink3);text-decoration:line-through}
+#modal #mlayers{margin:0}#modal .mh .bg{display:inline-flex;gap:4px;padding-left:8px;border-left:1px solid var(--line)}#modal .mh .grow{flex:1}
+#modal{position:fixed;inset:0;background:rgba(5,7,11,.88);display:none;z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+#modal.show{display:flex}#modal .mc{position:relative;width:min(1400px,94vw);height:min(760px,78vh)}
+#modal .mc canvas{position:absolute;inset:0;width:100%;height:100%}#mcanvas{background:#0e121b;border:1px solid var(--line);border-radius:8px}#mover{cursor:crosshair}
+#mtip{position:absolute;display:none;pointer-events:none;z-index:2;max-width:440px;white-space:pre-line;background:rgba(18,23,34,.97);border:1px solid #2d3650;border-radius:6px;padding:7px 9px;font-size:12px;line-height:1.45;color:var(--ink)}
+#modal .mh{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:min(1400px,94vw)}#modal .mh b{font-size:15px;white-space:nowrap}#mread{margin-left:auto;font-size:12px;color:var(--ink2);white-space:pre}
+#modal .mhint{width:min(1400px,94vw);color:var(--ink3);font-size:12px}
+.note{color:var(--ink3);font-size:12px;padding:0 16px}
+@media (max-width:700px){header{padding:8px}section,main{padding-left:8px;padding-right:8px}.charts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1><b>V5</b> ENGINE</h1>
+  <a href="/backtest">Backtest →</a>
+  <div class="kv num" id="acct">loading…</div>
+  <button id="trading" class="toggle off" title="Watch mode records signals only; trading sends orders">trading …</button>
+  <span class="kv num" id="mt5">MT5 …</span>
+  <button id="mt5-restart" title="The engine closes the MT5 terminal and starts it again">restart MT5</button>
+  <button id="mt5-stop" class="danger" title="Close MT5; the engine leaves it off until Start">stop MT5</button>
+  <button id="mt5-start" title="Start MT5; the engine keeps it running again">start MT5</button>
+  <div class="filters" id="filters"></div>
+  <input type="search" id="find" placeholder="symbol…" aria-label="find a symbol">
+</header>
+
+<section>
+  <h2>Live book</h2>
+  <div class="tw"><table><thead><tr><th>symbol</th><th>side</th><th>mode</th><th>entry</th><th>SL</th><th>TP</th><th>T1</th><th>layer</th><th>now</th><th>R</th><th>P&amp;L</th><th></th></tr></thead>
+  <tbody id="book"><tr><td colspan="12" class="empty">…</td></tr></tbody></table></div>
+</section>
+<section>
+  <h2>Signals and entries</h2>
+  <div class="tw"><table><thead><tr><th>time</th><th>symbol</th><th>entry</th><th>side</th><th>status</th><th>entry</th><th>SL</th><th>TP (RR)</th><th>layer</th><th>why</th></tr></thead>
+  <tbody id="signals"><tr><td colspan="10" class="empty">…</td></tr></tbody></table></div>
+</section>
+
+<div class="legend">
+  <span><b class="good">BOS</b> close beyond the last HH / LL (dotted): only the BOS that made a setup are drawn</span><span><b style="color:#c3cad6">CHoCH</b> close beyond an LH / HL (light grey, never traded): always drawn</span><span class="muted">"all breaks" (big chart) also shows the unused BOS</span>
+  <span><i style="background:rgba(239,83,80,.35)"></i>supply</span><span><i style="background:rgba(38,166,154,.35)"></i>demand</span>
+  <span><i style="background:rgba(179,136,255,.5)"></i>mitigation block (only when no supply/demand)</span>
+  <span><i style="background:rgba(245,197,66,.45)"></i>FVG 1 2 3 with its timeframe, e.g. "M30 FVG 2" (left to right; the bright one is used)</span><span><i style="background:var(--disp)"></i>displacement</span>
+  <span><i style="background:var(--entry)"></i>entry (10 % into the FVG)</span><span><i style="background:var(--sl)"></i>SL</span><span><i style="background:var(--tp)"></i>TP</span>
+  <span><i style="background:var(--tp1)"></i>Target 1</span><span><i style="background:var(--layer)"></i>layer</span>
+  <span class="muted">▲▼ swings HH/HL/LH/LL · faded = used / missed / against the bias (H4 + H1 must agree)</span>
+  <span><b>S&amp;D H4</b> the M15 chart with the H4 zones + the M15 BOS / CHoCH inside them → the M15 FVG entry (click it: H4 too)</span>
+  <span><b>S&amp;D M30 / S&amp;D M15</b> that chart with every mark (click it: H4 for the bias too) · a setup superseded by a newer BOS setup is not shown</span>
+</div>
+<p class="note" id="note"></p>
+<main id="grid"></main>
+
+<div id="modal" role="dialog" aria-modal="true"><div class="mh"><b id="mtitle"></b><span id="mtfs" class="bg"></span><span class="grow"></span><button id="mall" aria-pressed="false" title="off: only the BOS that made a setup (supply/demand or MB + FVG); on: every BOS. CHoCH are always drawn">all breaks</button><button id="mclose">close</button></div><div class="mh"><span class="layers" id="mlayers"></span><span id="mread" class="num"></span></div><div class="mc"><canvas id="mcanvas"></canvas><canvas id="mover"></canvas><div id="mtip"></div></div><div class="mhint">mouse wheel = zoom · drag or swipe sideways = scroll back · double-click or 0 = back to now · ← → scroll · hover a box or line: its name and why</div></div>
+
+<script>
+const TFS = ["H4","H1","M30","M15","M5"];
+const TFSEC = {H4:14400,H1:3600,M30:1800,M15:900,M5:300};
+let OV = null, VIEWS = {}, FILTER = "active", FIND = "", VISIBLE = new Set(), MODAL = null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = (x, d) => x == null ? "–" : (+x).toFixed(d ?? (Math.abs(x) >= 1000 ? 2 : Math.abs(x) >= 1 ? 4 : 6)).replace(/0+$/,"").replace(/\.$/,"");
+const money = x => x == null ? "–" : (x < 0 ? "−$" : "$") + Math.abs(+x).toLocaleString(undefined,{maximumFractionDigits:2});
+const IST_MS = 19800000;                             // David 2026-10-24: every time on the page in Indian time (UTC+5:30)
+const hm = ms => { const d = new Date(ms + IST_MS); return d.toISOString().slice(11,16) + " IST"; };
+
+async function api(path, opts) { const r = await fetch(path, opts); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+async function cmd(body) { return api("/api/cmd", {method:"POST", headers:{"Content-Type":"application/json","X-V5":"1"}, body: JSON.stringify(body)}); }
+
+// two-step buttons: first click arms (3 s), second click acts — no browser dialogs
+function armed(btn, label, action) {
+  btn.onclick = async () => {
+    if (btn.dataset.armed) { btn.disabled = true; btn.textContent = "sent…"; try { await action(); } finally { setTimeout(load, 1500); } return; }
+    btn.dataset.armed = 1; const old = btn.textContent; btn.textContent = label; btn.classList.add("arm");
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; btn.classList.remove("arm"); }, 3000);
+  };
+}
+
+const FILTERS = [["active","live setups"],["trade","in trade"],["all","all"],["crypto","crypto"],["forex","forex"]];
+function renderFilters() {
+  $("#filters").innerHTML = FILTERS.map(([k,l]) => `<button data-f="${k}" aria-pressed="${FILTER===k}">${l}</button>`).join("");
+  document.querySelectorAll("#filters button").forEach(b => b.onclick = () => { FILTER = b.dataset.f; renderFilters(); renderGrid(); });
+}
+$("#find").oninput = e => { FIND = e.target.value.trim().toUpperCase(); renderGrid(); };
+
+function stageRank(s) { return s.open ? 0 : s.stage === "waiting pullback" ? 1 : s.stage ? 2 : 3; }
+function shown(s) {
+  if (FIND && !s.symbol.includes(FIND)) return false;
+  return FILTER === "all" ? true : FILTER === "active" ? !!s.stage || s.open : FILTER === "trade" ? s.open > 0 : s.market === FILTER;
+}
+
+function renderHeader() {
+  const a = OV.account || {}, sl = OV.slots || {};
+  $("#acct").innerHTML = `<span>${esc(a.server || "")} ${esc(a.login || "")} ${a.demo ? '<b class="good">demo</b>' : '<b class="bad">REAL</b>'}</span>
+    <span>equity <b>${money(a.equity)}</b></span><span>balance <b>${money(a.balance)}</b></span>
+    <span>positions <b>${sl.running}/${sl.max}</b> + ${sl.pending_layers} pending layer(s)</span>
+    <span>Algo Trading ${a.algo_trading ? '<b class="good">on</b>' : '<b class="bad">OFF</b>'}</span>
+    ${Date.now() - OV.at > 120000
+      ? `<b class="bad">ENGINE STOPPED? last update ${hm(OV.at)} — systemctl --user status v5-engine</b>`
+      : `<span class="muted">updated ${hm(OV.at)}</span>`}`;
+  const m = OV.mt5 || {};
+  const off = m.mode === "off";
+  $("#mt5").innerHTML = `<span>MT5 ${off ? '<b class="warn">OFF (stopped by hand)</b>' : m.running === false ? '<b class="bad">down</b>'
+      : m.connected ? '<b class="good">connected</b>' : '<b class="bad">not connected</b>'}</span>`
+    + (m.waiting ? `<span class="warn">${esc(m.waiting)}</span>` : "")
+    + (m.last_action ? `<span class="muted" title="${esc(m.last_error || "")}">last: ${esc(m.last_action)}</span>` : "");
+  $("#mt5-start").style.display = off ? "" : "none";
+  $("#mt5-stop").style.display = off ? "none" : "";
+  for (const [id, op, label] of [["mt5-restart", "restart", "confirm: restart MT5"], ["mt5-stop", "stop", "confirm: close MT5"], ["mt5-start", "start", "confirm: start MT5"]]) {
+    const b = $("#" + id); b.disabled = false; if (!b.dataset.armed) b.textContent = op + " MT5";
+    armed(b, label, () => cmd({action: "mt5", op}));
+  }
+  const t = $("#trading");
+  t.className = "toggle " + (OV.trading ? "on" : "off");
+  t.textContent = OV.trading ? "TRADING ON — click to stop" : "WATCH MODE — click to trade";
+  armed(t, OV.trading ? "confirm: stop trading" : "confirm: start trading", () => cmd({action:"trading", on: !OV.trading}));
+}
+
+function renderBook() {
+  const tr = OV.trades || [], pos = OV.positions || [];
+  const rows = tr.map(t => {
+    const ps = pos.filter(p => p.ticket === t.normal?.ticket || p.ticket === t.layer?.ticket);
+    const px = ps[0]?.price_current, sg = t.side === "sell" ? -1 : 1, risk = Math.abs(t.entry - t.stop0);
+    const r = px != null && risk ? sg * (px - t.entry) / risk : null, pnl = ps.reduce((a, p) => a + (p.profit || 0), 0);
+    const lay = t.layer ? `${t.layer.state} ${fmt(t.layer.price)} (${t.layer.level})` : "–";
+    return `<tr><td><b>${esc(t.symbol)}</b> <span class="muted">${esc(typeOf(t) || "")}</span></td><td class="${t.side === "buy" ? "good" : "bad"}">${t.side}</td><td>${t.mode}${t.tp1_hit ? " · T1 ✓" : ""}${t.be_done ? " · BE" : ""}</td>
+      <td class="num">${fmt(t.entry)}</td><td class="num">${fmt(t.stop)}</td><td class="num">${fmt(t.tp)} <span class="muted">${t.rr}R</span></td><td class="num">${fmt(t.tp1)}</td>
+      <td>${esc(lay)}</td><td class="num">${fmt(px)}</td><td class="num ${r > 0 ? "good" : r < 0 ? "bad" : ""}">${r == null ? "–" : r.toFixed(2)}</td>
+      <td class="num ${pnl > 0 ? "good" : pnl < 0 ? "bad" : ""}">${money(pnl)}</td><td><button class="danger" data-close="${esc(t.id)}">close</button></td></tr>`;
+  });
+  const own = new Set(tr.flatMap(t => [t.normal?.ticket, t.layer?.ticket]));
+  pos.filter(p => !own.has(p.ticket)).forEach(p => rows.push(`<tr><td><b>${esc(p.symbol)}</b></td><td>${p.type ? "sell" : "buy"}</td><td class="muted">untracked</td>
+    <td class="num">${fmt(p.price_open)}</td><td class="num">${fmt(p.sl)}</td><td class="num">${fmt(p.tp)}</td><td></td><td></td><td class="num">${fmt(p.price_current)}</td><td></td>
+    <td class="num">${money(p.profit)}</td><td><button class="danger" data-ticket="${p.ticket}">close</button></td></tr>`));
+  $("#book").innerHTML = rows.join("") || `<tr><td colspan="12" class="empty">no open position</td></tr>`;
+  document.querySelectorAll("[data-close]").forEach(b => armed(b, "confirm close", () => cmd({action:"close_setup", id: b.dataset.close})));
+  document.querySelectorAll("[data-ticket]").forEach(b => armed(b, "confirm close", () => cmd({action:"close_ticket", ticket: +b.dataset.ticket})));
+}
+
+function renderSignals() {
+  const rows = (OV.signals || []).map(s => {
+    const p = s.plan || {};
+    return `<tr><td class="num">${s.touch_t ? hm(s.touch_t) : ""}</td><td><b>${esc(s.symbol)}</b></td><td>${esc(typeOf(s) || s.tf)}</td><td class="${s.side === "buy" ? "good" : "bad"}">${s.side}</td>
+      <td class="${s.status === "entered" ? "good" : s.status === "refused" ? "bad" : "warn"}">${esc(s.status)}</td><td class="num">${fmt(p.entry)}</td><td class="num">${fmt(p.stop)}</td>
+      <td class="num">${fmt(p.target?.price)} <span class="muted">${p.target?.rr != null ? p.target.rr + "R" : ""}</span></td><td class="num">${p.layer ? fmt(p.layer.price) + " " + p.layer.level : ""}</td>
+      <td class="why" title="${esc(s.why)}">${esc(s.why)}</td></tr>`;
+  });
+  $("#signals").innerHTML = rows.join("") || `<tr><td colspan="10" class="empty">no entry yet (H4 + H1 bias + BOS + supply/demand or mitigation block + FVG + price back at the entry)</td></tr>`;
+}
+
+// ── symbol cards ──
+const io = new IntersectionObserver(es => es.forEach(e => {
+  const s = e.target.dataset.sym;
+  if (e.isIntersecting) { VISIBLE.add(s); fetchView(s); } else VISIBLE.delete(s);
+}), {rootMargin: "300px"});
+
+function chip(label, state, title) { return `<span class="chip ${state}" title="${esc(title || "")}">${state === "ok" ? "✓" : state === "opt" ? "◇" : state === "wait" ? "…" : "✗"} ${label}</span>`; }
+
+const ARROW = {up: "↑", down: "↓"};
+function cardHead(s, v) {
+  const c = s.checks || {}, f = v && v.setups.find(x => x.id === v.focus);
+  const bias = s.bias ? `<span class="badge b-${s.bias}" title="${esc(s.bias_why)}">H4+H1 ${s.bias.toUpperCase()}</span>` : `<span class="badge b-none" title="${esc(s.bias_why)}">H4/H1 no trade</span>`;
+  const trend = Object.entries(s.trend || {}).map(([tf, t]) => `${tf} ${ARROW[t] || "–"}`).join(" · ");
+  const chips = [chip("H4+H1 bias", s.bias ? "ok" : "", s.bias_why), chip(`BOS ${c.bos || ""}`, c.bos ? "ok" : "", "a candle closed beyond the last HH (buy) / LL (sell)"),
+    chip(c.poi === "MB" ? "mitigation block" : c.poi || "supply/demand", c.poi ? "ok" : "", "the supply / demand zone of the BOS move, or the mitigation block when it has none"),
+    chip(c.fvg ? `FVG ${c.fvg}` : "FVG", c.fvg ? "ok" : "", "the FVG used: the 2nd of two or more, counted left to right"),
+    chip("price at entry", f && ["signal","entered"].includes(f.status) ? "ok" : f ? "wait" : ""), chip(c.sl_atr != null ? `SL ${c.sl_atr}× ATR` : "SL ≤ 3 ATR", c.sl_atr == null ? "" : c.sl_atr <= 3 ? "ok" : "no", "the stop (this setup's zone + 20 points) must be within 3 × the M15 ATR, else no trade"),
+    chip(c.rr ? `TP ${c.rr}R` : "TP ≥ 3R", c.rr >= 3 ? "ok" : c.bos ? "no" : "", (c.tp_label ? c.tp_label + " · " : "") + "the target: the first untouched structure level at ≥ 1:3, else no trade")].join("");
+  const btn = f && f.status === "waiting pullback" ? `<button class="danger" data-cancel="${esc(f.id)}">cancel setup</button>` : "";
+  const t = v && v.trades && v.trades[0];
+  const tbtn = t ? `<button class="danger" data-closeset="${esc(t.id)}">close trade</button>` : "";
+  const chartOnly = f && v.trade_tfs && !v.trade_tfs.includes(f.tf) ? ` <span class="muted">(${f.tf} is chart only)</span>` : "";
+  return `<span class="sym">${esc(s.symbol)}<span class="mk">${s.market}</span></span><span class="num muted">${fmt(s.price)}</span>${bias}
+    <span class="chip" title="trend on each timeframe from its last two swing highs and lows">${trend}</span><span class="chips">${chips}</span>
+    <span class="stage">${f ? `${typeOf(f) || f.tf} ${f.kind} ${fmt(f.poi.bottom)}–${fmt(f.poi.top)} · FVG ${f.fvg_pick}/${f.fvgs.length} · entry <b>${fmt(f.entry)}</b> · <b>${esc(f.status)}</b>${chartOnly}` : s.bias ? "no live BOS setup on the bias side" : esc(s.bias_why || "")}</span>
+    ${t ? `<span class="badge b-${t.side}">IN TRADE ${t.mode}</span>` : ""}${btn}${tbtn}`;
+}
+
+function renderGrid() {
+  if (!OV) return;
+  const list = OV.symbols.filter(shown).sort((a, b) => stageRank(a) - stageRank(b) || a.symbol.localeCompare(b.symbol));
+  $("#note").textContent = `${list.length} of ${OV.symbols.length} symbols shown · each card: S&D H4 · S&D M30 · S&D M15 (click one: its timeframes and marks on / off) · times IST (India)`;
+  const grid = $("#grid"), have = new Map([...grid.children].map(c => [c.dataset.sym, c]));
+  const keep = new Set(list.map(s => s.symbol));
+  have.forEach((el, s) => { if (!keep.has(s)) { io.unobserve(el); el.remove(); } });
+  list.forEach((s, i) => {
+    let el = have.get(s.symbol);
+    if (!el) {
+      el = document.createElement("div"); el.className = "card"; el.dataset.sym = s.symbol;
+      el.innerHTML = `<div class="ch"></div><div class="charts">${ENTRY_KEYS.map(k => `<div class="cw" data-view="${k}"><canvas></canvas></div>`).join("")}</div>`;
+      el.querySelectorAll(".cw").forEach(cw => cw.onclick = () => openModal(s.symbol, cw.dataset.view));
+      io.observe(el);
+    }
+    if (grid.children[i] !== el) grid.insertBefore(el, grid.children[i] || null);
+    el.classList.toggle("trade", s.open > 0); el.classList.toggle("bos", s.stage === "waiting pullback");
+    el.querySelector(".ch").innerHTML = cardHead(s, VIEWS[s.symbol]);
+    el.querySelectorAll("[data-cancel]").forEach(b => armed(b, "confirm cancel", () => cmd({action:"cancel_setup", id: b.dataset.cancel})));
+    el.querySelectorAll("[data-closeset]").forEach(b => armed(b, "confirm close", () => cmd({action:"close_setup", id: b.dataset.closeset})));
+  });
+}
+
+async function fetchView(sym, force) {
+  const v = VIEWS[sym], s = OV && OV.symbols.find(x => x.symbol === sym);
+  if (!force && v && s && v.updated >= s.updated) return drawCard(sym);
+  try { VIEWS[sym] = await api("/api/view?sym=" + encodeURIComponent(sym)); } catch (e) { return; }
+  drawCard(sym);
+}
+function drawCard(sym) {
+  const el = [...$("#grid").children].find(c => c.dataset.sym === sym), v = VIEWS[sym];
+  if (!el || !v) return;
+  const s = OV.symbols.find(x => x.symbol === sym);
+  if (s) { el.querySelector(".ch").innerHTML = cardHead(s, v);
+    el.querySelectorAll("[data-cancel]").forEach(b => armed(b, "confirm cancel", () => cmd({action:"cancel_setup", id: b.dataset.cancel})));
+    el.querySelectorAll("[data-closeset]").forEach(b => armed(b, "confirm close", () => cmd({action:"close_setup", id: b.dataset.closeset}))); }
+  el.querySelectorAll(".cw").forEach(cw => drawChart(cw.querySelector("canvas"), v, entryCharts(cw.dataset.view)[1], false));
+  if (MODAL && MODAL.sym === sym) redrawModal();
+}
+
+// ── David 2026-10-25: the charts by entry, not by timeframe ──
+// each card: S&D H4 · S&D M30 · S&D M15, each drawn on the chart its entry is taken on; a click opens the entry with its two
+// timeframes and every mark switchable. S&D H4: H4 (its supply/demand, FVG, BOS, CHoCH) + M15 (those H4 zones, the M15 BOS /
+// CHoCH inside them, the S&D H4 setups); S&D M30 / S&D M15: H4 for the bias only + that timeframe with every mark
+const ENTRIES = {
+  H4: {label: "S&D H4", charts: [["H4", "zone"], ["M15", "confirm"]]},
+  M30: {label: "S&D M30", charts: [["H4", "bias"], ["M30", "entry"]]},
+  M15: {label: "S&D M15", charts: [["H4", "bias"], ["M15", "entry"]]},
+};
+const ENTRY_KEYS = ["H4", "M30", "M15"], ROLE_WORD = {zone: "zones", confirm: "entry", entry: "entry", bias: "bias"};
+const entryCharts = view => ENTRIES[view].charts.map(([tf, role]) => ({tf, role, view}));
+const VIEW_OF = {"S&D H4": "H4", "S&D M30": "M30", "S&D M15": "M15"};
+const typeOf = s => s.entry_type || (["M15", "M30"].includes(s.tf) ? "S&D " + s.tf : null);   // records from before 2026-10-25 have no entry_type
+const viewOf = t => VIEW_OF[t] || null;
+// the big chart: each mark on / off (remembered in this browser); the small charts always show all of their entry's marks
+const LAYER_DEF = [["sd", "supply/demand"], ["mb", "mitigation block"], ["fvg", "FVG"], ["entry", "entry"], ["disp", "displacement"],
+  ["bos", "BOS"], ["choch", "CHoCH"], ["swings", "HH / HL / LH / LL"], ["trade", "trade lines"]];
+const FULL_L = Object.fromEntries(LAYER_DEF.map(([k]) => [k, true])), BIAS_L = {swings: true};
+let LAYERS = {...FULL_L};
+try { Object.assign(LAYERS, JSON.parse(localStorage.getItem("v5.layers") || "{}")); } catch (e) {}
+function renderLayers() {
+  $("#mlayers").innerHTML = "<b>show</b> " + LAYER_DEF.map(([k, l]) => `<button data-layer="${k}" aria-pressed="${!!LAYERS[k]}">${l}</button>`).join("");
+  document.querySelectorAll("[data-layer]").forEach(b => b.onclick = () => { LAYERS[b.dataset.layer] = !LAYERS[b.dataset.layer];
+    try { localStorage.setItem("v5.layers", JSON.stringify(LAYERS)); } catch (e) {} renderLayers(); redrawModal(); });
+}
+
+// which setups a chart draws: own = its timeframe's, the rest projected from a slower one
+const HIDE = ["superseded", "stale"];                 // David 2026-10-25: a setup a newer BOS setup replaced is not shown
+const H4_ZONES = ["waiting pullback", "zone reached", "used", "zone broken"];
+function chartSetups(v, tf, role) {
+  const S = v.setups, keep = s => !HIDE.includes(s.status);
+  if (role === "bias") return [];
+  if (role === "zone") return S.filter(s => s.tf === tf && keep(s)).map(s => ({s, own: true}));
+  if (role === "confirm") return [...S.filter(s => s.tf === "H4" && H4_ZONES.includes(s.status)).map(s => ({s, own: false})),
+    ...S.filter(s => s.tf === tf && keep(s) && (typeOf(s) === "S&D H4" || s.parent)).map(s => ({s, own: true}))];
+  return S.filter(s => s.tf === tf && keep(s) && typeOf(s) === "S&D " + tf).map(s => ({s, own: true}));
+}
+
+// ── chart renderer ──
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function tlabel(sec, tf) { const d = new Date(sec * 1000 + IST_MS), hh = d.toISOString().slice(11, 16);
+  return tf === "H4" ? d.toISOString().slice(5, 10) : tf === "M5" ? hh : DOW[d.getUTCDay()] + " " + hh; }
+const tfull = sec => { const d = new Date(sec * 1000 + IST_MS); return DOW[d.getUTCDay()] + " " + d.toISOString().slice(5, 16).replace("T", " ") + " IST"; };
+// David 2026-10-24: small BOS are not used (an entry needs supply/demand + FVG inside the BOS), so by default only
+// the BOS that made a setup are drawn; "all breaks" adds the unused BOS. CHoCH (never traded) are always drawn (David 2026-10-25)
+let ALL_BREAKS = false;
+try { ALL_BREAKS = localStorage.getItem("v5.allBreaks") === "1"; } catch (e) {}
+
+// the bars on screen, as fractional bar indices a..b (b past the last bar = empty room on the right):
+// small charts show the last view_bars; the big chart keeps its own zoom / scroll per timeframe and follows new bars
+function viewport(v, tf, big) {
+  const N = (v.bars[tf] || []).length;
+  if (big && MODAL && MODAL.vp[tf]) { const vp = MODAL.vp[tf];
+    if (vp.follow && vp.N !== N) { vp.a += N - vp.N; vp.b += N - vp.N; } vp.N = N; return vp; }
+  const m = Math.min(N, ((v.view_bars || {})[tf] || 120) + (big ? 40 : 0)), gap = Math.max(3, Math.round(m * 0.07));
+  const vp = {a: N - m, b: N + gap, N, follow: true};
+  if (big && MODAL) MODAL.vp[tf] = vp;
+  return vp;
+}
+
+function setupTip(s, KIND) {
+  const e = s.bos || {}, up = s.side === "buy", fv = s.fvg;
+  return [`${KIND} — ${s.tf} ${up ? "BUY" : "SELL"} setup ${fmt(s.poi.bottom)} – ${fmt(s.poi.top)}`,
+    `status: ${s.status}${s.why ? " — " + s.why : ""}${s.aligned === false && s.status === "waiting pullback" ? " (against the H1 bias)" : ""}`,
+    typeOf(s) ? `entry: ${typeOf(s)}${s.parent && typeOf(s) !== "S&D H4" ? " (and S&D H4: inside an H4 zone)" : ""}` : s.tf === "H4" ? "S&D H4 zone: the entry comes from an M15 BOS / CHoCH inside it" : "",
+    e.t ? `made by ${e.kind || "BOS"} ${up ? "↑" : "↓"} ${tfull(e.t / 1000)}: close ${fmt(e.close)} ${up ? "above" : "below"} the ${e.level_label || "swing"} ${fmt(e.level)}` : "",
+    s.kind === "MB" ? "no supply/demand in the BOS move → mitigation block used"
+      : s.zone && s.zone.displacement ? `zone = the last ${up ? "red" : "green"} candle before the ×${s.zone.displacement.x} displacement` : "",
+    fv ? `FVG ${s.fvg_pick} of ${(s.fvgs || []).length}: ${fmt(fv.bottom)} – ${fmt(fv.top)} → entry ${fmt(s.entry)} (10 % inside)` : "",
+    `invalidation ${fmt(s.invalidation)}`].filter(Boolean).join("\n");
+}
+
+const TFR = {H4: 4, H1: 3, M30: 2, M15: 1, M5: 0};
+function drawChart(cv, v, ch, big) {
+  const tf = ch.tf, role = ch.role, L = role === "bias" ? (big ? {swings: LAYERS.swings} : BIAS_L) : big ? LAYERS : FULL_L;
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 300, H = cv.clientHeight || 200;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const bars = v.bars[tf] || [];
+  // LR: room above / below the price range for the swing labels
+  const fs = big ? 12 : 9, PR = big ? 74 : 52, PT = big ? 26 : 16, PB = big ? 20 : 14, PL = 4, LR = big ? 24 : 20;
+  const bold = (big ? "bold 11px" : "bold 9px") + " sans-serif", thin = (big ? "11px" : "9px") + " sans-serif";
+  cv._geo = null;
+  if (bars.length < 3) { g.fillStyle = "#667085"; g.font = fs + "px sans-serif"; g.fillText(tf + ": no bars", 8, 20); return; }
+  const N = bars.length, vp = viewport(v, tf, big), A = vp.a, B = vp.b, cw = (W - PL - PR) / (B - A), step = TFSEC[tf];
+  const t0 = bars[0][0], tN = bars[N - 1][0];
+  const xi = i => PL + (i - A + 0.5) * cw;
+  const fidx = ms => { const t = ms / 1000; if (t <= t0) return (t - t0) / step; if (t >= tN) return N - 1 + (t - tN) / step;
+    let lo = 0, hi = N - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (bars[m][0] <= t) lo = m; else hi = m - 1; }
+    return lo + (t - bars[lo][0]) / step; };
+  const xt = ms => xi(fidx(ms)) - cw / 2;                // a time → the left edge of its bar
+  const iA = Math.max(0, Math.ceil(A - 0.5)), iB = Math.min(N - 1, Math.floor(B - 0.5));   // bars whose centre is on screen
+  const vis = iB >= iA ? bars.slice(iA, iB + 1) : bars.slice(-1);
+  let lo = Math.min(...vis.map(b => b[3])), hi = Math.max(...vis.map(b => b[2]));
+  const span0 = hi - lo || hi * 0.01;
+  const pick = chartSetups(v, tf, role), focus0 = v.setups.find(s => s.id === v.focus);
+  const focus = pick.some(p => p.s === focus0) ? focus0 : null;          // each entry: only its own setups and trades
+  const trades = L.trade ? (v.trades || []).filter(t => viewOf(typeOf(t)) === ch.view) : [];
+  const levels = [];
+  if (focus) levels.push(focus.poi.top, focus.poi.bottom, focus.entry);
+  (focus?.plan ? [focus.plan.stop, focus.plan.target?.price, focus.plan.layer?.price] : []).forEach(x => x != null && levels.push(x));
+  trades.forEach(t => levels.push(t.stop, t.tp, t.entry));
+  levels.forEach(x => { if (x >= lo - span0 * 0.6 && x <= hi + span0 * 0.6) { lo = Math.min(lo, x); hi = Math.max(hi, x); } });
+  const pad = (hi - lo) * 0.03; lo -= pad; hi += pad;
+  const y = p => PT + LR + (hi - p) / (hi - lo) * (H - PT - PB - 2 * LR);
+  const d = v.digits ?? 5, pf = p => (+p).toFixed(Math.min(d, 6));
+  // grid: prices on the right, IST times along the bottom
+  g.strokeStyle = "#1a2030"; g.lineWidth = 1; g.fillStyle = "#667085"; g.font = fs + "px ui-monospace,monospace"; g.textBaseline = "middle";
+  for (let k = 0; k <= 4; k++) { const p = lo + (hi - lo) * k / 4, yy = Math.round(y(p)) + .5; g.beginPath(); g.moveTo(PL, yy); g.lineTo(W - PR, yy); g.stroke(); g.fillText(pf(p), W - PR + 3, yy); }
+  const nt = Math.max(2, Math.floor((W - PL - PR) / (big ? 140 : 90)));
+  g.font = thin; g.textAlign = "center";
+  for (let k = 0; k < nt && iB > iA; k++) { const i = Math.round(iA + (k + 0.5) * (iB - iA) / nt), xx = Math.round(xi(i)) + .5, s = tlabel(bars[i][0], tf), w = g.measureText(s).width;
+    g.beginPath(); g.moveTo(xx, PT); g.lineTo(xx, H - PB); g.stroke(); g.fillText(s, Math.max(PL + w / 2, Math.min(W - PR - w / 2, xx)), H - PB / 2); }
+  g.textAlign = "left";
+  // what is under the mouse on the big chart: rectangles with their name and why
+  const hits = [];
+  const hit = (x0, y0, x1, y1, tip, pri) => { if (big && tip) hits.push({x0: Math.min(x0, x1), y0: Math.min(y0, y1), x1: Math.max(x0, x1), y1: Math.max(y0, y1), tip, pri: pri || 0}); };
+  g.save(); g.beginPath(); g.rect(PL, PT, W - PL - PR, H - PT - PB); g.clip();      // marks stay inside the plot when scrolled
+  const box = (x0, x1, top, bot, fill, stroke, dash, tip) => { const a = Math.max(PL, x0), b = Math.min(W - PR, x1); if (b <= a || bot > hi || top < lo) return;
+    const yt = Math.max(PT, y(top)), yb = Math.min(H - PB, y(bot));
+    g.fillStyle = fill; g.fillRect(a, yt, b - a, Math.max(1, yb - yt)); if (stroke) { g.setLineDash(dash || []); g.strokeStyle = stroke; g.strokeRect(a + .5, yt + .5, b - a - 1, Math.max(1, yb - yt) - 1); g.setLineDash([]); }
+    hit(a, yt, b, Math.max(yt + 4, yb), tip); };
+  // text goes on last, over the candles: earlier labels win a collision, later ones shift up / down or drop out
+  const texts = [], seen = new Set();               // seen: the same text at the same place is written once
+  const label = (x, yy, txt, col, align) => { const k = txt + "|" + Math.round(x / 30) + "|" + Math.round(yy / 12); if (!seen.has(k)) { seen.add(k); texts.push({x, yy, txt, col, align}); } };
+  // price tags on the right axis (drawn after the plot) shift instead of covering each other
+  const tags = [], tagQ = [], tagH = big ? 16 : 12;
+  const tagAt = yy => { for (const dy of [0, tagH, -tagH, 2 * tagH, -2 * tagH, 3 * tagH, -3 * tagH]) { const c = yy + dy;
+      if (c - tagH / 2 >= PT && c + tagH / 2 <= H - PB && !tags.some(t => Math.abs(t - c) < tagH)) { tags.push(c); return c; } } return yy; };
+  const hline = (p, x0, col, txt, dash, tip) => { if (p == null || p < lo || p > hi) return; const yy = Math.round(y(p)) + .5; g.setLineDash(dash || []); g.strokeStyle = col; g.lineWidth = big ? 1.5 : 1;
+    g.beginPath(); g.moveTo(Math.max(PL, x0), yy); g.lineTo(W - PR, yy); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+    tagQ.push({yy, col, txt}); hit(Math.max(PL, x0), yy - 4, W - PR, yy + 4, tip, 1); };
+  // last price first, so its tag keeps its place
+  const last = bars[N - 1][4]; hline(last, PL, "#7aa2ff", pf(last), [1, 2], `last price ${pf(last)}`);
+  // structure: BOS / CHoCH of this timeframe, a dotted line from the swing to the candle that closed through it
+  const st = (v.structure || {})[tf] || {};
+  const mine = new Set(pick.filter(p => p.own).map(p => p.s.bos.t)), made = e => mine.has(e.t);   // the BOS of the setups shown
+  const evs = role === "bias" ? [] : (st.events || []).filter(e => (e.kind === "CHoCH" ? L.choch : L.bos && (ALL_BREAKS || made(e))) && xt(e.t) + cw > PL && xt(e.level_t) < W - PR);
+  (big ? evs : evs.slice(-6)).forEach(e => { const xa = xt(e.level_t) + cw / 2, xb = xt(e.t) + cw / 2, yy = y(e.level), bos = e.kind === "BOS", up = e.side === "buy";
+    if (e.level < lo || e.level > hi) return;
+    const col = bos ? (up ? "#64ffda" : "#ff8a80") : "#c3cad6", arrow = up ? "↑" : "↓";
+    g.strokeStyle = col; g.lineWidth = bos ? 1.3 : 1; g.setLineDash(bos ? [3, 3] : [2, 3]);
+    g.beginPath(); g.moveTo(xa, yy); g.lineTo(xb, yy); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+    label((Math.max(PL, xa) + Math.min(W - PR, xb)) / 2, yy + (up ? -7 : 8), big ? `${e.kind} ${arrow}` : e.kind, col, "center");
+    hit(xa, yy - 5, xb, yy + 5, `${e.kind} ${arrow} — ${tfull(e.t / 1000)}: candle closed ${pf(e.close)} ${up ? "above" : "below"} the ${e.level_label || "swing"} ${pf(e.level)} (${tlabel(e.level_t / 1000, tf)})\n`
+      + (made(e) ? "→ made a setup (zone or MB + FVG inside the move)" : bos ? "→ no supply/demand + FVG inside the move: not used" : "→ CHoCH: the structure turning — drawn only, never traded"), 2); });
+  const nxt = st.bos_level;                          // the HH / LL a close has to break for the next BOS
+  if (L.bos && role !== "bias" && nxt && nxt.price >= lo && nxt.price <= hi) { const yy = y(nxt.price), up = st.trend === "up", x0 = Math.max(PL, xt(nxt.t) + cw / 2);
+    g.strokeStyle = up ? "rgba(100,255,218,.55)" : "rgba(255,138,128,.55)"; g.setLineDash([6, 4]); g.beginPath(); g.moveTo(x0, yy); g.lineTo(W - PR, yy); g.stroke(); g.setLineDash([]);
+    label(W - PR - 3, yy + (up ? -7 : 8), "next BOS", up ? "#64ffda" : "#ff8a80", "right");
+    hit(x0, yy - 5, W - PR, yy + 5, `next BOS: a candle CLOSE ${up ? "above" : "below"} the ${nxt.label || "swing"} ${pf(nxt.price)}`, 1); }
+  // setups after each BOS: supply / demand (or mitigation block) → the FVGs of the BOS move → entry 10 % into the chosen FVG.
+  // Each chart shows its own timeframe's; the focus setup also on the faster charts. Big chart: every setup named;
+  // small charts: the 6 newest / live ones, only the focus setup named
+    const waiting = s => s.status === "waiting pullback", inTrade = s => ["signal", "entered", "refused", "touched"].includes(s.status);
+  const open = s => waiting(s) || s.status === "zone reached";      // an H4 zone price reached stays open for S&D H4
+  let ownN = 0;
+  pick.forEach(({s, own}) => {
+    const isF = s.id === v.focus;
+    if (own && !big && !isF && ++ownN > 6) return;
+    const strong = (waiting(s) || inTrade(s)) && s.aligned || s.status === "zone reached", tell = big || isF || role === "confirm" && !own;
+    const sell = s.side === "sell", rgb = s.kind === "MB" ? "179,136,255" : sell ? "239,83,80" : "38,166,154";
+    const KIND = s.kind === "MB" ? "MITIGATION BLOCK" : s.kind.toUpperCase();
+    const x0 = xt(s.poi.t), x1 = open(s) ? W - PR : xt((s.ended_t || s.touch_t || s.formed_t) + TFSEC[s.tf] * 3000);
+    if (x1 < PL || x0 > W - PR) return;
+    const showBox = s.kind === "MB" ? L.mb : L.sd;
+    if (showBox) box(x0, x1, s.poi.top, s.poi.bottom, `rgba(${rgb},${strong ? .2 : .05})`, `rgba(${rgb},${strong ? .85 : .3})`, strong ? [] : [3, 3], setupTip(s, KIND));
+    if (!own && role === "confirm" && L.bos && s.bos && s.bos.level >= lo && s.bos.level <= hi) {   // the H4 BOS that made this H4 zone
+      const xa = Math.max(PL, xt(s.bos.level_t) + cw / 2), xb = xt(s.bos.t) + cw / 2, yb = y(s.bos.level), up = s.side === "buy", col = up ? "#64ffda" : "#ff8a80";
+      if (xb > PL) { g.strokeStyle = col; g.setLineDash([6, 3]); g.lineWidth = 1.3; g.beginPath(); g.moveTo(xa, yb); g.lineTo(xb, yb); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+        label((xa + Math.min(W - PR, xb)) / 2, yb + (up ? -7 : 8), `${s.tf} BOS ${up ? "↑" : "↓"}`, col, "center");
+        hit(xa, yb - 5, xb, yb + 5, `${s.tf} BOS ${up ? "↑" : "↓"} ${tfull(s.bos.t / 1000)}: the ${s.tf} break that made this ${KIND.toLowerCase()}`, 2); } }
+    if (L.disp && own && s.zone && s.zone.displacement && strong) {          // the displacement candle, outlined, with its size vs the 10-bar average
+      const dsp = s.zone.displacement, xd = xt(dsp.t) + cw / 2, db = bars.find(b => b[0] * 1000 === dsp.t);
+      if (db) { g.strokeStyle = "#ff9800"; g.lineWidth = 1.5; g.strokeRect(xd - cw * .7, y(db[2]) - 2, cw * 1.4, y(db[3]) - y(db[2]) + 4); g.lineWidth = 1;
+        hit(xd - cw * .7, y(db[2]) - 2, xd + cw * .7, y(db[3]) + 2, `displacement candle: body ×${dsp.x} the average of the 10 before (V5 needs ×1.5)`, 3);
+        if (tell) label(xd + cw / 2, sell ? y(db[3]) + 9 : y(db[2]) - 7, "×" + dsp.x, "#ff9800"); } }
+    if (L.fvg) (s.fvgs || []).forEach((f, k) => { const used = k + 1 === s.fvg_pick;
+      if (!used && !own) return;
+      const xf = xt(f.t) - cw;                       // from candle 1 of the gap; the FVG used runs on to the right, the others stay short
+      box(xf, used ? x1 : Math.min(x1, xf + cw * 6), f.top, f.bottom, `rgba(245,197,66,${used ? (strong ? .3 : .1) : .08})`, used ? `rgba(245,197,66,${strong ? .95 : .35})` : null, [2, 2],
+        `${s.tf} FVG ${k + 1} of ${s.fvgs.length} ${used ? "— USED: the entry is 10 % inside it" : "— not used"}\n${fmt(f.bottom)} – ${fmt(f.top)} · ${s.tf} ${KIND.toLowerCase()} setup (${s.status})`);
+      // David 2026-10-24: every FVG label names its timeframe (an H1 FVG on the M5 chart says "H1 FVG 2")
+      if (own ? (big || (isF && s.fvgs.length > 1)) : tell)
+        label(xf - 2, y((f.top + f.bottom) / 2), big ? `${s.tf} FVG ${k + 1}` : own ? String(k + 1) : `${s.tf} ${k + 1}`, used ? (strong ? "#ffd54f" : "#b39b4f") : "#8c7a3e", "right"); });
+    if (L.entry && strong && waiting(s)) { const ye = y(s.entry), xe = Math.max(PL, xt(s.fvg.t) - cw);   // David's SL/TP fix: an entered setup shows only the trade's ENTRY
+      g.strokeStyle = "#e6e9ef"; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(xe, ye); g.lineTo(x1, ye); g.stroke(); g.setLineDash([]);
+      hit(xe, ye - 4, x1, ye + 4, `entry ${fmt(s.entry)}: 10 % inside FVG ${s.fvg_pick} — taken when price comes back here (seen live)`, 2);
+      if (tell) label(Math.min(x1, W - PR) - 3, ye + (sell ? 8 : -7), `${own ? "" : s.tf + " "}entry ${fmt(s.entry)}`, "#e6e9ef", "right"); }
+    if (L.entry && s.touch_t && own && s.touch_t / 1000 >= t0) { const xh = xt(s.touch_t) + cw / 2, yy = y(s.entry); g.strokeStyle = "#e6e9ef"; g.beginPath(); g.arc(xh, yy, big ? 5 : 3.5, 0, 7); g.stroke();
+      hit(xh - 6, yy - 6, xh + 6, yy + 6, `price came back to the entry ${tfull(s.touch_t / 1000)} → ${s.status}`, 3); }
+    if (tell && showBox) { const nameCol = strong ? (s.kind === "MB" ? "#cdb8ff" : sell ? "#ff8a80" : "#64ffda") : (s.kind === "MB" ? "#8d7fb3" : sell ? "#a86662" : "#4f9e94");
+      const st8 = s.status === "touched" ? `entry reached · ${s.tf} is chart only, not traded`            // say why it did not enter
+        : s.status === "zone reached" ? (big ? "price in the zone · waiting for an M15 BOS / CHoCH" : "in zone") : s.status;
+      label(Math.max(PL + 2, x0 + 2), y(sell ? s.poi.top : s.poi.bottom) + (sell ? -7 : 8), `${s.tf === tf ? "" : s.tf + " "}${KIND} · ${st8}`, nameCol); }
+  });
+  // trades and plans
+  const plans = [];
+  trades.forEach(t => plans.push({x0: xt(t.opened_ms), entry: t.entry, stop: t.stop, tp: t.tp,
+    tp1: t.layer && t.layer.state === "filled" ? t.tp1 : null, layer: t.layer && ["pending", "filled"].includes(t.layer.state) ? t.layer.price : null}));
+  if (!trades.length && focus?.plan) plans.push({x0: xt(focus.touch_t || 0), entry: focus.plan.entry, stop: focus.plan.stop, tp: focus.plan.target?.price, layer: focus.plan.layer?.price});
+  else if (!trades.length && focus && focus.status === "waiting pullback" && focus.preview && TFR[focus.tf] >= TFR[tf]) {   // what the trade would be: the engine's own stop / target / checks
+    const pv = focus.preview;
+    plans.push({x0: xt(focus.fvg.t), stop: pv.stop, tp: pv.target?.price, planned: true, why: pv.why, label: pv.target?.label}); }
+  if (L.trade) plans.forEach(p => { const dash = p.planned ? [2, 4] : [];
+    hline(p.entry, p.x0, "#e6e9ef", "ENTRY " + pf(p.entry), [], `normal entry ${pf(p.entry)}: the price it was filled at`);
+    hline(p.stop, p.x0, "#ef5350", (p.planned ? "SL~" : "SL ") + pf(p.stop), dash, p.planned ? `planned stop loss ${pf(p.stop)}: this setup's zone + 20 points${p.why ? "\n✗ no trade: " + p.why : ""}` : `stop loss ${pf(p.stop)}`);
+    hline(p.tp, p.x0, "#66bb6a", (p.planned ? "TP~" : "TP ") + pf(p.tp), dash, p.planned ? `planned target ${pf(p.tp)}: ${p.label} (the first untouched structure at ≥ 1:3)` : `target ${pf(p.tp)}`);
+    if (p.tp1) hline(p.tp1, p.x0, "#26c6da", "T1 " + pf(p.tp1), [5, 3], `Target 1 ${pf(p.tp1)}: halfway to the final target (layer management)`);
+    if (p.layer) hline(p.layer, p.x0, "#ffa726", "LY " + pf(p.layer), [5, 3], `dynamic layer ${pf(p.layer)} (1.5 % risk)`); });
+  // candles on screen
+  for (let i = Math.max(0, iA - 1); i <= Math.min(N - 1, iB + 1); i++) { const b = bars[i], x = xi(i), up = b[4] >= b[1], col = up ? "#26a69a" : "#ef5350";
+    g.strokeStyle = col; g.beginPath(); g.moveTo(Math.round(x) + .5, y(b[2])); g.lineTo(Math.round(x) + .5, y(b[3])); g.stroke();
+    const bw = Math.max(1, cw * 0.7), top = y(Math.max(b[1], b[4])), hgt = Math.max(1, Math.abs(y(b[1]) - y(b[4]))); g.fillStyle = col; g.fillRect(x - bw / 2, top, bw, hgt); }
+  // swings: markers always, labels where they fit (newest first)
+  const swAll = L.swings ? (v.swings[tf] || []).filter(s => { const x = xt(s.t) + cw / 2; return x > PL && x < W - PR; }) : [];
+  const sw = big ? swAll : swAll.slice(-8);
+  sw.forEach(s => { const x = xt(s.t) + cw / 2, hiS = s.kind === "high", yy = y(s.price) + (hiS ? -5 : 5);
+    g.fillStyle = hiS ? "#ff8a80" : "#64ffda"; g.beginPath(); g.moveTo(x, yy); g.lineTo(x - 3, yy + (hiS ? -5 : 5)); g.lineTo(x + 3, yy + (hiS ? -5 : 5)); g.fill();
+    hit(x - 6, yy - 8, x + 6, yy + 8, `${s.label || ""} swing ${s.kind} ${pf(s.price)} · ${tfull(s.t / 1000)} (2 bars each side)`, 3); });
+  g.restore();
+  tagQ.forEach(t => { const ty = tagAt(t.yy); g.fillStyle = t.col; g.fillRect(W - PR + 1, ty - tagH / 2, PR - 2, tagH); g.fillStyle = "#0b0e14";
+    g.font = (big ? "bold 11px" : "bold 9px") + " ui-monospace,monospace"; g.textBaseline = "middle"; g.fillText(t.txt, W - PR + 3, ty); });
+  [...sw].reverse().forEach(s => { if (!s.label || s.label.length !== 2) return; const hiS = s.kind === "high";
+    label(xt(s.t) + cw / 2, y(s.price) + (hiS ? -1 : 1) * (big ? 17 : 15), s.label, hiS ? "#ff8a80" : "#64ffda", "center"); });
+  // place the labels
+  g.font = bold; g.textBaseline = "middle"; g.lineJoin = "round";
+  const th = big ? 13 : 10, used = [];
+  texts.forEach(t => { const w = g.measureText(t.txt).width;
+    if (t.x < PL - w || t.x > W - PR + w) return;
+    const x0 = Math.max(PL + 1, Math.min(W - PR - w - 2, t.align === "center" ? t.x - w / 2 : t.align === "right" ? t.x - w : t.x));
+    for (const dy of [0, -th, th, -2 * th, 2 * th]) {
+      const r = {x: x0 - 1, y: t.yy + dy - th / 2, w: w + 2, h: th};
+      if (r.y < PT || r.y + r.h > H - PB || used.some(q => r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h)) continue;
+      used.push(r); g.strokeStyle = "rgba(14,18,27,.9)"; g.lineWidth = 3; g.strokeText(t.txt, x0, t.yy + dy); g.lineWidth = 1;
+      g.fillStyle = t.col; g.fillText(t.txt, x0, t.yy + dy); return;
+    } });
+  // title: timeframe + its reading, and a note when the market is shut (forex at the weekend)
+  g.fillStyle = "rgba(14,18,27,.92)"; g.fillRect(0, 0, W - PR, PT);
+  const tt = st.trend, tw = tt === "up" ? (big ? "uptrend (HH + HL)" : "uptrend") : tt === "down" ? (big ? "downtrend (LH + LL)" : "downtrend") : "no clear trend";
+  // David 2026-10-25: the trade bias is H4 + H1 together; the H4 / H1 charts show their own bias
+  const BB = v.bias || {}, bOf = t => t === "H4" ? (BB.h4 || {}).bias : (BB.h1 || BB).bias, BW = x => (x || "none").toUpperCase();
+  const BC = x => x === "buy" ? "#64ffda" : x === "sell" ? "#ff8a80" : "#9aa3b2", hasB = tf === "H1" || tf === "H4" && !!BB.h4;
+  const tr = role === "bias" ? `H4 ${BW(bOf("H4"))} · H1 ${BW(bOf("H1"))} → ${BB.bias ? BB.bias + "s only" : "no trade"}` : hasB ? "bias " + BW(bOf(tf)) : tw;
+  const trCol = role === "bias" ? BC(BB.bias) : hasB ? BC(bOf(tf)) : tt === "up" ? "#64ffda" : tt === "down" ? "#ff8a80" : "#9aa3b2";
+  const bwhy = role === "bias" ? BB.why : tf === "H4" ? (BB.h4 || {}).why : tf === "H1" ? (BB.h1 || BB).why : null;
+  const CAP = {zone: "S&D H4 · the H4 zones", confirm: "S&D H4 · M15 BOS / CHoCH inside the H4 zone → M15 FVG entry", entry: `S&D ${tf}`,
+    bias: `${ENTRIES[ch.view].label} · H4 for the bias only`};
+  const idle = (OV?.at || Date.now()) / 1000 - (tN + step);
+  const closed = idle > Math.max(3 * step, 1800) ? (big ? "market closed · last bar " : "closed since ") + tlabel(tN, "M15") + " IST" : "";
+  let tx = 4; const put = (s, col, font) => { g.font = font; g.fillStyle = col; g.fillText(s, tx, PT / 2 + 1); tx += g.measureText(s).width + (big ? 12 : 7); };
+  if (big) { put(tf, "#e6e9ef", bold); put(CAP[role], "#cdb8ff", bold); } else { put(ENTRIES[ch.view].label, "#cdb8ff", bold); put(tf, "#e6e9ef", bold); }
+  put(tr, trCol, bold);
+  if (big && bwhy) put(bwhy, "#9aa3b2", thin);
+  if (closed) put(closed, "#f5c542", thin);
+  if (big && !ALL_BREAKS && role !== "bias") put("BOS with a setup only · CHoCH all · superseded setups hidden", "#667085", thin);
+  cv._geo = {A, B, N, W, H, PL, PR, PT, PB, LR, cw, lo, hi, bars, pf, hits};
+}
+
+// ── the big chart: crosshair, names under the mouse, zoom and scroll ──
+function drawCross(mx, my) {
+  const cv = $("#mover"), G = $("#mcanvas")._geo, tip = $("#mtip"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!G || mx == null || mx < G.PL || mx > G.W - G.PR || my < G.PT || my > G.H - G.PB) { tip.style.display = "none"; $("#mread").textContent = ""; return; }
+  const i = Math.max(0, Math.min(G.N - 1, Math.floor(G.A + (mx - G.PL) / G.cw))), b = G.bars[i], x = Math.round(G.PL + (i - G.A + 0.5) * G.cw) + .5;
+  const p = G.hi - (my - G.PT - G.LR) / (G.H - G.PT - G.PB - 2 * G.LR) * (G.hi - G.lo);
+  g.strokeStyle = "rgba(154,163,178,.6)"; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(x, G.PT); g.lineTo(x, G.H - G.PB); g.moveTo(G.PL, my + .5); g.lineTo(G.W - G.PR, my + .5); g.stroke(); g.setLineDash([]);
+  g.font = "bold 11px ui-monospace,monospace"; g.textBaseline = "middle";
+  g.fillStyle = "#3a4256"; g.fillRect(G.W - G.PR + 1, my - 8, G.PR - 2, 16); g.fillStyle = "#e6e9ef"; g.fillText(G.pf(p), G.W - G.PR + 3, my);
+  const ts = tfull(b[0]), tw = g.measureText(ts).width + 8, tx = Math.max(G.PL, Math.min(G.W - G.PR - tw, x - tw / 2));
+  g.fillStyle = "#3a4256"; g.fillRect(tx, G.H - G.PB, tw, G.PB); g.fillStyle = "#e6e9ef"; g.fillText(ts, tx + 4, G.H - G.PB / 2);
+  $("#mread").textContent = `${ts}   O ${G.pf(b[1])}  H ${G.pf(b[2])}  L ${G.pf(b[3])}  C ${G.pf(b[4])}`;
+  const area = h => (h.x1 - h.x0) * (h.y1 - h.y0);
+  const under = G.hits.filter(h => mx >= h.x0 && mx <= h.x1 && my >= h.y0 && my <= h.y1).sort((a, c) => c.pri - a.pri || area(a) - area(c));
+  if (!under.length) { tip.style.display = "none"; return; }
+  tip.textContent = [...new Set(under.map(h => h.tip))].slice(0, 3).join("\n\n"); tip.style.display = "block";
+  let left = mx + 16, top = my + 16; const w = tip.offsetWidth, h = tip.offsetHeight;
+  if (left + w > W) left = mx - w - 16; if (top + h > H) top = Math.max(0, my - h - 16);
+  tip.style.left = left + "px"; tip.style.top = top + "px";
+}
+let DRAG = null, MOUSE = null, RAF = 0;
+function modalChart() { return entryCharts(MODAL.view).find(c => c.tf === MODAL.tf); }
+function redrawModal() { if (!MODAL || !VIEWS[MODAL.sym]) return; drawChart($("#mcanvas"), VIEWS[MODAL.sym], modalChart(), true); drawCross(MOUSE && MOUSE.x, MOUSE && MOUSE.y); }
+function soon() { if (!RAF) RAF = requestAnimationFrame(() => { RAF = 0; redrawModal(); }); }
+function setVp(a, b) {                              // 20 bars .. all of them, and always some of the chart on screen
+  const vp = MODAL && MODAL.vp[MODAL.tf], G = $("#mcanvas")._geo; if (!vp || !G) return;
+  const w = Math.max(20, Math.min(G.N * 1.3, b - a));
+  if (w !== b - a) a = (a + b) / 2 - w / 2;
+  a = Math.max(-w * 0.3, Math.min(G.N - w * 0.3, a));
+  Object.assign(vp, {a, b: a + w, follow: a + w > G.N - 0.5}); soon();
+}
+function zoomAt(mx, f) {                            // the bar under the mouse stays where it is
+  const vp = MODAL && MODAL.vp[MODAL.tf], G = $("#mcanvas")._geo; if (!vp || !G) return;
+  const at = G.A + (mx - G.PL) / G.cw; setVp(at - (at - vp.a) * f, at + (vp.b - at) * f);
+}
+const MOV = $("#mover");
+MOV.addEventListener("wheel", e => { e.preventDefault(); const G = $("#mcanvas")._geo, vp = MODAL && MODAL.vp[MODAL.tf]; if (!G || !vp) return;
+  const r = MOV.getBoundingClientRect();
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) { const sh = (e.deltaX || e.deltaY) / G.cw; setVp(vp.a + sh, vp.b + sh); }   // sideways swipe = scroll
+  else { const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;         // a mouse notch ≈ 100 px ≈ 16 %; a touchpad's small steps zoom gently
+    zoomAt(e.clientX - r.left, Math.exp(Math.max(-400, Math.min(400, dy)) * 0.0015)); } }, {passive: false});
+MOV.addEventListener("mousedown", e => { const vp = MODAL && MODAL.vp[MODAL.tf]; if (!vp) return; DRAG = {x: e.clientX, a: vp.a, b: vp.b}; MOV.style.cursor = "grabbing"; e.preventDefault(); });
+window.addEventListener("mousemove", e => { if (!MODAL) return; const r = MOV.getBoundingClientRect();
+  MOUSE = e.target === MOV || DRAG ? {x: e.clientX - r.left, y: e.clientY - r.top} : null;
+  if (DRAG) { const G = $("#mcanvas")._geo; if (G) { const sh = (DRAG.x - e.clientX) / G.cw; setVp(DRAG.a + sh, DRAG.b + sh); } return; }
+  drawCross(MOUSE && MOUSE.x, MOUSE && MOUSE.y); });
+window.addEventListener("mouseup", () => { if (DRAG) { DRAG = null; MOV.style.cursor = ""; } });
+MOV.addEventListener("dblclick", () => { if (MODAL) { delete MODAL.vp[MODAL.tf]; soon(); } });
+
+// a card's chart opens only that entry (David 2026-10-25), on the chart it is taken on; the buttons switch its two timeframes
+function openModal(sym, view, tf) {
+  if (!MODAL || MODAL.sym !== sym) MODAL = {sym, vp: {}};
+  const chs = entryCharts(view);
+  MODAL.view = view; MODAL.tf = chs.some(c => c.tf === tf) ? tf : chs[1].tf;
+  $("#modal").classList.add("show"); $("#mtitle").textContent = `${sym} · ${ENTRIES[view].label}`;
+  $("#mtfs").innerHTML = chs.map(c => `<button data-mtf="${c.tf}" aria-pressed="${c.tf === MODAL.tf}">${c.tf} ${ROLE_WORD[c.role]}</button>`).join("");
+  document.querySelectorAll("[data-mtf]").forEach(b => b.onclick = () => openModal(sym, view, b.dataset.mtf));
+  renderLayers();
+  $("#mall").setAttribute("aria-pressed", String(ALL_BREAKS));
+  redrawModal();
+}
+$("#mall").onclick = () => { ALL_BREAKS = !ALL_BREAKS; try { localStorage.setItem("v5.allBreaks", ALL_BREAKS ? "1" : "0"); } catch (e) {}
+  $("#mall").setAttribute("aria-pressed", String(ALL_BREAKS)); VISIBLE.forEach(s => drawCard(s)); redrawModal(); };
+$("#mclose").onclick = () => { MODAL = null; DRAG = null; MOUSE = null; $("#modal").classList.remove("show"); $("#mtip").style.display = "none"; };
+document.addEventListener("keydown", e => { if (e.key === "Escape") return $("#mclose").onclick();
+  const vp = MODAL && MODAL.vp[MODAL.tf]; if (!vp) return; const w = vp.b - vp.a;
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const sh = (e.key === "ArrowLeft" ? -1 : 1) * w * 0.15; setVp(vp.a + sh, vp.b + sh); }
+  else if (e.key === "+" || e.key === "=") setVp(vp.a + w * 0.07, vp.b - w * 0.07);
+  else if (e.key === "-") setVp(vp.a - w * 0.08, vp.b + w * 0.08);
+  else if (e.key === "0") { delete MODAL.vp[MODAL.tf]; soon(); } });
+window.addEventListener("resize", () => { VISIBLE.forEach(s => drawCard(s)); if (MODAL) redrawModal(); });
+
+async function load() {
+  try { OV = await api("/api/overview"); } catch (e) { $("#acct").textContent = "engine has not written its files yet…"; return; }
+  renderHeader(); renderBook(); renderSignals(); renderGrid();
+  VISIBLE.forEach(s => fetchView(s));
+}
+renderFilters(); load(); setInterval(load, 10000);
+</script>
+</body>
+</html>

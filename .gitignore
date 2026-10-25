@@ -1,0 +1,13 @@
+desk.env
+*_state.json
+*.lock
+*.tmp
+tickets/
+team/cycles/
+team/logs/
+team/workspace/
+__pycache__/
+.pytest_cache/
+# runtime data, bar history, backtest output, logs, backups (750 MB) and the optional mt5.env
+engine_data/
+*.env
