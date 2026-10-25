@@ -7,6 +7,7 @@ engine/run.py — the V5 engine's loop and commands. Run from ~/forex with the s
     python3 -m engine.run trading on|off
     python3 -m engine.run mt5 status|start|stop|restart|login      the MT5 terminal (the loop runs it: engine/terminal.py)
     python3 -m engine.run filters on|off|status      the structure filter layer (engine/filters.py), no restart needed
+    python3 -m engine.run filters strict|test        its thresholds: the spec as written, or the 0.01-lot test profile
 
 Every loop_sec: read the account / positions / pending layers, apply the dashboard's commands, manage
 the open trades. Every time a timeframe is due (M5 / M15 each minute, M30 / H1 every 5 min, H4 every
@@ -117,7 +118,7 @@ def cmd_run(a) -> int:
     feed = book.feed
     log(f"engine running: magic {book.magic}, max {book.max_slots()} positions, "
         f"trading {'ON' if load_control()['trading'] else 'off (watch mode)'}, lots {ENGINE.get('lot_mode', 'risk')}, "
-        f"structure filters {'ON' if FL.enabled() else 'off'}")
+        f"structure filters {'ON (' + FL.profile() + ')' if FL.enabled() else 'off'}")
     journal("engine_start", symbols=len(feed.symbols))
     errors = 0
     first = True
@@ -169,13 +170,17 @@ def cmd_run(a) -> int:
 
 
 def cmd_filters(a) -> int:
-    if a.state != "status":
+    if a.state in ("on", "off"):
         save_control(structure_filters=a.state == "on")
         journal("structure_filters", on=a.state == "on", by="cli")
-    c = load_control().get("structure_filters")
-    from .config import STRUCTURE_FILTERS_ENABLED
-    print(f"structure filters {'ON' if FL.enabled() else 'off'} (control.json: {c}, config default: {STRUCTURE_FILTERS_ENABLED}); "
-          f"the running engine picks it up at its next entry attempt")
+    elif a.state != "status":
+        save_control(filter_profile=a.state)
+        journal("filter_profile", profile=a.state, by="cli")
+    c = load_control()
+    from .config import FILTER_PROFILE, STRUCTURE_FILTERS_ENABLED
+    print(f"structure filters {'ON' if FL.enabled() else 'off'} (control.json: {c.get('structure_filters')}, config default: "
+          f"{STRUCTURE_FILTERS_ENABLED}); profile {FL.profile()} (control.json: {c.get('filter_profile')}, config default: "
+          f"{FILTER_PROFILE}); the running engine picks it up at its next entry attempt")
     return 0
 
 
@@ -208,8 +213,8 @@ def main() -> int:
     t.add_argument("state", choices=["on", "off"])
     m = sub.add_parser("mt5", help="the MT5 terminal: status, start, stop (stays off), restart, login")
     m.add_argument("op", choices=["status", "start", "stop", "restart", "login"])
-    fl = sub.add_parser("filters", help="the structure filter layer: on, off, status (control.json overrides config)")
-    fl.add_argument("state", choices=["on", "off", "status"])
+    fl = sub.add_parser("filters", help="the structure filter layer: on, off, status, or its profile strict | test (control.json overrides config)")
+    fl.add_argument("state", choices=["on", "off", "status", "strict", "test"])
     a = ap.parse_args()
     return {"check": cmd_check, "once": cmd_once, "run": cmd_run, "trading": cmd_trading, "mt5": cmd_mt5, "filters": cmd_filters}[a.cmd](a)
 

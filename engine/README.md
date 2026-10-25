@@ -32,7 +32,7 @@ limits    ≤ 20 open positions (pending layers reserve their slot), no daily tr
 Dashboard (David 2026-10-25): every card shows the three entries — **S&D H4**, **S&D M30**, **S&D M15** — each on
 the chart its entry is taken on (S&D H4 = M15 with the H4 zones on it). Click one: its two timeframes (S&D H4: H4 zones
 + M15 entry; S&D M30 / M15: H4 for the bias only + that timeframe) and every mark on / off — only that entry
-(remembered in the browser). Setups superseded by a newer BOS setup are not drawn.
+(remembered in the browser). Setups superseded by a newer BOS setup are not drawn. Every setup says how it went: "waiting pullback" (with the dashed SL~ / TP~ it would trade with if price came back now, worked out again on every analysis, also against the bias), "entry taken · open" / "entry taken · closed ±$" or "failed · against bias / missed / refused / expired / …" (hover: why). An open trade's entry / SL / TP as they are now; a level off the chart sits as an ↑ / ↓ tag on its edge.
 
 ## Run (from `~/forex`, system `python3`)
 
@@ -83,9 +83,18 @@ positions + pending layers (MAX_POSITIONS), 0.01 lot. Every entry attempt (count
 boolean per gate, the values, the first gate that failed and what the engine without the layer would have done →
 `engine_data/filters/candidates-YYYY-MM-DD.jsonl`.
 
+Profiles (`config.FILTER_PROFILES`, overrides on top of `FILTERS`): **strict** = the spec as written (0 of 1,482 attempts
+passed in the 7-day replay: on FxPro the crypto spread is ~2 × ATR(M15) and the nearest structure is rarely 3 R away);
+**test** = what the 0.01-lot test trades (David 2026-10-25 "consider the new logic and take the entry"): RR ≥ 2 to the
+nearest structure, premium / discount and zone freshness logged but not required, a stop inside the broker's stops
+level moved out to it. G1-G4, G7, G8, the ≤ 3 ATR(M15) stop cap and the 3 × spread rule are the same in both. 120-day
+replay: V5 alone 352 trades -33 R; strict 2 trades -2 R; test 19 trades, 6 won, +16.1 R (stop / target only).
+
 ```bash
 python3 -m engine.run filters on|off|status     # instant switch (control.json), no restart
+python3 -m engine.run filters strict|test       # the profile, also instant
 python3 -m engine.filter_replay --days 7        # last 7 days through the live code, layer off vs on → engine_data/filters/replay-<date>.txt
+python3 -m engine.filter_replay --offline --days 120 --on-only --tag 120d   # longer, from engine_data/history
 ```
 
 Size: since 2026-10-25 `ENGINE["lot_mode"] = "min"` — every normal and layer order is the symbol's minimum lot (0.01),

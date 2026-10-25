@@ -23,7 +23,8 @@ and target from plan_levels(), Book.signal runs evaluate() and refuses at the fi
                sessions (forex: London + New York; crypto: 24/7)
 
 Every decision is one record: a boolean per gate, the values, the first gate that rejected it →
-engine_data/filters/candidates-YYYY-MM-DD.jsonl (IST date). Thresholds: config.FILTERS.
+engine_data/filters/candidates-YYYY-MM-DD.jsonl (IST date). Thresholds: config.FILTERS, with the active profile's
+overrides on top (config.FILTER_PROFILES: "strict" = the spec as written, "test" = what the 0.01-lot test trades).
 """
 from __future__ import annotations
 
@@ -32,18 +33,21 @@ import datetime as _dt
 import json
 import math
 import os
+import time
 from typing import Callable, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 from . import strategy as V
 from . import tools
-from .config import ENGINE, FILTERS as F, STRUCTURE_FILTERS_ENABLED, load_control
+from .config import ENGINE, FILTER_PROFILE, FILTER_PROFILES, FILTERS, STRUCTURE_FILTERS_ENABLED, load_control
 
 GATES = {"G1": "swing", "G2": "break", "G3": "regime", "G4": "bias", "G5": "location", "G6": "stop/RR",
          "G7": "expiry/zone", "G8": "market"}
 IST = _dt.timezone(_dt.timedelta(hours=5, minutes=30), "IST")
 FORCE: Optional[bool] = None                    # tests / the replay: on or off regardless of config and control.json
 SINK: Optional[Callable[[Dict], None]] = None   # tests / the replay collect the records here instead of the file
+PROFILE: Optional[str] = None                   # tests / the replay: this profile regardless of config and control.json
+_prof = (-1e9, FILTER_PROFILE)                  # (when read, profile): control.json read at most every 5 s
 
 
 def enabled() -> bool:
@@ -51,6 +55,25 @@ def enabled() -> bool:
         return FORCE
     c = load_control().get("structure_filters")
     return STRUCTURE_FILTERS_ENABLED if c is None else bool(c)
+
+
+def profile() -> str:
+    global _prof
+    if PROFILE is not None:
+        return PROFILE
+    if time.monotonic() - _prof[0] > 5:
+        p = load_control().get("filter_profile") or FILTER_PROFILE
+        _prof = (time.monotonic(), p if p in FILTER_PROFILES else FILTER_PROFILE)
+    return _prof[1]
+
+
+class _Thresholds:
+    """config.FILTERS with the active profile's overrides on top."""
+    def __getitem__(self, k):
+        return FILTER_PROFILES.get(profile(), {}).get(k, FILTERS[k])
+
+
+F = _Thresholds()
 
 
 def is_sdh4(rec: Dict) -> bool:
@@ -153,6 +176,10 @@ def plan_levels(rec: Dict, entry: float, spread: float, info: Dict, series: List
     else:
         stop = V.stop_price(rec, point)
         rule = f"this setup's zone {rec['invalidation']:g} + {V.S['sl_buffer_points']} points (V5)"
+    lvl = float(info.get("trade_stops_level") or 0) * point
+    if F["SL_WIDEN_TO_STOPS_LEVEL"] and lvl and abs(entry - stop) < lvl:
+        stop = entry + lvl + tick if sell else entry - lvl - tick
+        rule += f", moved out to the broker's stops level {lvl:g}"
     stop = round_tick(stop, tick, up=sell)
     risk = abs(entry - stop)
     lv = opposing_levels(side, entry, series)
@@ -348,7 +375,7 @@ def evaluate(rec: Dict, ctx: Dict) -> Dict:
         lo = min([L["price"]] + [x_["l"] for x_ in after])
         pos = (bos["origin"]["price"] - lo) / (hi - lo) if hi > lo else None
         val.update(h4_leg=[lo, hi])
-    pd_ok = pos is not None and (pos >= float(F["PD_SPLIT"]) if sell else pos <= float(F["PD_SPLIT"]))
+    pd_ok = not F["PD_REQUIRED"] or pos is not None and (pos >= float(F["PD_SPLIT"]) if sell else pos <= float(F["PD_SPLIT"]))
     poi = rec.get("poi") or {}
     z = rec.get("zone") or {}
     z0 = at(bars, (z.get("displacement") or {}).get("t") or 0) if z else None
@@ -358,12 +385,13 @@ def evaluate(rec: Dict, ctx: Dict) -> Dict:
     room = abs(tp - entry) / dist if tp is not None and dist else None
     room_ok = tp is None or (room is not None and room >= float(F["MIN_ROOM_R"]) - 1e-9)
     val.update(pd_pos=round(pos, 3) if pos is not None else None, zone_fresh=zone_fresh, room_r=round(room, 2) if room else None)
-    g["G5"] = pd_ok and zone_fresh and room_ok
+    fresh_ok = zone_fresh or not F["ZONE_FRESH_REQUIRED"]
+    g["G5"] = pd_ok and fresh_ok and room_ok
     if not g["G5"]:
         why["G5"] = "; ".join(m for ok, m in (
             (pd_ok, f"the impulse starts at {pos:.0%} of the H4 leg (needs the {'premium' if sell else 'discount'} half)" if pos is not None
              else "no H4 leg to measure premium / discount"),
-            (zone_fresh, "price was back in the zone before the entry"),
+            (fresh_ok, "price was back in the zone before the entry"),
             (room_ok, f"only {room or 0:.2f} × the stop to the nearest structure: the move is mostly done")) if not ok)
 
     # G7 expiry, CHoCH against before the fill, one trade per H4 zone, no re-entry after a loss
@@ -418,7 +446,8 @@ def evaluate(rec: Dict, ctx: Dict) -> Dict:
     lots, mpm, eq = ctx.get("lots") or 0.0, ctx.get("money_per_move") or 0.0, ctx.get("equity") or 0.0
     risk_usd = dist * mpm * lots
     return {"at": _dt.datetime.fromtimestamp(now / 1000, _dt.timezone.utc).isoformat(timespec="seconds"), "t": now,
-            "id": rec["id"], "symbol": rec.get("symbol"), "market": ctx.get("market"), "tf": tf, "entry_type": rec.get("entry_type"),
+            "id": rec["id"], "profile": profile(), "symbol": rec.get("symbol"), "market": ctx.get("market"), "tf": tf,
+            "entry_type": rec.get("entry_type"),
             "parent": rec.get("parent"), "side": side, "bos_kind": bos.get("kind"), "break": val["break"],
             "gates": {k: g[k] for k in order}, "first_fail": first, "fails": [k for k in order if not g[k]],
             "why": {k: why[k] for k in order if k in why}, "values": val,

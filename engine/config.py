@@ -120,10 +120,12 @@ FILTERS = {
     # Gate 5 location: the BOS impulse starts in the discount (longs) / premium (shorts) part of the current
     # H4 leg, from a fresh zone; the nearest opposing structure ≥ MIN_ROOM_R × the stop distance away
     "LOCATION_TF": "H4", "PD_SPLIT": 0.5, "MIN_ROOM_R": 3.0,
+    "PD_REQUIRED": True, "ZONE_FRESH_REQUIRED": True,     # False: measured and logged, not required
     # Gate 6 stop and RR: S&D H4 entered on M15 → SL beyond the M15 swing that started the M15 break +
     # spread + 0.25 × ATR(M15); stop distance ≥ stops level, ≥ 3 × spread, ≤ 3 × ATR(M15);
     # TP = nearest opposing structure, RR ≥ 3 after the SL is final (never stretched); SL / TP on the tick size
     "SL_ATR_BUFFER": 0.25, "SL_MIN_SPREAD_X": 3.0, "SL_MAX_ATR": 3.0, "MIN_RR": 3.0,
+    "SL_WIDEN_TO_STOPS_LEVEL": False,    # True: a stop inside the broker's stops level moves out to it instead of refusing
     "TARGET_TFS": ["H1", "H4"],          # + the setup's own timeframe
     # Gate 7 expiry: price back in the FVG within 12 M15 candles of the setup forming; a CHoCH against it
     # before the fill cancels it; one trade per H4 zone; no new trade on a zone that already lost
@@ -143,6 +145,16 @@ FILTERS = {
     "MAX_POSITIONS": 5,                  # open positions + pending layers (replaces max_running_trades while on)
     "TEST_LOT": 0.01,                    # lot_mode "min": max(0.01, the symbol's volume_min)
     "LOG_DIR": os.path.join(DATA_DIR, "filters"),        # candidates-YYYY-MM-DD.jsonl (IST date), one record per decision
+}
+# Profiles: overrides on top of FILTERS. "strict" = the spec as written (0 of 1,482 attempts passed in the 7-day
+# replay); "test" = what the engine trades in the 0.01-lot test (David 2026-10-25: "consider the new logic and take
+# the entry"). control.json "filter_profile" (python3 -m engine.run filters strict|test) overrides FILTER_PROFILE.
+FILTER_PROFILE = "test"
+FILTER_PROFILES = {
+    "strict": {},
+    # 120-day replay (strict took 2, both lost; V5 alone took 352, -33 R): 19 trades, 6 won, +16.1 R
+    "test": {"MIN_RR": 2.0, "MIN_ROOM_R": 2.0, "PD_REQUIRED": False, "ZONE_FRESH_REQUIRED": False,
+             "SL_WIDEN_TO_STOPS_LEVEL": True},
 }
 
 

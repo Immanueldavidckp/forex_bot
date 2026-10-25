@@ -15,6 +15,12 @@ from engine import filters as FL
 from engine import strategy as V
 from engine.test_book import env  # noqa: F401  (the fake MT5 / feed fixture)
 
+@pytest.fixture(autouse=True)
+def strict(monkeypatch):
+    """The gates as the spec wrote them, whatever profile config / control.json picks."""
+    monkeypatch.setattr(FL, "PROFILE", "strict")
+
+
 T0 = 1_792_800_000_000 - 1_792_800_000_000 % 900_000
 INFO = {"point": 0.01, "trade_tick_size": 0.01, "trade_stops_level": 10, "digits": 2}
 
@@ -184,3 +190,48 @@ def test_position_cap_and_switch(env, monkeypatch):  # noqa: F811
     assert not FL.enabled()
     monkeypatch.setattr(FL, "load_control", lambda: {"trading": True})
     assert FL.enabled() == FL.STRUCTURE_FILTERS_ENABLED
+
+
+def test_the_test_profile_takes_2r_to_the_nearest_structure(monkeypatch):
+    b, rec, touch = trend([(21.0, 2), (14.0, 5), (13.0, 2)])          # the move ends at 21.05: RR 2.18 to it
+    r = FL.evaluate(rec, ctx_for(b, rec, touch))
+    assert r["fails"] == ["G5", "G6"] and r["profile"] == "strict" and r["values"]["rr"] == pytest.approx(2.18)
+    monkeypatch.setattr(FL, "PROFILE", "test")
+    r = FL.evaluate(rec, ctx_for(b, rec, touch))
+    assert r["first_fail"] is None and r["profile"] == "test"
+    b, rec, touch = trend([(18.5, 2), (14.0, 5), (13.0, 2)])          # 1.32: still no room
+    assert FL.evaluate(rec, ctx_for(b, rec, touch))["fails"] == ["G5", "G6"]
+
+
+def test_the_test_profile_logs_location_and_freshness_without_requiring_them(monkeypatch):
+    b, rec, touch = trend(CLEAN)
+    h4 = path(5, [(13, 6), (5, 6), (13, 6), (5, 6), (13, 6), (9, 6)])  # H4 leg 4.95-13.05: the buy starts at 86% of it
+    c = ctx_for(b, rec, touch, bars={**ctx_for(b, rec, touch)["bars"], "H4": h4})
+    r = FL.evaluate(rec, c)
+    assert r["fails"] == ["G5"] and "86% of the H4 leg (needs the discount half)" in r["why"]["G5"]
+    monkeypatch.setattr(FL, "PROFILE", "test")
+    r2 = FL.evaluate(rec, c)
+    assert r2["gates"]["G5"] and r2["values"]["pd_pos"] == r["values"]["pd_pos"]
+
+
+def test_the_test_profile_moves_a_stop_inside_the_stops_level_out_to_it(monkeypatch):
+    b, rec, touch = trend(CLEAN)
+    done = b[:touch]
+    wide = {**INFO, "trade_stops_level": 400}                         # 4.00 in price: wider than the setup's 2.93 stop
+    lv = FL.plan_levels(rec, rec["entry"], 0.01, wide, [("M15", done)], done)
+    assert rec["entry"] - lv["stop"] < 4.0
+    monkeypatch.setattr(FL, "PROFILE", "test")
+    lv = FL.plan_levels(rec, rec["entry"], 0.01, wide, [("M15", done)], done)
+    assert 4.0 < rec["entry"] - lv["stop"] < 4.03 and "stops level" in lv["stop_rule"]
+
+
+def test_profile_switch(monkeypatch):
+    monkeypatch.setattr(FL, "PROFILE", None)
+    monkeypatch.setattr(FL, "_prof", (-1e9, "strict"))
+    monkeypatch.setattr(FL, "load_control", lambda: {"trading": True, "filter_profile": "test"})
+    assert FL.profile() == "test" and FL.F["MIN_RR"] == 2.0
+    monkeypatch.setattr(FL, "_prof", (-1e9, "strict"))
+    monkeypatch.setattr(FL, "load_control", lambda: {"trading": True, "filter_profile": "nonsense"})
+    assert FL.profile() == FL.FILTER_PROFILE
+    monkeypatch.setattr(FL, "PROFILE", "strict")
+    assert FL.F["MIN_RR"] == 3.0 and FL.F["SWING_LEFT"] == 3

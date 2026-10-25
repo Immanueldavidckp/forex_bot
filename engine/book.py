@@ -32,7 +32,7 @@ from typing import Dict, List, Optional
 
 from . import filters as FL
 from . import strategy as V
-from .config import (COMMANDS_FILE, ENGINE, FILTERS, JOURNAL_FILE, OVERVIEW_FILE, STATE_FILE, STRATEGY as S, VIEW_DIR,
+from .config import (COMMANDS_FILE, ENGINE, JOURNAL_FILE, OVERVIEW_FILE, STATE_FILE, STRATEGY as S, VIEW_DIR,
                      load_control, save_control)
 from .feed import TF_MIN, Feed, mt5c, now_ms
 
@@ -128,7 +128,7 @@ class Book:
     def max_slots(self) -> int:
         """§35-37 max_running_trades; the structure filter layer caps it at FILTERS["MAX_POSITIONS"] (David 2026-10-25)."""
         m = int(S["max_running_trades"])
-        return min(m, int(FILTERS["MAX_POSITIONS"])) if FL.enabled() else m
+        return min(m, int(FL.F["MAX_POSITIONS"])) if FL.enabled() else m
 
     def free_slots(self) -> int:
         """§35-37: open positions + pending layers (a pending layer would become a position) < max."""
@@ -197,9 +197,9 @@ class Book:
             if sum(1 for x in bars if x["t"] >= t0) > int(S["setup_max_age_bars"]):
                 rec.update(status="stale", why="older than the setup age limit")
             elif FL.enabled() and tf != ENGINE["sdh4"]["zone_tf"] and not rec.get("expired") \
-                    and now_ms() - t0 > int(FILTERS["SETUP_EXPIRY_M15_BARS"]) * 900_000:
+                    and now_ms() - t0 > int(FL.F["SETUP_EXPIRY_M15_BARS"]) * 900_000:
                 # Gate 7: past its expiry; kept watching only so a late pullback is logged (and refused) as a candidate
-                rec.update(expired=True, why=f"G7: no pullback into the FVG within {FILTERS['SETUP_EXPIRY_M15_BARS']} M15 candles")
+                rec.update(expired=True, why=f"G7: no pullback into the FVG within {FL.F['SETUP_EXPIRY_M15_BARS']} M15 candles")
             return
         hit = seq[i]
         rec["touch_t"] = hit["t"]
@@ -296,7 +296,7 @@ class Book:
         if FL.enabled() if filtered is None else filtered:
             info = self.feed.info[sym]
             sp = spread if spread is not None else float(info.get("spread") or 0) * float(info["point"])
-            lv = FL.plan_levels(rec, entry, sp, info, [(rec["tf"], bars)] + [(tf, self.feed.completed(sym, tf)) for tf in FILTERS["TARGET_TFS"]],
+            lv = FL.plan_levels(rec, entry, sp, info, [(rec["tf"], bars)] + [(tf, self.feed.completed(sym, tf)) for tf in FL.F["TARGET_TFS"]],
                                 self.feed.completed(sym, "M15"))
             stop, tgt = lv["stop"], lv["target"]
             extra = {"stop_rule": lv["stop_rule"], "filters": True}
@@ -402,7 +402,7 @@ class Book:
     def lots(self, sym: str, price: float, stop: float, risk_pct: float) -> float:
         info = self.feed.info[sym]
         if ENGINE.get("lot_mode") == "min":           # with the filter layer: 0.01, or volume_min when that is larger
-            return max(float(info["volume_min"]), float(FILTERS["TEST_LOT"])) if FL.enabled() else float(info["volume_min"])
+            return max(float(info["volume_min"]), float(FL.F["TEST_LOT"])) if FL.enabled() else float(info["volume_min"])
         per_lot = abs(price - stop) * money_per_move(info)
         q = floor_step(float(self.account["equity"]) * risk_pct / 100.0 / per_lot, float(info["volume_step"])) if per_lot else 0.0
         return min(q, float(info["volume_max"])) if q >= float(info["volume_min"]) else 0.0
@@ -695,7 +695,7 @@ class Book:
         _write(OVERVIEW_FILE, {
             "at": now_ms(), "trading": trading, "account": self.account, "mt5": mt5,
             "slots": {"running": self.running(), "pending_layers": self.pending_layers(), "max": self.max_slots()},
-            "filters": FL.enabled(),
+            "filters": FL.enabled(), "filter_profile": FL.profile(),
             "symbols": syms,
             "positions": [{k: p.get(k) for k in ("ticket", "symbol", "type", "volume", "price_open", "price_current", "sl", "tp", "profit", "comment")}
                           for p in self.positions],

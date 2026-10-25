@@ -157,7 +157,8 @@ def run_pass(d: Dict, start: int, end: int, on: bool) -> Dict:
 
 
 def _job(arg):
-    path, days, end_cap = arg
+    path, days, end_cap, on_only, profile = arg
+    FL.PROFILE = profile
     B.log = lambda *a, **k: None
     B._write = lambda *a, **k: None             # never the live dashboard's view files
     ENGINE["setup_tfs"] = SIM_TFS
@@ -166,7 +167,7 @@ def _job(arg):
     end = min(d["bars"]["M5"][-1]["t"] + 300_000, end_cap)
     start = end - days * 86_400_000
     try:
-        off = run_pass(d, start, end, False)
+        off = {"attempts": [], "records": [], "errors": []} if on_only else run_pass(d, start, end, False)
         on = run_pass(d, start, end, True)
     except Exception as e:
         import traceback
@@ -251,6 +252,9 @@ def main() -> int:
     ap.add_argument("--jobs", type=int, default=12)
     ap.add_argument("--offline", action="store_true", help="use engine_data/history instead of fetching from MT5")
     ap.add_argument("--cached", action="store_true", help="the bars the last run fetched (engine_data/filters/replay_bars)")
+    ap.add_argument("--on-only", action="store_true", help="skip the old-logic pass (the records still carry its verdict)")
+    ap.add_argument("--profile", default="strict", choices=sorted(FL.FILTER_PROFILES), help="the thresholds the filters-on pass uses")
+    ap.add_argument("--tag", default="", help="suffix for the report files, so a longer run keeps the 7-day one")
     a = ap.parse_args()
     syms = sorted(x[:-5] for x in os.listdir(HIST_DIR) if x.endswith(".json"))
     if a.symbols:
@@ -265,7 +269,7 @@ def main() -> int:
     t0 = time.time()
     res = []
     with Pool(min(a.jobs, len(paths))) as pool:
-        for r in pool.imap_unordered(_job, [(p, a.days, end_cap) for p in paths]):
+        for r in pool.imap_unordered(_job, [(p, a.days, end_cap, a.on_only, a.profile) for p in paths]):
             res.append(r)
             if "error" in r:
                 print(f"{r['symbol']}: ERROR {r['error']}", flush=True)
@@ -276,7 +280,7 @@ def main() -> int:
     txt = report(res, a.days)
     print("\n" + txt)
     os.makedirs(OUT_DIR, exist_ok=True)
-    day = _dt.datetime.now(B.IST).strftime("%Y-%m-%d")
+    day = _dt.datetime.now(B.IST).strftime("%Y-%m-%d") + (f"-{a.tag}" if a.tag else "")
     with open(os.path.join(OUT_DIR, f"replay-{day}.txt"), "w") as f:
         f.write(txt + "\n")
     with open(os.path.join(OUT_DIR, f"replay-{day}.json"), "w") as f:
