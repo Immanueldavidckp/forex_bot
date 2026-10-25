@@ -167,7 +167,7 @@ class Book:
                 # the move can still be running: its FVG list (and so the 2nd FVG) may grow until it ends
                 rec.update({k: c[k] for k in ("leg", "zone", "mb", "fvgs", "kind", "poi", "fvg", "fvg_pick", "cluster", "entry", "invalidation", "formed_t")})
                 rec.setdefault("entry_type", f"S&D {tf}" if tf in ENGINE["trade_tfs"] else None)   # the H4 setups are S&D H4 zones, not entries
-                rec["aligned"] = b["bias"] == c["side"]
+                rec["aligned"] = b["bias"] == c["side"] or tf in S["bias_exempt_tfs"]
                 self.watch(rec, b, bars, m5, forming, bos_t[c["side"]], trading, h1)
                 rows.append(rec)
         rows += [r for r in self.sdh4(sym, b, structs, bos_tf, live_ids, m5, forming, trading, h1) if all(r is not x for x in rows)]
@@ -298,7 +298,7 @@ class Book:
             for rec in kids_of.get(p["id"], []):
                 if rec["status"] in ACTIVE:
                     live_ids.add(rec["id"])
-                    rec["aligned"] = b["bias"] == rec["side"]
+                    rec["aligned"] = b["bias"] == rec["side"] or rec["tf"] in S["bias_exempt_tfs"]
                     self.watch(rec, b, bars, m5, forming, bos_tf.get(ctf, {}).get(rec["side"], []) + newer_kids, trading, h1)
                 rows.append(rec)
             rows.append(p)

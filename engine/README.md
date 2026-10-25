@@ -5,7 +5,9 @@ and manages. Built 2026-10-24 from a copy of the trading app's intraday engine; 
 (`tools/`) are reused, the NSE parts are archived in `../engine_data/intraday_copy_archive/`.
 
 ```
-picker    H4 + H1 bias, they must agree (each HH+HL buy / LH+LL sell / else no trade)   (David 2026-10-25; was H1 only)
+picker    H4 + H1 bias computed for the cards, but M15 / M30 entries do NOT need it (bias_exempt_tfs,
+          David 2026-10-25 evening) — they trade on their own timeframe's structure; the G4 gate passes
+          on those TFs and only logs the bias values
           → BOS on the setup's timeframe: a candle CLOSES beyond the last HH (buy) / LL (sell)   (David 2026-10-24)
           → in the BOS move (its start → the BOS candle): supply / demand = final opposite candle before
             a displacement ≥ 1.5 × the 10-bar average body; with none, the mitigation block
@@ -32,7 +34,7 @@ limits    ≤ 20 open positions (pending layers reserve their slot), no daily tr
 Dashboard (David 2026-10-25): every card shows the three entries — **S&D H4**, **S&D M30**, **S&D M15** — each on
 the chart its entry is taken on (S&D H4 = M15 with the H4 zones on it). Click one: its two timeframes (S&D H4: H4 zones
 + M15 entry; S&D M30 / M15: H4 for the bias only + that timeframe) and every mark on / off — only that entry
-(remembered in the browser). Setups superseded by a newer BOS setup are not drawn. Every setup says how it went: "waiting pullback" (with the dashed SL~ / TP~ it would trade with if price came back now, worked out again on every analysis, also against the bias), "entry taken · open" / "entry taken · closed ±$" or "failed · against bias / missed / refused / expired / …" (hover: why). An open trade's entry / SL / TP as they are now; a level off the chart sits as an ↑ / ↓ tag on its edge.
+(remembered in the browser). Setups superseded by a newer BOS setup are not drawn. Every setup says how it went: "waiting pullback" or "waiting M5 BOS" (retraced, new rules §18; both with the dashed SL~ / TP~ it would trade with if price came back now, worked out again on every analysis, also against the bias), "entry taken · open" / "entry taken · closed ±$" or "failed · against bias / missed / refused / expired / FVG traded into too soon / no run before the retrace / no M5 entry BOS / zone lost before the M5 BOS / …" (hover: why). An open trade's entry / SL / TP as they are now; a level off the chart sits as an ↑ / ↓ tag on its edge.
 
 ## Run (from `~/forex`, system `python3`)
 
@@ -73,7 +75,8 @@ decisions: `engine_data/journal.jsonl`, state: `engine_data/state.json`.
 checked right before any order, on top of the V5 checks; `config.STRUCTURE_FILTERS_ENABLED` (default True), all
 thresholds in `config.FILTERS`. G1 the broken swing is significant (3/3 fractal, leg ≥ 1 ATR); G2 body close + a 1-3
 candle displacement ≥ 1.5 ATR leaving an FVG ≥ 0.3 ATR, entry FVG untraded (else "drift"); G3 the setup timeframe trends
-with the trade (HH+HL / LH+LL), not a < 3 ATR range; G4 H4 + H1 bias with the trade, M30 not against H4; G5 impulse from
+with the trade (HH+HL / LH+LL), not a < 3 ATR range; G4 H4 + H1 bias with the trade, M30 not against H4 (log-only on
+M15 / M30, the bias_exempt_tfs); G5 impulse from
 the discount / premium half of the H4 leg, zone not revisited, nearest structure ≥ 3 × the stop away; G6 S&D H4 on M15:
 SL beyond the M15 swing that started the break + spread + 0.25 ATR(M15), stop ≥ stops level, ≥ 3 × spread, ≤ 3 ATR(M15),
 TP = the nearest opposing significant swing (setup TF / H1 / H4), RR ≥ 3, SL / TP on the tick size; G7 back in the FVG

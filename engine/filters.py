@@ -39,7 +39,8 @@ from zoneinfo import ZoneInfo
 
 from . import strategy as V
 from . import tools
-from .config import ENGINE, FILTER_PROFILE, FILTER_PROFILES, FILTERS, STRUCTURE_FILTERS_ENABLED, load_control
+from .config import (ENGINE, FILTER_PROFILE, FILTER_PROFILES, FILTERS, STRATEGY, STRUCTURE_FILTERS_ENABLED,
+                     load_control)
 
 GATES = {"G1": "swing", "G2": "break", "G3": "regime", "G4": "bias", "G5": "location", "G6": "stop/RR",
          "G7": "expiry/zone", "G8": "market"}
@@ -337,14 +338,16 @@ def evaluate(rec: Dict, ctx: Dict) -> Dict:
         why["G3"] = (f"{tf} RANGE: last {F['RANGE_SWINGS']} significant swings inside {val['band_atr']} ATR (< {F['RANGE_BAND_ATR']:g})"
                      if regime == "RANGE" else f"{tf} {regime} ({val['structure']}), the trade is a {side}")
 
-    # G4 bias: H4 and H1 with the side, M30 not against H4
+    # G4 bias: H4 and H1 with the side, M30 not against H4 — David 2026-10-25 evening: not required on the
+    # bias_exempt_tfs (M15 / M30 trade on their own structure); the bias values are still logged
     b = ctx["bias"]
     b4, b1 = (b.get("h4") or {}).get("bias"), (b.get("h1") or {}).get("bias")
     m30 = V.bias(ctx["bars"][F["NOT_AGAINST_TF"]], F["NOT_AGAINST_TF"])["bias"] if ctx["bars"].get(F["NOT_AGAINST_TF"]) else None
-    val.update(bias_h4=b4, bias_h1=b1, trend_m30=m30)
+    exempt = tf in STRATEGY["bias_exempt_tfs"]
+    val.update(bias_h4=b4, bias_h1=b1, trend_m30=m30, bias_required=not exempt)
     with_bias = b4 == side and b1 == side
-    g["G4"] = with_bias and not (m30 and m30 != b4)
-    if not with_bias:
+    g["G4"] = exempt or (with_bias and not (m30 and m30 != b4))
+    if not g["G4"] and not with_bias:
         why["G4"] = f"counter-bias (H4 {b4 or 'none'}, H1 {b1 or 'none'}): a CHoCH candidate, logged, never traded"
     elif not g["G4"]:
         why["G4"] = f"M30 is {m30}, against the H4 {b4}"

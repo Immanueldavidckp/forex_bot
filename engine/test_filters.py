@@ -104,13 +104,22 @@ def test_late_pullback_expires():
     assert not r["gates"]["G7"] and "expired" in r["why"]["G7"] and r["values"]["waited_m15"] > 12
 
 
-def test_counter_bias_and_m30_against():
+def test_counter_bias_and_m30_against(monkeypatch):
+    monkeypatch.setitem(FL.STRATEGY, "bias_exempt_tfs", [])        # bias required: the gate still works
     b, rec, touch = trend(CLEAN)
     r = FL.evaluate(rec, ctx_for(b, rec, touch, bias={"h4": {"bias": "buy"}, "h1": {"bias": "sell"}}))
     assert r["first_fail"] == "G4" and "CHoCH candidate" in r["why"]["G4"]
     down = path(30, [(25, 8), (27, 8), (22, 8), (24, 8), (19, 8)])
     r = FL.evaluate(rec, ctx_for(b, rec, touch, bars={**ctx_for(b, rec, touch)["bars"], "M30": down}))
     assert r["first_fail"] == "G4" and "M30 is sell" in r["why"]["G4"]
+
+
+def test_m15_and_m30_trade_without_the_higher_tf_bias():
+    """David 2026-10-25 evening: M15 / M30 entries need no H4 / H1 agreement — G4 passes, bias only logged."""
+    b, rec, touch = trend(CLEAN)
+    r = FL.evaluate(rec, ctx_for(b, rec, touch, bias={"h4": {"bias": None}, "h1": {"bias": None}}))
+    assert r["gates"]["G4"] and "G4" not in r["why"]
+    assert r["values"]["bias_required"] is False and r["values"]["bias_h4"] is None
 
 
 def test_one_trade_per_h4_zone_and_no_reentry_after_a_loss():

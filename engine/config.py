@@ -40,6 +40,8 @@ STRATEGY = {
     # sl_max_atr_mult × the ATR (sl_atr_tf, sl_atr_period) is abnormal → no trade (never moved closer to pass)
     "sl_max_atr_mult": 3.0, "sl_atr_tf": "M15", "sl_atr_period": 14,
     "bias_tfs": ["H4", "H1"],            # David 2026-10-25: the H4 and the H1 bias must agree (was H1 only)
+    "bias_exempt_tfs": ["M15", "M30"],   # David 2026-10-25 evening: M15 / M30 entries trade on their own structure,
+                                         # no higher-TF bias needed (bias still computed and shown on the cards)
     "normal_entry": True, "layer_entry": True, "dynamic_layer": True,
     "max_normal_entries": 1, "max_layer_entries": 1, "max_entries_per_setup": 2,
     "layer_target_1": True, "normal_target_near_protection": True, "layer_profit_protection": True,
