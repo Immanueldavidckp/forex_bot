@@ -12,6 +12,7 @@ import pytest
 
 from engine import book as B
 from engine import config as C
+from engine import filters as FL
 
 MIN = 60_000
 
@@ -96,6 +97,7 @@ def env(monkeypatch):
         monkeypatch.setattr(B, name, os.path.join(d, name.lower()), raising=False)
         monkeypatch.setattr(C, name, os.path.join(d, name.lower()), raising=False)
     monkeypatch.setitem(C.ENGINE, "lot_mode", "risk")
+    monkeypatch.setattr(FL, "FORCE", False)                                  # V5 as it was; the filter layer: test_filters.py
     fake = FakeMT5()
     monkeypatch.setattr(B, "mt5c", fake)
     feed = FakeFeed()

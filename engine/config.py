@@ -100,6 +100,51 @@ ENGINE = {
     "mt5_login": 592224888, "mt5_server": "FxPro-MT5 Demo",
 }
 
+# ── structure-quality filter layer (David 2026-10-25, branch feature/structure-filters; engine/filters.py) ──
+# Eight hard gates checked right before any order. False = the engine behaves exactly as before the layer.
+# control.json "structure_filters" (python3 -m engine.run filters on|off) overrides this while the engine runs.
+STRUCTURE_FILTERS_ENABLED = True
+FILTERS = {
+    "ATR_PERIOD": 14,                    # every ATR(14) below, on the timeframe each gate names
+    # Gate 1 swing significance: a fractal with SWING_LEFT / SWING_RIGHT candles each side whose leg from the
+    # previous significant swing is ≥ SWING_MIN_LEG_ATR × ATR; smaller pivots are not structure
+    "SWING_LEFT": 3, "SWING_RIGHT": 3, "SWING_MIN_LEG_ATR": 1.0,
+    # Gate 2 break quality: body close beyond the swing; the breaking move (1-3 candles) ranges ≥ 1.5 ATR and
+    # leaves an FVG ≥ 0.3 ATR; the entry FVG untraded until the entry attempt. Else the break is "drift"
+    "DISPLACEMENT_MAX_CANDLES": 3, "DISPLACEMENT_MIN_ATR": 1.5, "FVG_MIN_ATR": 0.3,
+    # Gate 3 regime on the setup's timeframe: trend = last two structural points agree with the side;
+    # the last 4 significant swings inside a band < 3 ATR = RANGE → no trade
+    "RANGE_SWINGS": 4, "RANGE_BAND_ATR": 3.0,
+    # Gate 4 bias: H4 and H1 bias = the BOS side, M30 trend not against the H4 bias
+    "BIAS_TFS": ["H4", "H1"], "NOT_AGAINST_TF": "M30",
+    # Gate 5 location: the BOS impulse starts in the discount (longs) / premium (shorts) part of the current
+    # H4 leg, from a fresh zone; the nearest opposing structure ≥ MIN_ROOM_R × the stop distance away
+    "LOCATION_TF": "H4", "PD_SPLIT": 0.5, "MIN_ROOM_R": 3.0,
+    # Gate 6 stop and RR: S&D H4 entered on M15 → SL beyond the M15 swing that started the M15 break +
+    # spread + 0.25 × ATR(M15); stop distance ≥ stops level, ≥ 3 × spread, ≤ 3 × ATR(M15);
+    # TP = nearest opposing structure, RR ≥ 3 after the SL is final (never stretched); SL / TP on the tick size
+    "SL_ATR_BUFFER": 0.25, "SL_MIN_SPREAD_X": 3.0, "SL_MAX_ATR": 3.0, "MIN_RR": 3.0,
+    "TARGET_TFS": ["H1", "H4"],          # + the setup's own timeframe
+    # Gate 7 expiry: price back in the FVG within 12 M15 candles of the setup forming; a CHoCH against it
+    # before the fill cancels it; one trade per H4 zone; no new trade on a zone that already lost
+    "SETUP_EXPIRY_M15_BARS": 12, "ONE_TRADE_PER_H4_ZONE": True, "NO_REENTRY_AFTER_LOSS": True,
+    # Gate 8 volatility / spread / session
+    "ATR_MIN_PCTL": 30, "ATR_PCTL_BARS": 200,             # ATR(14, M15) ≥ its 30th percentile of 200 bars
+    "SPREAD_MAX_X_AVG": 1.5, "SPREAD_AVG_BARS": 20,       # spread ≤ 1.5 × the 20 M15 bars' average
+    # sessions in their own local time (summer time follows); a symbol trades only inside its sessions
+    "SESSIONS": {"Sydney": ["Australia/Sydney", "08:00", "17:00"], "Tokyo": ["Asia/Tokyo", "09:00", "18:00"],
+                 "London": ["Europe/London", "08:00", "17:00"], "NewYork": ["America/New_York", "08:00", "17:00"]},
+    "SYMBOL_SESSIONS": {"crypto": "24/7", "forex": ["London", "NewYork"],
+                        "AUDUSD": ["Sydney", "Tokyo", "London", "NewYork"], "NZDUSD": ["Sydney", "Tokyo", "London", "NewYork"],
+                        "USDJPY": ["Tokyo", "London", "NewYork"], "EURJPY": ["Tokyo", "London", "NewYork"],
+                        "GBPJPY": ["Tokyo", "London", "NewYork"], "CADJPY": ["Tokyo", "London", "NewYork"],
+                        "CHFJPY": ["Tokyo", "London", "NewYork"]},
+    # logging and limits
+    "MAX_POSITIONS": 5,                  # open positions + pending layers (replaces max_running_trades while on)
+    "TEST_LOT": 0.01,                    # lot_mode "min": max(0.01, the symbol's volume_min)
+    "LOG_DIR": os.path.join(DATA_DIR, "filters"),        # candidates-YYYY-MM-DD.jsonl (IST date), one record per decision
+}
+
 
 def load_control() -> Dict:
     try:

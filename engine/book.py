@@ -30,8 +30,9 @@ import os
 import time
 from typing import Dict, List, Optional
 
+from . import filters as FL
 from . import strategy as V
-from .config import (COMMANDS_FILE, ENGINE, JOURNAL_FILE, OVERVIEW_FILE, STATE_FILE, STRATEGY as S, VIEW_DIR,
+from .config import (COMMANDS_FILE, ENGINE, FILTERS, JOURNAL_FILE, OVERVIEW_FILE, STATE_FILE, STRATEGY as S, VIEW_DIR,
                      load_control, save_control)
 from .feed import TF_MIN, Feed, mt5c, now_ms
 
@@ -124,9 +125,14 @@ class Book:
     def pending_layers(self) -> int:
         return len(self.orders)
 
+    def max_slots(self) -> int:
+        """§35-37 max_running_trades; the structure filter layer caps it at FILTERS["MAX_POSITIONS"] (David 2026-10-25)."""
+        m = int(S["max_running_trades"])
+        return min(m, int(FILTERS["MAX_POSITIONS"])) if FL.enabled() else m
+
     def free_slots(self) -> int:
         """§35-37: open positions + pending layers (a pending layer would become a position) < max."""
-        return int(S["max_running_trades"]) - self.running() - self.pending_layers()
+        return self.max_slots() - self.running() - self.pending_layers()
 
     # ── picker ──
     def analyse(self, sym: str, trading: bool) -> Optional[Dict]:
@@ -190,6 +196,10 @@ class Book:
         if i is None:
             if sum(1 for x in bars if x["t"] >= t0) > int(S["setup_max_age_bars"]):
                 rec.update(status="stale", why="older than the setup age limit")
+            elif FL.enabled() and tf != ENGINE["sdh4"]["zone_tf"] and not rec.get("expired") \
+                    and now_ms() - t0 > int(FILTERS["SETUP_EXPIRY_M15_BARS"]) * 900_000:
+                # Gate 7: past its expiry; kept watching only so a late pullback is logged (and refused) as a candidate
+                rec.update(expired=True, why=f"G7: no pullback into the FVG within {FILTERS['SETUP_EXPIRY_M15_BARS']} M15 candles")
             return
         hit = seq[i]
         rec["touch_t"] = hit["t"]
@@ -199,9 +209,12 @@ class Book:
                        f"BOS / CHoCH {'up' if rec['side'] == 'buy' else 'down'} from inside the H4 zone")
             journal("zone_reached", id=rec["id"], entry=rec["entry"])
             return
+        live = hit is forming or hit is m5[-1] and now_ms() - hit["t"] <= 3 * 300_000   # a closed market is never live
         if not rec["aligned"]:
             rec.update(status="against bias", why=f"price came back to the entry, but {b.get('why')}", ended_t=hit["t"])
-        elif not (hit is forming or hit is m5[-1] and now_ms() - hit["t"] <= 3 * 300_000):   # a closed market is never live
+            if live and tf in ENGINE["trade_tfs"] and FL.enabled():
+                self.counter_bias(rec, bars, h1)          # Gate 4: a CHoCH candidate, logged, never traded
+        elif not live:
             rec.update(status="missed", why=f"price came back to the entry at {hm(hit['t'])}, before the engine saw it live", ended_t=hit["t"])
         elif tf not in ENGINE["trade_tfs"]:
             rec.update(status="touched", why=f"chart only: {tf} is not a trade timeframe ({', '.join(ENGINE['trade_tfs'])})", ended_t=hit["t"])
@@ -272,23 +285,35 @@ class Book:
         return rows
 
     # ── executor ──
-    def plan(self, rec: Dict, entry: float, bars: List[Dict], h1: List[Dict]) -> Dict:
+    def plan(self, rec: Dict, entry: float, bars: List[Dict], h1: List[Dict], spread: Optional[float] = None,
+             filtered: Optional[bool] = None) -> Dict:
         """Stop, target and the pre-trade checks from this one setup only, worked out fresh every time
-        (David's SL/TP fix: never a level of an older setup, a stale zone or a previous target)."""
+        (David's SL/TP fix: never a level of an older setup, a stale zone or a previous target). With the structure
+        filter layer on (filtered None = FL.enabled()): Gate 6's stop (S&D H4 on M15: beyond the M15 swing that started
+        the break + spread + 0.25 ATR) and target (the nearest opposing structure, RR checked, never stretched)."""
         sym, side = rec["symbol"], rec["side"]
-        stop = V.stop_price(rec, float(self.feed.info[sym]["point"]))
-        levels = V.opposite_levels(side, (rec["tf"], bars), ("H1", h1), ("H4", self.feed.completed(sym, "H4")))
-        tgt = V.final_target(side, entry, stop, levels)
+        extra = {}
+        if FL.enabled() if filtered is None else filtered:
+            info = self.feed.info[sym]
+            sp = spread if spread is not None else float(info.get("spread") or 0) * float(info["point"])
+            lv = FL.plan_levels(rec, entry, sp, info, [(rec["tf"], bars)] + [(tf, self.feed.completed(sym, tf)) for tf in FILTERS["TARGET_TFS"]],
+                                self.feed.completed(sym, "M15"))
+            stop, tgt = lv["stop"], lv["target"]
+            extra = {"stop_rule": lv["stop_rule"], "filters": True}
+        else:
+            stop = V.stop_price(rec, float(self.feed.info[sym]["point"]))
+            levels = V.opposite_levels(side, (rec["tf"], bars), ("H1", h1), ("H4", self.feed.completed(sym, "H4")))
+            tgt = V.final_target(side, entry, stop, levels)
         atr = V.sl_atr(self.feed.completed(sym, S["sl_atr_tf"]))
         return {"setup": rec["id"], "entry": entry, "stop": stop, "target": tgt, "atr": atr,
-                "sl_atr_x": round(abs(entry - stop) / atr, 2) if atr else None, "why": V.pretrade(rec, entry, stop, tgt, atr)}
+                "sl_atr_x": round(abs(entry - stop) / atr, 2) if atr else None, "why": V.pretrade(rec, entry, stop, tgt, atr), **extra}
 
     def signal(self, rec: Dict, trading: bool, h1: List[Dict], bars: List[Dict], m5: List[Dict]) -> None:
         sym, side, tf = rec["symbol"], rec["side"], rec["tf"]
         tick = mt5c.tick(sym)
         bid, ask = float(tick["bid"]), float(tick["ask"])
         entry = bid if side == "sell" else ask         # the price the normal entry executes at
-        plan = self.plan(rec, entry, bars, h1)
+        plan = self.plan(rec, entry, bars, h1, spread=ask - bid)
         stop, tgt = plan["stop"], plan["target"]
         x = len(m5) - 1                            # the pullback into the FVG, measured on M5 for the layer depth
         r = next((k for k, bb in enumerate(m5) if bb["t"] > rec["leg"]["end_t"]), max(0, x - 6))
@@ -298,6 +323,12 @@ class Book:
         rec["plan"] = plan
         at = rec.get("touch_t")
         why = plan["why"] or self.refuse(sym, side, entry, stop, tgt["price"], bid, ask)
+        if FL.enabled():                           # the structure filter layer: every gate, refused at the first that fails
+            cand = self.gates(rec, plan, entry, bid, ask, bars, h1, why, trading)
+            g = cand["first_fail"]
+            if g:
+                why = f"{g} {FL.GATES[g]}: {cand['why'][g]}"
+                rec["gate"] = g
         if why:
             rec.update(status="refused", why=why, ended_t=at)
             journal("refused", id=rec["id"], why=why, plan=plan)
@@ -320,13 +351,58 @@ class Book:
         if (ask - bid) > float(ENGINE["max_spread_frac"]) * dist:
             return f"spread {ask - bid:g} is over {ENGINE['max_spread_frac']:g} of the stop distance {dist:g}"
         if self.free_slots() < 1:
-            return f"all {S['max_running_trades']} position slots are in use"
+            return f"all {self.max_slots()} position slots are in use"
         return None
+
+    # ── the structure filter layer (engine/filters.py, David 2026-10-25) ──
+    def gates(self, rec: Dict, plan: Dict, entry: float, bid: float, ask: float, bars: List[Dict], h1: List[Dict],
+              checks: Optional[str], trading: bool) -> Dict:
+        """Every gate for this entry attempt → the decision record (also written to the day's candidates file), with
+        the V5 checks on the filtered plan (checks) and what the engine without the layer would have done (old_logic)."""
+        f, sym = self.feed, rec["symbol"]
+        info = f.info[sym]
+        ctx = {"now": now_ms(), "entry": entry, "bid": bid, "ask": ask, "info": info, "market": f.market.get(sym),
+               "bars": {**{tf: f.completed(sym, tf) for tf in ("M15", "M30", "H1", "H4")}, rec["tf"]: bars},
+               "bias": V.trade_bias(f.completed(sym, "H4"), h1), "plan": plan, "zones": self.taken_zones(sym),
+               "lots": self.lots(sym, entry, plan["stop"], S["normal_risk_pct"]), "money_per_move": money_per_move(info),
+               "equity": float(self.account.get("equity") or 0)}
+        cand = FL.evaluate(rec, ctx)
+        old = self.plan(rec, entry, bars, h1, filtered=False)
+        old_why = "against the H4 / H1 bias" if rec.get("aligned") is False else \
+            old["why"] or self.refuse(sym, rec["side"], entry, old["stop"], old["target"]["price"], bid, ask)
+        cand.update(checks=checks, old_logic=old_why or "take", old_plan={k: old[k] for k in ("stop", "sl_atr_x")} | {"tp": old["target"]["price"], "rr": old["target"]["rr"]},
+                    passed=not cand["first_fail"] and not checks, trading=trading)
+        FL.write(cand)
+        return cand
+
+    def counter_bias(self, rec: Dict, bars: List[Dict], h1: List[Dict]) -> None:
+        """Gate 4: a live pullback to a setup against the H4 / H1 bias is a CHoCH candidate: its record is logged
+        (at the setup's entry, the last M15 bar's spread), it is never traded."""
+        sym = rec["symbol"]
+        info = self.feed.info[sym]
+        m15 = self.feed.completed(sym, "M15")
+        sp = FL.bar_spread(m15[-1], float(info["point"])) if m15 else 0.0
+        entry = rec["entry"]
+        bid, ask = (entry, entry + sp) if rec["side"] == "sell" else (entry - sp, entry)
+        plan = self.plan(rec, entry, bars, h1, spread=sp, filtered=True)
+        self.gates(rec, plan, entry, bid, ask, bars, h1, f"against the bias: {rec.get('why')}", False)
+
+    def taken_zones(self, sym: str) -> List[Dict]:
+        """The zones this symbol already traded (or signalled in watch mode) for Gate 7: H4 parent, side, zone, lost."""
+        out = []
+        for sid, r in self.setups.items():
+            poi = r.get("poi") or {}
+            if r.get("symbol") != sym or poi.get("top") is None or not (r.get("trade_id") or r["status"] in ("signal", "entered", "closed")):
+                continue
+            t = self.trades.get(r.get("trade_id") or sid) or {}
+            out.append({"id": sid, "parent": r.get("parent"), "side": r["side"], "top": poi["top"], "bottom": poi["bottom"],
+                        "lost": bool(t.get("closed")) and float(t.get("pnl_usd") or 0) < 0})
+        return out
 
     def lots(self, sym: str, price: float, stop: float, risk_pct: float) -> float:
         info = self.feed.info[sym]
-        if ENGINE.get("lot_mode") == "min":
-            return float(info["volume_min"])
+        if ENGINE.get("lot_mode") == "min":           # with the filter layer: 0.01, or volume_min when that is larger
+            return max(float(info["volume_min"]), float(FILTERS["TEST_LOT"])) if FL.enabled() else float(info["volume_min"])
         per_lot = abs(price - stop) * money_per_move(info)
         q = floor_step(float(self.account["equity"]) * risk_pct / 100.0 / per_lot, float(info["volume_step"])) if per_lot else 0.0
         return min(q, float(info["volume_max"])) if q >= float(info["volume_min"]) else 0.0
@@ -579,7 +655,7 @@ class Book:
                                       "origin": e["origin"], "setup": (tf, e["side"], e["t"]) in used}
                                      for e in st["events"] if e["t"] >= t_from]}
         price = bars["M5"][-1][4] if bars.get("M5") else None
-        live = [r for r in rows if r["status"] in ACTIVE and r.get("aligned")]
+        live = [r for r in rows if r["status"] in ACTIVE and r.get("aligned") and not r.get("expired")]
 
         def away(r):                               # price's distance from the entry, in entry → invalidation units
             return abs((price if price is not None else r["entry"]) - r["entry"]) / (abs(r["entry"] - r["invalidation"]) or 1e-12)
@@ -618,7 +694,8 @@ class Book:
                          "open": len(v["trades"]), "updated": v["updated"]})
         _write(OVERVIEW_FILE, {
             "at": now_ms(), "trading": trading, "account": self.account, "mt5": mt5,
-            "slots": {"running": self.running(), "pending_layers": self.pending_layers(), "max": S["max_running_trades"]},
+            "slots": {"running": self.running(), "pending_layers": self.pending_layers(), "max": self.max_slots()},
+            "filters": FL.enabled(),
             "symbols": syms,
             "positions": [{k: p.get(k) for k in ("ticket", "symbol", "type", "volume", "price_open", "price_current", "sl", "tp", "profit", "comment")}
                           for p in self.positions],

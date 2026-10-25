@@ -6,6 +6,7 @@ engine/run.py — the V5 engine's loop and commands. Run from ~/forex with the s
     python3 -m engine.run run          the loop (watch mode until trading is switched on in the dashboard)
     python3 -m engine.run trading on|off
     python3 -m engine.run mt5 status|start|stop|restart|login      the MT5 terminal (the loop runs it: engine/terminal.py)
+    python3 -m engine.run filters on|off|status      the structure filter layer (engine/filters.py), no restart needed
 
 Every loop_sec: read the account / positions / pending layers, apply the dashboard's commands, manage
 the open trades. Every time a timeframe is due (M5 / M15 each minute, M30 / H1 every 5 min, H4 every
@@ -21,6 +22,7 @@ import traceback
 
 from .book import Book, journal, log
 from .config import ENGINE, STRATEGY, load_control, save_control
+from . import filters as FL
 from .feed import Feed, mt5c
 from .terminal import Terminal
 
@@ -114,7 +116,8 @@ def cmd_run(a) -> int:
         time.sleep(30)
     feed = book.feed
     log(f"engine running: magic {book.magic}, max {STRATEGY['max_running_trades']} positions, "
-        f"trading {'ON' if load_control()['trading'] else 'off (watch mode)'}, lots {ENGINE.get('lot_mode', 'risk')}")
+        f"trading {'ON' if load_control()['trading'] else 'off (watch mode)'}, lots {ENGINE.get('lot_mode', 'risk')}, "
+        f"structure filters {'ON' if FL.enabled() else 'off'}")
     journal("engine_start", symbols=len(feed.symbols))
     errors = 0
     first = True
@@ -165,6 +168,17 @@ def cmd_run(a) -> int:
         time.sleep(max(1.0, float(ENGINE["loop_sec"]) - (time.time() - t0)))
 
 
+def cmd_filters(a) -> int:
+    if a.state != "status":
+        save_control(structure_filters=a.state == "on")
+        journal("structure_filters", on=a.state == "on", by="cli")
+    c = load_control().get("structure_filters")
+    from .config import STRUCTURE_FILTERS_ENABLED
+    print(f"structure filters {'ON' if FL.enabled() else 'off'} (control.json: {c}, config default: {STRUCTURE_FILTERS_ENABLED}); "
+          f"the running engine picks it up at its next entry attempt")
+    return 0
+
+
 def cmd_mt5(a) -> int:
     term = Terminal(lambda m: print(m, flush=True), journal)
     if a.op != "status":
@@ -194,8 +208,10 @@ def main() -> int:
     t.add_argument("state", choices=["on", "off"])
     m = sub.add_parser("mt5", help="the MT5 terminal: status, start, stop (stays off), restart, login")
     m.add_argument("op", choices=["status", "start", "stop", "restart", "login"])
+    fl = sub.add_parser("filters", help="the structure filter layer: on, off, status (control.json overrides config)")
+    fl.add_argument("state", choices=["on", "off", "status"])
     a = ap.parse_args()
-    return {"check": cmd_check, "once": cmd_once, "run": cmd_run, "trading": cmd_trading, "mt5": cmd_mt5}[a.cmd](a)
+    return {"check": cmd_check, "once": cmd_once, "run": cmd_run, "trading": cmd_trading, "mt5": cmd_mt5, "filters": cmd_filters}[a.cmd](a)
 
 
 if __name__ == "__main__":
