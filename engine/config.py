@@ -49,12 +49,17 @@ STRATEGY = {
     # David 2026-10-24: BOS first → supply (downtrend) / demand (uptrend) in the BOS move, or the mitigation
     # block when there is no supply / demand → the FVG inside the BOS move → entry when price comes back to it
     "bos": "required", "supply_demand": "or mitigation block", "mitigation_block": "when no supply/demand", "fvg": "required",
-    "fvg_pick": 2,                       # with two or more FVGs in the BOS move: the 2nd, counted left to right
+    "fvg_pick": "nearest",               # new rules §15 (David 2026-10-25): one displacement's FVGs are ONE cluster,
+                                         # the retrace trigger is its nearest FVG ("nearest"); an int = that one, left to right (old: 2)
     "fvg_entry_depth": 0.10,             # entry 10 % inside that FVG, from the side price comes back from
     # David 2026-10-25 (COSMOS M30): the entry FVG must stay untouched for the next candles after it completes,
     # then price must run on before the retrace — a pullback earlier than both is an invalid structure
     "fvg_protect_candles": 2,            # candles after the FVG that must not trade back into it
     "fvg_min_runoff_atr": 0.5,           # × ATR(14, own TF) price must run beyond the FVG before the retrace
+    # new rules §18 (David 2026-10-25): the M15/M30 BOS only VALIDATES the zone; the entry needs its own proof —
+    # after the retrace into the zone + FVG area, an M5 candle must CLOSE beyond the latest confirmed M5 swing
+    "entry_confirm": "M5",               # None / "" = enter at the touch (the engine before 2026-10-25 16:30)
+    "m5_confirm_max_bars": 36,           # give up when no M5 entry BOS this many M5 candles after the retrace (3 h)
 
     # ── measurable choices for the parts described in words ──
     # 3/4: the zone = the final opposite candle within this many bars before the move's first displacement

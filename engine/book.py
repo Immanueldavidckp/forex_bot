@@ -36,7 +36,8 @@ from .config import (COMMANDS_FILE, ENGINE, JOURNAL_FILE, OVERVIEW_FILE, STATE_F
                      load_control, save_control)
 from .feed import TF_MIN, Feed, mt5c, now_ms
 
-ACTIVE = ("waiting pullback",)
+WAIT_M5 = "waiting M5 BOS"                     # new rules §18: retraced; the M5 entry BOS is the missing proof
+ACTIVE = ("waiting pullback", WAIT_M5)
 ZONE = "zone reached"                          # an H4 setup price came back to: S&D H4 watches M15 inside it
 
 
@@ -164,7 +165,7 @@ class Book:
                     rows.append(rec)                  # finished: keep showing it, never re-trade it
                     continue
                 # the move can still be running: its FVG list (and so the 2nd FVG) may grow until it ends
-                rec.update({k: c[k] for k in ("leg", "zone", "mb", "fvgs", "kind", "poi", "fvg", "fvg_pick", "entry", "invalidation", "formed_t")})
+                rec.update({k: c[k] for k in ("leg", "zone", "mb", "fvgs", "kind", "poi", "fvg", "fvg_pick", "cluster", "entry", "invalidation", "formed_t")})
                 rec.setdefault("entry_type", f"S&D {tf}" if tf in ENGINE["trade_tfs"] else None)   # the H4 setups are S&D H4 zones, not entries
                 rec["aligned"] = b["bias"] == c["side"]
                 self.watch(rec, b, bars, m5, forming, bos_t[c["side"]], trading, h1)
@@ -185,6 +186,9 @@ class Book:
         tf = rec["tf"]
         tf_ms = TF_MIN[tf] * 60_000
         t0 = rec["formed_t"] + tf_ms
+        if rec["status"] == WAIT_M5:               # retraced already: only the M5 entry BOS (or a cancel) is left
+            self.m5_confirm(rec, bars, m5, trading, h1)
+            return
         bad = V.fvg_untaken(bars, rec)             # David 2026-10-25: FVG traded into early / no run before the retrace
         if bad:
             rec.update(status="invalid", why=bad, ended_t=now_ms())
@@ -227,8 +231,30 @@ class Book:
         elif tf not in ENGINE["trade_tfs"]:
             rec.update(status="touched", why=f"chart only: {tf} is not a trade timeframe ({', '.join(ENGINE['trade_tfs'])})", ended_t=hit["t"])
             journal("touched", id=rec["id"], entry=rec["entry"])
+        elif S["entry_confirm"]:                   # new rules §18: the touch is not the entry — M5 must prove it
+            rec.update(status=WAIT_M5, why=f"price retraced into the zone + FVG area at {hm(hit['t'])}: waiting for an "
+                       f"M5 close beyond the latest confirmed M5 swing ({'down' if rec['side'] == 'sell' else 'up'})")
+            journal("retraced", id=rec["id"], entry=rec["entry"])
+            self.m5_confirm(rec, bars, m5, trading, h1)
         else:
             self.signal(rec, trading, h1, bars, m5)
+
+    def m5_confirm(self, rec: Dict, bars: List[Dict], m5: List[Dict], trading: bool, h1: List[Dict]) -> None:
+        """New rules §18 (David 2026-10-25): between the retrace and the order sits one more proof — an M5 candle
+        closing beyond the latest confirmed M5 swing in the trade direction. The zone must hold while it waits."""
+        tf, side, inv = rec["tf"], rec["side"], rec["invalidation"]
+        sell = side == "sell"
+        lost = next((x for x in bars if x["t"] > rec["touch_t"] and (x["c"] > inv if sell else x["c"] < inv)), None)
+        if lost:
+            rec.update(status="failed", why=f"the zone was lost ({tf} close beyond {inv:g}) before the M5 entry BOS", ended_t=lost["t"])
+            return
+        e = V.entry_bos(m5, side, rec["touch_t"])
+        if e:
+            rec["entry_bos_t"] = e["t"]
+            self.signal(rec, trading, h1, bars, m5)
+            return
+        if sum(1 for x in m5 if x["t"] > rec["touch_t"]) > int(S["m5_confirm_max_bars"]):
+            rec.update(status="failed", why=f"no M5 entry BOS within {S['m5_confirm_max_bars']} M5 candles of the retrace", ended_t=now_ms())
 
     def sdh4(self, sym: str, b: Dict, structs: Dict[str, Dict], bos_tf: Dict[str, Dict], live_ids: set, m5: List[Dict],
              forming: Optional[Dict], trading: bool, h1: List[Dict]) -> List[Dict]:
@@ -267,7 +293,7 @@ class Book:
                     kids_of.setdefault(p["id"], []).append(rec)
                     log(f"{sym} S&D H4 {c['side']}: {ctf} {c['bos']['kind']} {hm(c['bos']['t'])} inside the H4 zone → setup, entry {c['entry']:g}")
                 elif rec["status"] in ACTIVE:
-                    rec.update({k: c[k] for k in ("leg", "zone", "mb", "fvgs", "kind", "poi", "fvg", "fvg_pick", "entry", "invalidation", "formed_t")})
+                    rec.update({k: c[k] for k in ("leg", "zone", "mb", "fvgs", "kind", "poi", "fvg", "fvg_pick", "cluster", "entry", "invalidation", "formed_t")})
             newer_kids = [c["bos"]["t"] for c in cands if not normal.get((c["side"], c["bos"]["t"]))]
             for rec in kids_of.get(p["id"], []):
                 if rec["status"] in ACTIVE:
@@ -682,14 +708,24 @@ class Book:
         for r in sorted(rows, key=lambda r: (r["status"] not in ACTIVE, -r["bos"]["t"])):
             if bars.get(r["tf"]) and r["poi"]["t"] // 1000 >= bars[r["tf"]][0][0] or r is focus:
                 per_tf.setdefault(r["tf"], []).append(r)
-        keep = ("id", "tf", "side", "kind", "bos", "leg", "poi", "zone", "mb", "fvgs", "fvg", "fvg_pick", "entry", "invalidation",
-                "status", "why", "aligned", "touch_t", "plan", "trade_id", "formed_t", "ended_t", "entry_type", "parent")
+        keep = ("id", "tf", "side", "kind", "bos", "leg", "poi", "zone", "mb", "fvgs", "fvg", "fvg_pick", "cluster", "entry", "invalidation",
+                "status", "why", "aligned", "touch_t", "plan", "trade_id", "formed_t", "ended_t", "entry_type", "parent", "expired")
+        # David 2026-10-25: every live setup of an entry shows the SL / TP it would trade with now (not only the focus),
+        # and a setup whose entry was taken shows its trade: still open, or closed with its P&L
+        done = {tf: f.completed(sym, tf) for tf in ENGINE["trade_tfs"]}
+        h1 = f.completed(sym, "H1")
+        previews = {r["id"]: self.plan(r, r["entry"], done[r["tf"]], h1) for v in per_tf.values() for r in v
+                    if r is not focus and r["status"] in ACTIVE and r["tf"] in done and not r.get("expired")}
+        if focus is not None:
+            previews[focus["id"]] = preview
+        result = lambda t: {"closed": bool(t.get("closed")), "pnl_usd": t.get("pnl_usd")} if t else None
         open_t = [x for x in self.trades.values() if x["symbol"] == sym and not x.get("closed")]
         return {"symbol": sym, "market": f.market.get(sym), "updated": now_ms(), "digits": f.info[sym].get("digits"),
                 "bias": b, "structure": struct, "trend": {tf: struct[tf]["trend"] for tf in struct}, "checks": checks,
                 "focus": focus["id"] if focus else None, "trade_tfs": ENGINE["trade_tfs"], "view_bars": ENGINE["view_bars"],
                 "bars": bars, "swings": marks,
-                "setups": [{**{k: r.get(k) for k in keep}, "preview": preview if r is focus else None} for v in per_tf.values() for r in v],
+                "setups": [{**{k: r.get(k) for k in keep}, "preview": previews.get(r["id"]),
+                            "result": result(self.trades.get(r.get("trade_id") or ""))} for v in per_tf.values() for r in v],
                 "trades": open_t}
 
     def overview(self, trading: bool, mt5: Optional[Dict] = None) -> None:

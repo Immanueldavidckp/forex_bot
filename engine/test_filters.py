@@ -279,3 +279,42 @@ def test_an_fvg_needs_a_run_before_the_retrace():
     assert V.fvg_untaken(mk(pad + gap + clear + far), rec, touching=True) is None
     assert V.fvg_untaken(mk(pad + gap + clear), rec) is None           # no retrace yet: still valid, still waiting
     assert "1 candle(s) after the FVG" in V.fvg_untaken(mk(pad + gap), rec, touching=True)   # touched inside the protect window
+
+
+def test_m5_entry_bos_is_a_close_break_after_the_retrace():
+    b = path(9, BASE)                                                  # an uptrend with buy close-breaks
+    ev = [e for e in V.structure(b)["events"] if e["side"] == "buy"]
+    assert ev
+    assert V.entry_bos(b, "buy", ev[-1]["t"] - 1)["t"] == ev[-1]["t"]
+    assert V.entry_bos(b, "buy", ev[-1]["t"]) is None                  # nothing after the last break yet
+    assert V.entry_bos(b, "sell", 0) is None or V.entry_bos(b, "sell", 0)["side"] == "sell"
+
+
+def test_the_touch_waits_for_the_m5_bos(env, monkeypatch):  # noqa: F811
+    bk, _, _ = env
+    taken = []
+    monkeypatch.setattr(bk, "signal", lambda rec, *a: taken.append(rec["id"]))
+    up = path(9, BASE)
+    t_last_buy = [e for e in V.structure(up)["events"] if e["side"] == "buy"][-1]["t"]
+    rec = {"id": "TST-1", "tf": "M15", "side": "buy", "invalidation": 5.0, "touch_t": t_last_buy - 1,
+           "status": B.WAIT_M5, "symbol": "TST"}
+    bk.m5_confirm(rec, up, up, True, up)                               # an M5 buy close-break after the touch
+    assert taken == ["TST-1"] and rec["entry_bos_t"] == t_last_buy
+    rec = {"id": "TST-2", "tf": "M15", "side": "buy", "invalidation": 11.9, "touch_t": up[-20]["t"],
+           "status": B.WAIT_M5, "symbol": "TST"}
+    down = path(9, BASE[:-2] + [(11.0, 8)])                            # the setup TF closes under the zone
+    bk.m5_confirm(rec, down, down, True, down)
+    assert rec["status"] == "failed" and "zone was lost" in rec["why"] and taken == ["TST-1"]
+    flat = path(10, [(10.05, 3), (10.0, 3)] * 20)                      # no break ever comes
+    rec = {"id": "TST-3", "tf": "M15", "side": "buy", "invalidation": 5.0, "touch_t": flat[-40]["t"],
+           "status": B.WAIT_M5, "symbol": "TST"}
+    bk.m5_confirm(rec, flat, flat, True, flat)
+    assert rec["status"] == "failed" and "no M5 entry BOS" in rec["why"]
+
+
+def test_the_nearest_fvg_is_the_trigger():
+    b, rec, touch = trend(CLEAN)
+    assert rec["fvg_pick"] == len(rec["fvgs"]) and rec["fvg"] == rec["fvgs"][-1]
+    cl = rec["cluster"]
+    assert cl["n"] == len(rec["fvgs"]) and cl["top"] == max(f["top"] for f in rec["fvgs"])
+    assert cl["bottom"] <= rec["fvg"]["bottom"] and rec["fvg"]["top"] <= cl["top"]

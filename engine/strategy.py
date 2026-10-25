@@ -227,11 +227,13 @@ def setup_for(bars: List[Dict], st: Dict, e: Dict, tf: str, symbol: str = "") ->
         return {**rec, "complete": False,
                 "missing": "no supply/demand or mitigation block" if not (zone or mb) else "no FVG in the BOS move"}
     poi = zone or mb
-    pick = min(len(fvgs), int(S["fvg_pick"])) - 1
-    f = fvgs[pick]
+    pick = len(fvgs) if S["fvg_pick"] == "nearest" else min(len(fvgs), int(S["fvg_pick"]))
+    f = fvgs[pick - 1]                  # "nearest" = the last one: the first FVG a retrace reaches, both sides
     depth = float(S["fvg_entry_depth"]) * (f["top"] - f["bottom"])
     formed = min(n - 1, max(x, f["idx"] + 1))
-    return {**rec, "complete": True, "kind": poi["kind"], "poi": poi, "fvg": f, "fvg_pick": pick + 1,
+    return {**rec, "complete": True, "kind": poi["kind"], "poi": poi, "fvg": f, "fvg_pick": pick,
+            # new rules §15: all this displacement's FVGs are one associated cluster, one setup area
+            "cluster": {"top": max(g["top"] for g in fvgs), "bottom": min(g["bottom"] for g in fvgs), "n": len(fvgs)},
             "entry": f["top"] - depth if side == "buy" else f["bottom"] + depth,
             # David 2026-10-24 (SL/TP fix): only this setup's own supply high / demand low
             "invalidation": poi["bottom"] if side == "buy" else poi["top"],
@@ -267,6 +269,13 @@ def sdh4_setups(h4: Dict, bars: List[Dict], st: Dict, tf: str, symbol: str = "")
         rec.update(id=f"{symbol}-H4{tf}-{'D' if buy else 'S'}-{e['t'] // 1000}", entry_type="S&D H4", parent=h4["id"])
         out.append(rec)
     return out, broken
+
+
+def entry_bos(m5: List[Dict], side: str, after_t: int) -> Optional[Dict]:
+    """New rules §18 (David 2026-10-25): after the retrace into the zone + FVG area the entry needs its own
+    proof — an M5 candle CLOSING beyond the latest valid confirmed M5 swing in the trade direction (a close
+    break of structure(), BOS or CHoCH). Returns the first such break after after_t, or None yet."""
+    return next((e for e in structure(m5)["events"] if e["side"] == side and e["t"] > after_t), None)
 
 
 def pullback(st: Dict, seq: List[Dict]) -> Optional[int]:

@@ -9,7 +9,7 @@ picker    H4 + H1 bias, they must agree (each HH+HL buy / LH+LL sell / else no t
           → BOS on the setup's timeframe: a candle CLOSES beyond the last HH (buy) / LL (sell)   (David 2026-10-24)
           → in the BOS move (its start → the BOS candle): supply / demand = final opposite candle before
             a displacement ≥ 1.5 × the 10-bar average body; with none, the mitigation block
-          → the FVGs of that move (required; with two or more the 2nd, counted left to right)
+          → the FVGs of that move (required; new rules 2026-10-25: they are ONE cluster, the nearest is the trigger)
           → entry when price comes back 10 % into that FVG (seen live, never late)
           every timeframe H4 / H1 / M30 / M15 / M5 is analysed and drawn; only ENGINE["trade_tfs"] may enter
           three entries (David 2026-10-25): S&D M15 and S&D M30 = the setup above on that timeframe;
@@ -110,7 +110,9 @@ is switched on. Orders need a demo account and the terminal's Algo Trading on. M
 | BOS (pictures, 2026-10-24) | a candle CLOSE beyond a swing labelled HH (buy) / LL (sell); beyond an LH / HL it is a CHoCH (always drawn, light grey; not traded). Swings stay breakable until closed through; a break drops the other side's swings older than its move |
 | "supply / demand at the BOS" | V5 §3-4 inside the BOS move (from the lowest low / highest high since the broken swing to the BOS candle) |
 | "mitigation block when no supply / demand" | §6 pattern inside the BOS move, used only when that move has no supply / demand zone |
-| "FVG inside the BOS", "3 FVGs → the 2nd" | every FVG whose middle candle lies in the BOS move; with 2 or more the 2nd from the left (`fvg_pick`) |
+| "FVG inside the BOS", FVG cluster (new rules §15) | every FVG whose middle candle lies in the BOS move is one associated cluster = one setup; the retrace trigger is the nearest one (`fvg_pick` "nearest"; an int picks that one from the left, the engine before 2026-10-25) |
+| the retrace is not the entry (new rules §18) | after the touch the setup waits (`waiting M5 BOS`) for an M5 candle CLOSING beyond the latest confirmed M5 swing in the trade direction (`entry_confirm` "M5"; empty = enter at the touch); cancelled when the setup TF closes beyond the zone or after `m5_confirm_max_bars` M5 candles |
+| an FVG traded back into early is no structure (David 2026-10-25) | the next `fvg_protect_candles` (2) candles must not trade into the entry FVG, then price must run ≥ `fvg_min_runoff_atr` (0.5) × ATR(14) beyond it before the first retrace, or the setup turns `invalid` |
 | "entry like 10 %" | 10 % inside that FVG from the side price comes back from (`fvg_entry_depth`) |
 | newer BOS before the pullback | the older setup is "superseded" (not traded), but only by a BOS that has its own setup (zone or MB + FVG); a small BOS without one is not used and cancels nothing (David 2026-10-24, kept 2026-10-25). The entry views of the dashboard don't draw superseded setups |
 | S&D H4 trigger (2026-10-25) | the first and every later M15 BOS / CHoCH the same way after price reached the H4 entry, whose move's start lies between the H4 entry and the H4 invalidation; a BOS that already has its S&D M15 setup is that same setup (one trade, marked with the H4 parent) |
