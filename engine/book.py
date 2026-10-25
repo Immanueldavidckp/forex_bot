@@ -185,6 +185,10 @@ class Book:
         tf = rec["tf"]
         tf_ms = TF_MIN[tf] * 60_000
         t0 = rec["formed_t"] + tf_ms
+        bad = V.fvg_untaken(bars, rec)             # David 2026-10-25: FVG traded into early / no run before the retrace
+        if bad:
+            rec.update(status="invalid", why=bad, ended_t=now_ms())
+            return
         seq = [x for x in bars if x["t"] >= t0 and x["t"] + tf_ms <= m5[0]["t"]] + [x for x in m5 if x["t"] >= t0]
         if forming and forming["t"] >= t0:
             seq.append(forming)
@@ -203,6 +207,10 @@ class Book:
             return
         hit = seq[i]
         rec["touch_t"] = hit["t"]
+        bad = V.fvg_untaken([x for x in bars if x["t"] + tf_ms <= hit["t"]], rec, touching=True)
+        if bad:
+            rec.update(status="invalid", why=bad, ended_t=hit["t"])
+            return
         if tf == ENGINE["sdh4"]["zone_tf"]:       # S&D H4: the H4 setup only marks the zone; the entry comes from M15
             ctf = ENGINE["sdh4"]["confirm_tf"]
             rec.update(status=ZONE, why=f"price came back to the H4 entry at {hm(hit['t'])}: S&D H4 waits for an {ctf} "

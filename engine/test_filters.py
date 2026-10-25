@@ -248,3 +248,34 @@ def test_pretrade_follows_the_profile_limits(monkeypatch):
     why = V.pretrade(rec, entry, lv["stop"], lv["target"], atr)
     assert why is not None and "is under 3" in why                     # STRATEGY alone still refuses it
     assert V.pretrade(rec, entry, lv["stop"], lv["target"], atr, min_rr=2, sl_max=FL.F["SL_MAX_ATR"]) is None
+
+
+def mk(seq):
+    return [{"o": o, "h": h, "l": l, "c": c, "t": T0 + i * 900_000, "sp": 0.01} for i, (o, h, l, c) in enumerate(seq)]
+
+
+def test_an_fvg_traded_back_into_within_2_candles_is_invalid():
+    """David 2026-10-25 (COSMOS M30): BOS ok, zone ok, FVG ok — but the very next candles traded through the FVG."""
+    pad = [(10, 10.5, 9.5, 10)] * 20
+    gap = [(10, 10.6, 9.9, 10.5), (10.5, 12.5, 10.4, 12.4), (12.4, 12.6, 11.6, 12.5)]   # gap 10.6 – 11.6
+    rec = {"side": "buy", "fvg": {"idx": 21, "top": 11.6, "bottom": 10.6}}
+    b = mk(pad + gap + [(12.5, 12.6, 11.0, 11.2)])                     # the 1st candle after dips to 11.0
+    assert "1 candle(s) after forming" in V.fvg_untaken(b, rec)
+    b = mk(pad + gap + [(12.5, 12.7, 11.7, 12.6), (12.6, 12.7, 11.0, 11.2)])            # the 2nd one does
+    assert "2 candle(s) after forming" in V.fvg_untaken(b, rec)
+
+
+def test_an_fvg_needs_a_run_before_the_retrace():
+    pad = [(10, 10.5, 9.5, 10)] * 20                                   # ATR ≈ 1 → need ≈ 0.5 beyond the FVG
+    gap = [(10, 10.6, 9.9, 10.5), (10.5, 12.5, 10.4, 12.4), (12.4, 12.6, 12.3, 12.5)]   # gap 10.6 – 12.3
+    rec = {"side": "buy", "fvg": {"idx": 21, "top": 12.3, "bottom": 10.6}}
+    clear = [(12.5, 12.65, 12.35, 12.6), (12.6, 12.7, 12.4, 12.65)]    # 2 protect candles stay out; run 0.4 so far
+    b = mk(pad + gap + clear + [(12.65, 12.7, 11.9, 12.0)])            # retrace after only 0.4 = 0.4 ATR
+    assert "running only" in V.fvg_untaken(b, rec)
+    assert "running only" in V.fvg_untaken(mk(pad + gap + clear), rec, touching=True)    # the live touch, same judgement
+    far = [(12.65, 13.4, 12.5, 13.3)]                                  # runs 1.1 beyond the FVG first
+    b = mk(pad + gap + clear + far + [(13.3, 13.4, 11.9, 12.0)])
+    assert V.fvg_untaken(b, rec) is None
+    assert V.fvg_untaken(mk(pad + gap + clear + far), rec, touching=True) is None
+    assert V.fvg_untaken(mk(pad + gap + clear), rec) is None           # no retrace yet: still valid, still waiting
+    assert "1 candle(s) after the FVG" in V.fvg_untaken(mk(pad + gap), rec, touching=True)   # touched inside the protect window

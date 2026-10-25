@@ -51,6 +51,10 @@ STRATEGY = {
     "bos": "required", "supply_demand": "or mitigation block", "mitigation_block": "when no supply/demand", "fvg": "required",
     "fvg_pick": 2,                       # with two or more FVGs in the BOS move: the 2nd, counted left to right
     "fvg_entry_depth": 0.10,             # entry 10 % inside that FVG, from the side price comes back from
+    # David 2026-10-25 (COSMOS M30): the entry FVG must stay untouched for the next candles after it completes,
+    # then price must run on before the retrace — a pullback earlier than both is an invalid structure
+    "fvg_protect_candles": 2,            # candles after the FVG that must not trade back into it
+    "fvg_min_runoff_atr": 0.5,           # × ATR(14, own TF) price must run beyond the FVG before the retrace
 
     # ── measurable choices for the parts described in words ──
     # 3/4: the zone = the final opposite candle within this many bars before the move's first displacement
@@ -80,6 +84,7 @@ ENGINE = {
     "magic": 5050505,                    # tags this engine's orders and positions
     "markets": ["crypto", "forex"],      # David 2026-10-24: the FxPro coins + the forex majors
     "forex_extra": ["AUDUSD", "NZDUSD"], # standard majors FxPro files outside its "Major" folder
+    "server_tz": "Asia/Nicosia",         # FxPro's server clock: UTC+2, UTC+3 in EU summer time (switched 2026-10-25)
     "chart_tfs": ["H4", "H1", "M30", "M15", "M5"],   # dashboard: David's four + M5
     "setup_tfs": ["H4", "H1", "M30", "M15", "M5"],   # BOS → zone → FVG found and drawn on every chart timeframe
     "trade_tfs": ["M15", "M30"],         # ...but only these may enter (David 2026-10-24: they finish fast → more trades to study)

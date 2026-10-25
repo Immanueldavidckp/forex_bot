@@ -175,6 +175,38 @@ def _fvgs(bars: List[Dict], o: int, end: int, side: str) -> List[Dict]:
     return out
 
 
+def fvg_untaken(bars: List[Dict], rec: Dict, touching: bool = False) -> Optional[str]:
+    """David 2026-10-25 (COSMOS M30: the FVG was traded straight back through): after the entry FVG completes,
+    the next fvg_protect_candles candles must not trade back into it, and price must run ≥ fvg_min_runoff_atr ×
+    ATR(14, own TF) beyond it before the first retrace — a pullback earlier than either is an invalid structure.
+    touching = price is at the entry right now (the forming bar), judged as the retrace.
+    Returns why the structure is invalid, or None while it holds."""
+    f, side = rec.get("fvg"), rec["side"]
+    if not f:
+        return None
+    c3 = f["idx"] + 1                                  # the candle that completed the gap
+    into = (lambda b: b["l"] < f["top"]) if side == "buy" else (lambda b: b["h"] > f["bottom"])
+    k = int(S["fvg_protect_candles"])
+    after = bars[c3 + 1:]
+    for j, b in enumerate(after[:k]):
+        if into(b):
+            return f"the FVG was traded back into {j + 1} candle(s) after forming (must stay clear for {k})"
+    if touching and len(after) < k:
+        return f"the pullback came {len(after) + 1} candle(s) after the FVG (must stay clear for {k})"
+    first = next((c3 + 1 + j for j, b in enumerate(after) if into(b)), None)
+    if first is None and not touching:
+        return None                                    # no retrace yet: nothing to judge
+    n = int(S["sl_atr_period"])
+    a = tools.atr(bars[max(0, c3 - 4 * n): c3 + 1], n)
+    if not a:
+        return None
+    end = first if first is not None else len(bars)
+    run = (max(b["h"] for b in bars[c3:end]) - f["top"]) if side == "buy" else (f["bottom"] - min(b["l"] for b in bars[c3:end]))
+    if run < float(S["fvg_min_runoff_atr"]) * a - 1e-12:
+        return f"price came back into the FVG after running only {run:g} = {run / a:.2f} ATR (need {S['fvg_min_runoff_atr']:g})"
+    return None
+
+
 def setup_for(bars: List[Dict], st: Dict, e: Dict, tf: str, symbol: str = "") -> Dict:
     """The setup of one break e (an event of structure(bars)): in the move that made it (its origin → the break
     candle) the supply / demand zone, or when there is none the mitigation block; the FVGs inside that move
