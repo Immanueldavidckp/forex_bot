@@ -115,7 +115,7 @@ def cmd_run(a) -> int:
                 term.on_error(e)
         time.sleep(30)
     feed = book.feed
-    log(f"engine running: magic {book.magic}, max {STRATEGY['max_running_trades']} positions, "
+    log(f"engine running: magic {book.magic}, max {book.max_slots()} positions, "
         f"trading {'ON' if load_control()['trading'] else 'off (watch mode)'}, lots {ENGINE.get('lot_mode', 'risk')}, "
         f"structure filters {'ON' if FL.enabled() else 'off'}")
     journal("engine_start", symbols=len(feed.symbols))
