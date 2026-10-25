@@ -280,8 +280,8 @@ def evaluate(rec: Dict, ctx: Dict) -> Dict:
             rng = max(b["h"] for b in seg) - min(b["l"] for b in seg)
             net = (seg[-1]["c"] - seg[0]["o"]) * (-1 if sell else 1)
             best = max(best, rng / a0 if a0 else 0.0)
-            if k_ok is None and net > 0 and a0 and rng >= float(F["DISPLACEMENT_MIN_ATR"]) * a0:
-                k_ok = k
+            if net > 0 and a0 and rng >= float(F["DISPLACEMENT_MIN_ATR"]) * a0:
+                k_ok = k                                  # the longest 1-3 candle window that is a displacement
         span = k_ok or int(F["DISPLACEMENT_MAX_CANDLES"])
         gap = 0.0
         for c2 in range(max(1, x - span + 1), min(x, len(bars) - 2) + 1):

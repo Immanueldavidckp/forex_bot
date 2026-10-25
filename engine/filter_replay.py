@@ -4,7 +4,7 @@ through the live engine code (Book.analyse → watch → signal, watch mode), on
 once with the layer on, for every symbol the engine trades. Prints how many setups the old logic took vs how many
 pass every gate, and which gate rejected the rest.
 
-    python3 -m engine.filter_replay [--days 7] [--symbols EURUSD,BITCOIN] [--jobs 12] [--offline]
+    python3 -m engine.filter_replay [--days 7] [--symbols EURUSD,BITCOIN] [--jobs 12] [--cached | --offline]
 
 Bars: fetched fresh from MT5 (enough for the engine's windows before the first day) into
 engine_data/filters/replay_bars/, or with --offline the backtest history (engine_data/history). The clock steps
@@ -21,6 +21,7 @@ import bisect
 import datetime as _dt
 import json
 import os
+import re
 import time
 from collections import Counter, defaultdict
 from multiprocessing import Pool
@@ -158,6 +159,7 @@ def run_pass(d: Dict, start: int, end: int, on: bool) -> Dict:
 def _job(arg):
     path, days, end_cap = arg
     B.log = lambda *a, **k: None
+    B._write = lambda *a, **k: None             # never the live dashboard's view files
     ENGINE["setup_tfs"] = SIM_TFS
     d = load(path)
     sym = d["symbol"]
@@ -206,13 +208,24 @@ def report(res: List[Dict], days: int) -> str:
     L.append(f"\nof the {len(old_take)} attempts the old logic would take (same moment, filters on), first failing gate:")
     c2 = Counter(x["first_fail"] for x in old_take)
     L.append("  " + "  ".join(f"{g} {c2.get(g, 0)}" for g in FL.GATES) + f"  passed {c2.get(None, 0)}")
-    det = Counter()
-    for x in recs:
-        if x["first_fail"]:
-            det[(x["first_fail"], x["why"][x["first_fail"]].split(":")[0].split(" (")[0][:60])] += 1
-    L.append("\nmost common reasons (first failing gate):")
-    for (g, w), n in det.most_common(14):
-        L.append(f"  {n:5d}  {g} {w}")
+    L.append("would pass if only this one gate were dropped:  " + "  ".join(
+        f"{g} {sum(1 for x in recs if set(x['fails']) <= {g})}" for g in FL.GATES))
+    L.append("\nwhat each gate catches (every fail, numbers left out):")
+    for g in FL.GATES:
+        det = Counter()
+        for x in recs:
+            for part in (x["why"].get(g) or "").replace("drift: ", "").split("; "):
+                if part:
+                    det[re.sub(r"\d[\d.e+-]*", "#", part.split(" (")[0])[:78]] += 1
+        for w, n in det.most_common(4):
+            L.append(f"  {g} {n:5d}  {w}")
+    L.append("\nthe old logic's trades, and the filters' verdict at the same moment:")
+    by_id = {x["id"]: x for x in recs}
+    for a in sorted(took_old, key=lambda a: a["touch_t"]):
+        o, x = a.get("outcome") or {}, by_id.get(a["id"]) or {}
+        g = x.get("first_fail")
+        L.append(f"  {ist(a['touch_t'])}  {a['id']:28s} {a['side']:4s} {o.get('exit') or '?':4s} {o.get('r') if o.get('r') is not None else '':>6}R  "
+                 f"→ {g or 'pass'} {(x.get('why') or {}).get(g, '')[:90]}")
     for name, took in (("old logic", took_old), ("filters on", took_new)):
         done = [a["outcome"] for a in took if a.get("outcome") and a["outcome"]["r"] is not None]
         L.append(f"\n{name}: {len(took)} taken, {len(done)} reached the stop or the target in the window: "
@@ -237,17 +250,18 @@ def main() -> int:
     ap.add_argument("--symbols", default="")
     ap.add_argument("--jobs", type=int, default=12)
     ap.add_argument("--offline", action="store_true", help="use engine_data/history instead of fetching from MT5")
+    ap.add_argument("--cached", action="store_true", help="the bars the last run fetched (engine_data/filters/replay_bars)")
     a = ap.parse_args()
     syms = sorted(x[:-5] for x in os.listdir(HIST_DIR) if x.endswith(".json"))
     if a.symbols:
         syms = [s for s in syms if s in a.symbols.split(",")]
     src = HIST_DIR if a.offline else BARS_DIR
-    if not a.offline:
+    if not a.offline and not a.cached:
         t0 = time.time()
         fetch(a.days, syms)
         print(f"bars fetched in {time.time() - t0:.0f} s", flush=True)
     paths = [os.path.join(src, f"{s}.json") for s in syms if os.path.exists(os.path.join(src, f"{s}.json"))]
-    end_cap = int(time.time() * 1000)
+    end_cap = int(time.time() * 1000) if not a.cached else 10 ** 14
     t0 = time.time()
     res = []
     with Pool(min(a.jobs, len(paths))) as pool:

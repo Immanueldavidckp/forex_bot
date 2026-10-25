@@ -69,6 +69,25 @@ python3 -m engine.run mt5 status|start|stop|restart|login     # or the MT5 butto
 ``` Log: `engine_data/engine.log`,
 decisions: `engine_data/journal.jsonl`, state: `engine_data/state.json`.
 
+**Structure filter layer** (`engine/filters.py`, David 2026-10-25, branch `feature/structure-filters`): eight hard gates
+checked right before any order, on top of the V5 checks; `config.STRUCTURE_FILTERS_ENABLED` (default True), all
+thresholds in `config.FILTERS`. G1 the broken swing is significant (3/3 fractal, leg ≥ 1 ATR); G2 body close + a 1-3
+candle displacement ≥ 1.5 ATR leaving an FVG ≥ 0.3 ATR, entry FVG untraded (else "drift"); G3 the setup timeframe trends
+with the trade (HH+HL / LH+LL), not a < 3 ATR range; G4 H4 + H1 bias with the trade, M30 not against H4; G5 impulse from
+the discount / premium half of the H4 leg, zone not revisited, nearest structure ≥ 3 × the stop away; G6 S&D H4 on M15:
+SL beyond the M15 swing that started the break + spread + 0.25 ATR(M15), stop ≥ stops level, ≥ 3 × spread, ≤ 3 ATR(M15),
+TP = the nearest opposing significant swing (setup TF / H1 / H4), RR ≥ 3, SL / TP on the tick size; G7 back in the FVG
+within 12 M15 candles, no CHoCH against before the fill, one trade per H4 zone, no re-entry on a zone that lost; G8 ATR(M15)
+≥ its 30th percentile of 200 bars, spread ≤ 1.5 × the 20-bar average, inside the symbol's sessions. While on: at most 5
+positions + pending layers (MAX_POSITIONS), 0.01 lot. Every entry attempt (counter-bias ones too) → one record with a
+boolean per gate, the values, the first gate that failed and what the engine without the layer would have done →
+`engine_data/filters/candidates-YYYY-MM-DD.jsonl`.
+
+```bash
+python3 -m engine.run filters on|off|status     # instant switch (control.json), no restart
+python3 -m engine.filter_replay --days 7        # last 7 days through the live code, layer off vs on → engine_data/filters/replay-<date>.txt
+```
+
 Size: since 2026-10-25 `ENGINE["lot_mode"] = "min"` — every normal and layer order is the symbol's minimum lot (0.01),
 to test the engine without real exposure (David); `"risk"` = V5's 2.5 % / 1.5 % sizing.
 

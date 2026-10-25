@@ -124,7 +124,8 @@ def detect_offset(symbol: str, max_age_sec: float = 120) -> _dt.timedelta:
 
 def to_bars(raw: List[list], tf: str, offset: Optional[_dt.timedelta] = None) -> List[Dict]:
     stamp = _day_ms if tf == "D1" else server_to_utc_ms
-    return [{"t": stamp(r[0], offset), "o": r[1], "h": r[2], "l": r[3], "c": r[4], "v": float(r[6] or r[5])} for r in raw]
+    return [{"t": stamp(r[0], offset), "o": r[1], "h": r[2], "l": r[3], "c": r[4], "v": float(r[6] or r[5]),
+             "spread": r[7] if len(r) > 7 else None} for r in raw]      # spread in points (the V5 filter layer's Gate 8)
 
 
 def bars_many(wants: List[tuple], timeout: float = 120, offset: Optional[_dt.timedelta] = None) -> Dict[tuple, List[Dict]]:
