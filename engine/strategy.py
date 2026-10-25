@@ -284,11 +284,16 @@ def sl_atr(bars: List[Dict]) -> Optional[float]:
     return tools.atr(bars[-(4 * n + 1):], n)
 
 
-def pretrade(st: Dict, entry: float, stop: float, tgt: Dict, atr: Optional[float]) -> Optional[str]:
+def pretrade(st: Dict, entry: float, stop: float, tgt: Dict, atr: Optional[float],
+             min_rr: Optional[float] = None, sl_max: Optional[float] = None) -> Optional[str]:
     """David's SL/TP bug fix (2026-10-24), checked right before an order. Everything comes from this one
     setup: its BOS, its zone, its FVG inside the BOS move, the stop from its own zone + buffer on the right
     side and not abnormally far (≤ sl_max_atr_mult × ATR; never moved closer to pass), a real structure
-    target on the right side at ≥ min_rr. Returns why not, or None when the order may go."""
+    target on the right side at ≥ min_rr. The structure filter layer passes its profile's min_rr / sl_max
+    (2026-10-25: Book.plan with the layer on), so one threshold rules both; None = STRATEGY's own.
+    Returns why not, or None when the order may go."""
+    min_rr = float(S["min_rr"]) if min_rr is None else float(min_rr)
+    sl_max = float(S["sl_max_atr_mult"]) if sl_max is None else float(sl_max)
     side = st["side"]
     sell = side == "sell"
     bos, poi, f = st.get("bos") or {}, st.get("poi") or {}, st.get("fvg") or {}
@@ -309,16 +314,16 @@ def pretrade(st: Dict, entry: float, stop: float, tgt: Dict, atr: Optional[float
     risk = abs(entry - stop)
     if not atr:
         return "no ATR to judge the stop distance"
-    if risk > float(S["sl_max_atr_mult"]) * atr:
-        return f"SL distance {risk:g} is {risk / atr:.1f}× the {S['sl_atr_tf']} ATR {atr:g} (max {S['sl_max_atr_mult']:g}×): abnormal stop"
+    if risk > sl_max * atr:
+        return f"SL distance {risk:g} is {risk / atr:.1f}× the {S['sl_atr_tf']} ATR {atr:g} (max {sl_max:g}×): abnormal stop"
     tp = (tgt or {}).get("price")
     if tp is None:
         return (tgt or {}).get("label") or "no target"
     if sell and tp >= entry or not sell and tp <= entry:
         return f"TP {tp:g} is on the wrong side of the entry {entry:g}"
     rr = abs(tp - entry) / risk
-    if rr < float(S["min_rr"]) - 1e-9:
-        return f"RR {rr:.2f} is under {S['min_rr']:g}"
+    if rr < min_rr - 1e-9:
+        return f"RR {rr:.2f} is under {min_rr:g}"
     return None
 
 

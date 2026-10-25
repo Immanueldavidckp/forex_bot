@@ -235,3 +235,16 @@ def test_profile_switch(monkeypatch):
     assert FL.profile() == FL.FILTER_PROFILE
     monkeypatch.setattr(FL, "PROFILE", "strict")
     assert FL.F["MIN_RR"] == 3.0 and FL.F["SWING_LEFT"] == 3
+
+
+def test_pretrade_follows_the_profile_limits(monkeypatch):
+    """forex-46 2026-10-25: V.pretrade kept STRATEGY's RR 3 / 3 ATR even when the test profile allows RR 2,
+    so a trade passing every gate was still refused. The layer now hands pretrade its profile's limits."""
+    b, rec, touch = trend([(21.0, 2), (14.0, 5), (13.0, 2)])          # RR 2.18 to the move's end at 21.05
+    done = b[:touch]
+    entry = rec["entry"]
+    lv = FL.plan_levels(rec, entry, 0.01, INFO, [("M15", done)], done)
+    atr = V.sl_atr(done)
+    why = V.pretrade(rec, entry, lv["stop"], lv["target"], atr)
+    assert why is not None and "is under 3" in why                     # STRATEGY alone still refuses it
+    assert V.pretrade(rec, entry, lv["stop"], lv["target"], atr, min_rr=2, sl_max=FL.F["SL_MAX_ATR"]) is None

@@ -300,13 +300,16 @@ class Book:
                                 self.feed.completed(sym, "M15"))
             stop, tgt = lv["stop"], lv["target"]
             extra = {"stop_rule": lv["stop_rule"], "filters": True}
+            limits = {"min_rr": FL.F["MIN_RR"], "sl_max": FL.F["SL_MAX_ATR"]}      # the profile rules, not STRATEGY's
         else:
             stop = V.stop_price(rec, float(self.feed.info[sym]["point"]))
             levels = V.opposite_levels(side, (rec["tf"], bars), ("H1", h1), ("H4", self.feed.completed(sym, "H4")))
             tgt = V.final_target(side, entry, stop, levels)
+            limits = {}
         atr = V.sl_atr(self.feed.completed(sym, S["sl_atr_tf"]))
         return {"setup": rec["id"], "entry": entry, "stop": stop, "target": tgt, "atr": atr,
-                "sl_atr_x": round(abs(entry - stop) / atr, 2) if atr else None, "why": V.pretrade(rec, entry, stop, tgt, atr), **extra}
+                "sl_atr_x": round(abs(entry - stop) / atr, 2) if atr else None,
+                "why": V.pretrade(rec, entry, stop, tgt, atr, **limits), **extra}
 
     def signal(self, rec: Dict, trading: bool, h1: List[Dict], bars: List[Dict], m5: List[Dict]) -> None:
         sym, side, tf = rec["symbol"], rec["side"], rec["tf"]
