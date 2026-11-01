@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 
 from . import learn
-from . import sd_backtest, smc_marks, supply_demand
+from . import order_blocks, sd_backtest, sd_classic, smc_marks, supply_demand
 from . import candles, chart_patterns, elliott, indicators, levels, trendlines, volume_profile, wyckoff
 from .major_structure import atr14, major_structure
 from .config import ENGINE, VIEW_DIR
@@ -106,7 +106,36 @@ def load(sym: str, tf: str, n: int = N_BARS) -> Dict:
     mk = smc_marks.marks(bars, m)
     return {"sym": sym, "tf": tf, "bars": [r[:5] for r in rows], "major": major(rows, bars, m, mk), "zones": smc_zones(rows),
             "lux": lux(rows), "levels": prev_day(rows), "v5": learn.detect_rows(rows, tf, sym), "ta": concepts(bars, m, mk, tf),
-            "sd": supply_demand.page(bars, m), "sdbt": sd_backtest.saved(sym, tf), "kcbz": kcbz_saved(sym, tf)}
+            "sd": supply_demand.page(bars, m), "sdbt": sd_backtest.saved(sym, tf), "kcbz": kcbz_saved(sym, tf),
+            "sdc": sdc_page(bars, m), "obr": obr_page(bars, m)}
+
+
+def _T(bars, i):
+    return None if i is None else bars[min(i, len(bars) - 1)]["t"]
+
+
+def sdc_page(bars: List[Dict], m: Dict) -> List[Dict]:
+    """supply / demand the S&D school's way (sd_classic.py, research 2026-11-01) for the page"""
+    T = lambda i: _T(bars, i)
+    return [{"side": z["side"], "kind": z["kind"], "role": z["role"], "top": z["top"], "bottom": z["bottom"],
+             "proximal": z["proximal"], "proximal_wick": z["proximal_wick"], "distal": z["distal"], "t0": T(z["base"][0]),
+             "t_dep": T(z["d"]), "t_valid": T(z["valid_idx"]), "t_end": T(z["end_idx"]), "status": z["status"],
+             "touches": z["touches"], "t_touch": T(z["touch_idx"]), "t_broken": T(z["broken_idx"]),
+             "t_superseded": T(z["superseded_idx"]), "score": z["score"], "parts": z["parts"], "bos": z["bos"],
+             "base_n": z["base_n"], "single": z["single"], "height_atr": z["height_atr"], "run_h": z["run_h"],
+             "live": z["live"]} for z in sd_classic.zones(bars, m)]
+
+
+def obr_page(bars: List[Dict], m: Dict) -> List[Dict]:
+    """order blocks the ICT / SMC-indicator way (order_blocks.py, research 2026-11-01) for the page"""
+    T = lambda i: _T(bars, i)
+    return [{"side": o["side"], "kind": o["kind"], "of": f"{o['event_kind']} {o['dir']}", "n": o["n"], "top": o["top"],
+             "bottom": o["bottom"], "body_top": o["body_top"], "body_bottom": o["body_bottom"], "mean": o["mean"],
+             "t0": T(o["idx"]), "t_last": T(o["idx_last"]), "t_break": T(o["break_idx"]), "t_end": T(o["end_idx"]),
+             "t_touch": T(o["touch_idx"]), "t_mean": T(o["mean_idx"]), "t_invalid": T(o["invalid_idx"]),
+             "t_dead": T(o["dead_idx"]), "flip": o["flip"], "status": o["status"], "score": o["score"],
+             "parts": o["parts"], "swept": o["swept"], "fvg": o["fvg"], "extreme": o["extreme"], "live": o["live"]}
+            for o in order_blocks.blocks(bars, m)]
 
 
 KCBZ_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "engine_data", "backtest",

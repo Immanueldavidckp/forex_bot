@@ -13,7 +13,7 @@ header { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; padding:
 h1 { font-size:14px; margin:0 8px 0 0; letter-spacing:.08em } h1 a { color:var(--muted); text-decoration:none; font-weight:normal }
 button, select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font:inherit; cursor:pointer }
 button[aria-pressed="false"] { opacity:.45 } #tfs button { padding:4px 7px } #tfs button.on { border-color:#5c6bc0; color:#aab6ff; background:#1a2030; opacity:1 }
-button.l-major { border-color:var(--major) } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
+button.l-major { border-color:var(--major) } button.l-new { border-color:#00e676; color:#b9f6ca } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
 .muted { color:var(--muted) } .grow { flex:1 }
 #status { padding:5px 12px; border-bottom:1px solid var(--line); color:var(--muted); min-height:27px }
 #status b { color:var(--text); font-weight:600 }
@@ -39,6 +39,9 @@ footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line);
   <button class="l-major" data-layer="major" aria-pressed="true" title="BOS = close beyond the leg's extreme, CHoCH = close beyond the protected swing (the low / high the last BOS came from; after a CHoCH the old trend's top / bottom). Internal breaks are not marked.">BOS / CHoCH</button>
   <button class="l-major" data-layer="ob" aria-pressed="true" title="order blocks of the major BOS / CHoCH: the last opposite candle before the displacement that broke structure (full wick, 50 % line); live = not closed through; the nearest 3 per side, plus breakers (a failed OB price came back to)">OB</button>
   <button class="l-major" data-layer="sd" aria-pressed="true" title="supply / demand — only the VALID zones: the base (1–3 small candles, or David's last opposite candle) before a displacement (body ≥ 1.5 × the 10 before) whose move out closed beyond a major swing (BOS / CHoCH: David's rule), box ≤ 1.5 ATR, left cleanly; score 0–10 = the odds enhancers (shown, never a filter); dashed line = the body edge (entry)">Supply / Demand</button>
+  <button class="l-new" data-layer="sdc" aria-pressed="false" title="NEW supply / demand, the S&amp;D school's way (Seiden / OTA, research 2026-11-01, engine/sd_classic.py): the BASE (1–6 small-body candles) at the ORIGIN of a leg before a strong move away; near edge = the base's body, far edge = its wick; solid = the origin zone of a leg, the pauses inside a leg are 'continuation' (button +cont.); BOS ✓ = its move broke structure (a strength point, not required by this school)">S&amp;D new</button>
+  <button class="l-new" data-layer="sdcc" aria-pressed="false" title="also the continuation zones of the new supply / demand: pauses inside a leg (RBR / DBD …), lower grade">+cont.</button>
+  <button class="l-new" data-layer="obr" aria-pressed="false" title="NEW order blocks, the ICT / SMC-indicator way (research 2026-11-01, engine/order_blocks.py): ONE down candle (bullish) / up candle (bearish) — at the extreme of the leg that broke structure by close, blended with the same-colour candles right before it; full-range box, dashed = the open (ICT entry), dotted = 50 % of the body (mean threshold); needs a displacement">OB new</button>
   <button class="l-major" data-layer="sdbt" aria-pressed="false" title="the backtest of David's UPDATED supply / demand rules (Drive: Trade / Crypto strategy, 2026-10-31; engine/sd_backtest.py): every trade on this chart with its entry, SL, TP1 (50 % at the broken BOS, then break-even) and TP2 (the leg extreme), the score and the result in R; run python3 -m engine.sd_backtest SYMBOL TF to make / refresh it">S&amp;D backtest</button>
   <button class="l-major" data-layer="kcbz" aria-pressed="false" title="the backtest of Kronos direction + Claude BOS → its supply / demand zone (rules/strategy/kronos_claude_bos_zone, 2026-11-01): every trade with the BOS it came from (dashed purple), the zone it traded, entry / SL / TP, the fill ▲▼ and the exit ✕; label C = Claude only, K+C = with Kronos. Made for GOLD M15 — turn on &quot;whole history&quot; to see all of them">BOS-zone backtest</button>
   <button class="l-major" data-layer="liq" aria-pressed="true" title="liquidity: equal highs / lows (≥ 2 swings within 0.5 ATR), swing highs / lows and the previous day's high / low not yet taken (nearest 3 above and below), and the latest sweeps (wick through, close back inside)">Liquidity</button>
@@ -82,7 +85,7 @@ const C = {major: "#4dd0e1", mBOS: "#b388ff", mCHoCH: "#ff5252", bull: "#26a69a"
   zOBbull: "rgba(31,111,92,.45)", zOBbear: "rgba(128,52,52,.45)", zFVGbull: "rgba(46,92,140,.40)", zFVGbear: "rgba(140,100,38,.40)"};
 let BARS = "";   // "all" = the whole history (?bars=all)
 let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
-const LAYER = {major: true, ob: true, sd: true, sdbt: false, kcbz: false, liq: true, fvg: true, pd: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
+const LAYER = {major: true, ob: true, sd: true, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, liq: true, fvg: true, pd: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
   sess: false, cdl: false, cdlall: false, tl: false, cp: false, fib: false, vwap: false, osc: false, vp: false, wy: false, ew: false, of: false};   // default: the SMC row only
 
 async function api(p) { const r = await fetch(p); if (!r.ok) throw new Error(p + " " + r.status); return r.json(); }
@@ -211,6 +214,8 @@ function side() {
   if (LAYER.sd && D.sd) h += sideSD(row);
   if (LAYER.sdbt) h += sideSDBT(row);
   if (LAYER.kcbz) h += sideKCBZ(row);
+  if (LAYER.sdc && D.sdc) h += sideSDC(row);
+  if (LAYER.obr && D.obr) h += sideOBR(row);
   if (LAYER.liq) h += `<h3>liquidity not yet taken</h3><table>${M.pools_above.slice().reverse().map(q => row(q.t_first, [`<span class="bear">▲ ${q.label}</span>`, fx(q.level), ist(q.t_first)])).join("")}` +
     row(s.t_last, ["— price", fx(s.price), ""]) + `${M.pools_below.map(q => row(q.t_first, [`<span class="bull">▼ ${q.label}</span>`, fx(q.level), ist(q.t_first)])).join("")}</table>
     <h3>sweeps (newest first)</h3><table>${M.sweeps.slice().reverse().map(w => row(w.t, [ist(w.t), `<span class="${w.side === "high" ? "bear" : "bull"}">$ ${w.label}</span>`, `${fx(w.level)} → ${fx(w.extreme)}${w.kind === "failed break" ? " (failed break)" : ""}`])).join("") || `<tr><td class="muted">none</td></tr>`}</table>`;
@@ -375,6 +380,8 @@ function draw() {
   if (LAYER.sd && D.sd) drawSD(g, G, vis);
   if (LAYER.sdbt && D.sdbt) drawSDBT(g, G, vis);
   if (LAYER.kcbz && D.kcbz) drawKCBZ(g, G, vis);
+  if (LAYER.sdc && D.sdc) drawSDC(g, G, vis);
+  if (LAYER.obr && D.obr) drawOBR(g, G, vis);
   if (LAYER.strat) drawStrategy(g, G);
   if (LAYER.sess) drawSessions(g, G, vis);
   if (LAYER.wy) drawWyckoff(g, G, vis);
@@ -712,6 +719,68 @@ function sideKCBZ(row) {
   return `<h3>BOS-zone backtest (${day(K.from)} → ${day(K.to)})</h3><table>${st("Kronos + Claude", K.stats.kronos_claude)}${st("Claude only", K.stats.claude_only)}</table>` +
     lst("Kronos + Claude trades", K.kronos_claude) + lst("Claude-only trades", K.claude_only) +
     `<div class="note">${K.strategy}. "Claude" = David's structure rule, no model. Dashed purple = the BOS each trade came from; box = the zone it traded; ▲▼ fill, ✕ exit. Click a row to jump, hover a trade for its numbers. Pictures + report: Drive › Trade › Forex strategy.</div>`;
+}
+
+// ── NEW (research 2026-11-01): supply / demand the S&D school's way, order blocks the ICT way ──
+const NEWC = {demand: ["0,188,212", "#00bcd4"], supply: ["255,112,67", "#ff7043"], bull: ["102,187,106", "#66bb6a"], bear: ["236,64,122", "#ec407a"]};
+function sdcTip(z) {
+  const P = z.parts;
+  return `NEW ${z.side === "demand" ? "DEMAND" : "SUPPLY"} · ${z.kind} (${z.kind === "DBR" || z.kind === "RBD" ? "reversal" : "continuation"}) · ${z.role} zone of the leg${z.bos ? " · BOS ✓" : ""}` +
+    `\nbase: ${z.single ? "no small candle — the opposite candle itself (= an order block)" : z.base_n + " small-body candle(s)"} from ${ist(z.t0)} · leg out ${ist(z.t_dep)}, valid ${ist(z.t_valid)}` +
+    `\nnear edge (body) ${fx(z.proximal)} · wick ${fx(z.proximal_wick)} · far edge ${fx(z.distal)} · ${z.height_atr} ATR tall · moved ${z.run_h}× its height away` +
+    `\n${z.status}${z.touches ? " · " + z.touches + " visit(s), first " + ist(z.t_touch) : ""}${z.t_broken ? " · broken " + ist(z.t_broken) : ""}${z.t_superseded ? " · CHoCH against " + ist(z.t_superseded) : ""}` +
+    `\nscore ${z.score}/10: departure ${P.departure} · time at level ${P.time_at_level} · fresh ${P.freshness} · room ${P.profit_zone} · curve ${P.curve}`;
+}
+function drawSDC(g, G, vis) {
+  g.save(); g.font = "10px system-ui,sans-serif";
+  for (const z of D.sdc) {
+    const origin = z.role === "origin";
+    if (!origin && !LAYER.sdcc) continue;
+    if (!z.live && !LAYER.mit) continue;
+    if (!vis(z.t0, z.t_end)) continue;
+    const [rgb, col] = NEWC[z.side], tip = sdcTip(z);
+    box(g, G, z.t0, z.t_end, z.top, z.bottom, `rgba(${rgb},${origin ? (z.live ? .22 : .12) : .06})`, origin ? col : `rgba(${rgb},.6)`, origin ? [] : [4, 3], tip);
+    const xa = Math.max(G.xt(z.t0), G.PL), xb = z.t_end == null ? G.W - G.PR : G.xt(z.t_end);
+    if (origin || z.live) {
+      g.fillStyle = col; g.textAlign = "left";
+      const y = z.side === "demand" ? G.y(z.bottom) + 10 : G.y(z.top) - 4;
+      g.fillText(`${z.side === "demand" ? "Demand" : "Supply"} ${z.kind}${origin ? " · origin" : ""} · ${z.score}/10${z.bos ? " · BOS✓" : ""}`, xa + 3, y);
+    }
+  }
+  g.restore();
+}
+function obrTip(o) {
+  const P = o.parts;
+  return `NEW ORDER BLOCK · ${o.side === "bull" ? "BULLISH" : "BEARISH"} (${o.of}) · ${o.n} candle${o.n > 1 ? "s blended" : ""} from ${ist(o.t0)}${o.extreme ? " · the leg's extreme bar" : ""}` +
+    `\nbox ${fx(o.bottom)} – ${fx(o.top)} · open (ICT entry) ${fx(o.body_top)} · mean 50 % body ${fx(o.mean)} · break ${ist(o.t_break)}` +
+    `\n${o.status}${o.t_touch ? " · touched " + ist(o.t_touch) : ""}${o.t_mean ? " · past the mean " + ist(o.t_mean) : ""}${o.t_invalid ? " · closed through " + ist(o.t_invalid) + " → " + o.flip : ""}` +
+    `\nscore ${o.score}/10: FVG ${P.fvg} · swept liquidity ${P.swept} · ${o.side === "bull" ? "discount " + P.discount : "premium " + P.premium} · body ${P.body} · extreme ${P.extreme} · BOS ${P.bos}`;
+}
+function drawOBR(g, G, vis) {
+  g.save(); g.font = "10px system-ui,sans-serif";
+  for (const o of D.obr) {
+    if (!o.live && !LAYER.mit) continue;
+    const t1 = o.live ? null : (o.t_dead || o.t_end);
+    if (!vis(o.t0, t1)) continue;
+    const [rgb, col] = NEWC[o.side], tip = obrTip(o);
+    box(g, G, o.t0, t1, o.top, o.bottom, `rgba(${rgb},${o.live ? .20 : .09})`, col, o.flip ? [6, 3] : [], tip);
+    const xa = G.xt(o.t0), xb = t1 == null ? G.W - G.PR : G.xt(t1);
+    g.strokeStyle = col; g.setLineDash([5, 3]); g.beginPath(); g.moveTo(xa, G.y(o.body_top)); g.lineTo(xb, G.y(o.body_top)); g.stroke();
+    g.setLineDash([1, 3]); g.beginPath(); g.moveTo(xa, G.y(o.mean)); g.lineTo(xb, G.y(o.mean)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col; g.textAlign = "left";
+    g.fillText(`${o.side === "bull" ? "Bull" : "Bear"} OB${o.flip ? " → " + o.flip : ""} · ${o.score}/10`, Math.max(xa, G.PL) + 3, o.side === "bull" ? G.y(o.top) - 4 : G.y(o.bottom) + 10);
+  }
+  g.restore();
+}
+function sideSDC(row) {
+  const L = D.sdc, live = L.filter(z => z.live).sort((a, b) => b.top - a.top), orig = L.filter(z => z.role === "origin");
+  return `<h3>NEW supply / demand (S&amp;D school)</h3><table>${live.map(z => row(z.t0, [`<span style="color:${NEWC[z.side][1]}">${z.side === "demand" ? "Demand" : "Supply"} ${z.kind} · ${z.role}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, `${z.status} · ${z.score}/10${z.bos ? " · BOS✓" : ""}`])).join("") || `<tr><td class="muted">none live</td></tr>`}</table>` +
+    `<div class="note">${L.length} zones on this chart: ${orig.length} origin zones (the base where a leg started), ${L.length - orig.length} continuation zones (pauses inside a leg, button +cont.). A zone = 1–6 small-body candles (body ≤ 50 % of the candle) before a candle that closes beyond them and runs ≥ 2× the zone's height away within 10 bars; near edge = the base's body, far edge = its wick. No BOS needed in this school; BOS✓ marks the ones whose move broke structure. Sources: Seiden SFO 2005, OTA core strategy, therighttrader, LuxAlgo, backtrex, open-source S&amp;D scripts (engine/research/ob_sd).</div>`;
+}
+function sideOBR(row) {
+  const L = D.obr, live = L.filter(o => o.live).sort((a, b) => b.top - a.top);
+  return `<h3>NEW order blocks (ICT)</h3><table>${live.map(o => row(o.t0, [`<span style="color:${NEWC[o.side][1]}">${o.side === "bull" ? "Bull" : "Bear"} OB · ${o.of}</span>`, `${fx(o.bottom)} – ${fx(o.top)}`, `${o.status} · ${o.score}/10`])).join("") || `<tr><td class="muted">none live</td></tr>`}</table>` +
+    `<div class="note">${L.length} blocks on this chart, one per major BOS / CHoCH with a displacement: the down candle (bull) / up candle (bear) with the lowest low / highest high at the leg's extreme, plus the same-colour candles right before it (≤ 4). It dies on a close through its far edge (→ breaker if it had swept liquidity, else mitigation block). Sources: ICT Mentorship 2016 Month 04, LuxAlgo, joshyattridge smart-money-concepts, TradingView OB scripts (engine/research/ob_sd).</div>`;
 }
 
 // ── order flow (engine/orderflow.py): buy / sell per price ESTIMATED from FxPro's quote changes ──
