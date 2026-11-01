@@ -1,26 +1,22 @@
-# rules/: the strategies, written down
-
-Rules never run. They are what the concepters follow. Each strategy is its own folder:
+# rules/: everything written down. Rules never run anything.
 
 ```
-rules/<strategy>/
-  concept.md     what the setup looks like on the chart: structure, zone, FVG …
-  trade.md       how to trade it, always these four sections:
-                   ## Entry
-                   ## Stop loss
-                   ## Take profit
-                   ## Exit when it goes wrong
-  params.toml    the same rules as numbers, for the code concepters (V5); [strategy] name / version / status
+rules/
+  concept/            WHAT EACH ENGINE LOOKS FOR on the chart (one folder per engine in concepter/)
+    v5/                 concept.md (words) + params.toml (numbers): BOS → zone → FVG → setup
+    kronos/             the forecast: 16 paths of the next 8 M15 bars → direction
+    claude/             the model judges David's structure: BOS / CHoCH / direction (new)
+  strategy/           THE RECIPES, common to all engines: which engine gives what, then entry · SL · TP · exit
+    v5_supply_demand/            V5 alone: the live strategy on demo
+    kronos_forecast/             Kronos alone: forecast-only now
+    kronos_direction_claude_bos/ David's example: direction from Kronos, BOS from Claude (draft)
 ```
 
-- **The words and the numbers say the same thing.** Change one, change the other in the same commit, and raise
-  `version` in `params.toml`. The LLM concepters (Claude, GPT, Gemini) read the words. The V5 engine reads the
-  numbers.
-- **Only David changes a rule.** A concepter that thinks a rule is wrong says so in its notes. It does not trade
-  around it.
-- **A new strategy = copy `_template/`**, fill it in, and set `status = "draft"` until David approves it.
-
-| strategy | status | who follows it today |
-|---|---|---|
-| `supply_demand` | live on demo (0.01 lot) | the V5 engine (`engine/`, reads `engine/config.py` until it is moved: see ARCHITECTURE.md) |
-| `kronos_forecast` | forecast only (trading off since 2026-10-27) | Kronos (`kronos/` + `engine/kronos_book.py`) |
+- **Concept = one engine's eyes. Strategy = how the eyes are combined into a trade.** An engine reports signals
+  (a direction, a BOS, a setup …). A strategy picks the signals it wants from the engines it wants, and says where the
+  entry, the stop and the target go. How to write one: `strategy/README.md`.
+- **Words and numbers say the same thing.** The Claude engine reads the words; the code reads the numbers. Change
+  both in the same commit and raise the version.
+- **Only David changes a rule.** An engine that finds a rule unclear says so in its notes; it does not work around it.
+- **A new engine** = a folder here in `concept/` + one in `concepter/`. **A new strategy** = a folder in `strategy/`,
+  no new code.

@@ -1,0 +1,16 @@
+# Claude engine: the numbers of concept.md, plus what it is shown (packet) and how its answers are checked.
+
+[concept]
+engine = "claude"
+version = "0.1"
+status = "draft"
+signals = ["bos", "choch", "direction"]
+
+[check]
+margin_atr = 0.25         # a break closes beyond its level by ≥ 0.25 × ATR(14) (David's rule, major_structure.py)
+pullback_atr = 3.0        # a pullback is real when price came back ≥ 3 × ATR(14) from the extreme
+max_age_bars = 40         # a reported break must have its closing candle within the last 40 bars, or it is dropped
+
+[packet]
+tail_bars = 40            # M15 bars shown to the model
+events = 3                # the last structure events from the toolkit

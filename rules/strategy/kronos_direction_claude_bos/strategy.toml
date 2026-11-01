@@ -1,0 +1,39 @@
+[strategy]
+name = "kronos_direction_claude_bos"
+version = "0.1"
+status = "draft"
+timeframe = "M15"
+magic = 5050701
+
+[[need]]
+engine = "kronos"
+signal = "direction"
+max_age_bars = 1
+min = { p = 0.75, move_spread_x = 2.0 }
+
+[[need]]
+engine = "claude"
+signal = "bos"
+max_age_bars = 4
+
+[entry]
+type = "market"
+no_entry_utc = ["20:45", "22:15"]
+
+[stop]
+at = "claude.bos.origin"
+buffer_atr = 0.25
+plus_spread = true
+max_atr = 3.0
+min_spread_x = 3.0
+
+[target]
+rr = 2.0
+min_rr = 2.0
+min_spread_x = 10.0
+
+[exit]
+close_on = ["claude.choch"]
+hold_bars = 8
+breakeven_at_r = 1.0
+flat_at_utc = "20:45"

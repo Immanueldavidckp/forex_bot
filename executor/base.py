@@ -1,7 +1,7 @@
 """
-executor/base.py — what every executor (paper, MT5) offers the concepters.
+executor/base.py — what every executor (paper, MT5) offers the conductor.
 
-An executor does what a concepter commands: open, modify, close. It does NOT decide whether a trade is good.
+An executor does what the conductor (running a strategy) commands: open, modify, close. It does NOT decide whether a trade is good.
 It only refuses what breaks David's account limits (executor/guard.py + limits.toml).
 """
 from __future__ import annotations
@@ -20,8 +20,8 @@ class Executor(ABC):
         """Check the command against the limits, then carry it out (or refuse it, saying why)."""
 
     @abstractmethod
-    def positions(self, concepter: Optional[str] = None, symbol: Optional[str] = None) -> List[Position]:
-        """Open + pending positions, optionally only one concepter's / one symbol's."""
+    def positions(self, owner: Optional[str] = None, symbol: Optional[str] = None) -> List[Position]:
+        """Open + pending positions, optionally only one owner (strategy) / one symbol."""
 
     @abstractmethod
     def account(self) -> Dict[str, float]:

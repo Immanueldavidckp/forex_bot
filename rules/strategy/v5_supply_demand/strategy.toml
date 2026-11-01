@@ -1,0 +1,49 @@
+# V5 Supply & Demand. The live engine (engine/) reads engine/config.py + engine/profit.py, not this file;
+# tests/test_architecture.py fails if they disagree, so change both together until V5 moves (ARCHITECTURE.md step 3).
+
+[strategy]
+name = "v5_supply_demand"
+version = "5.0"
+status = "demo"
+timeframe = "M15"
+magic = 5050505
+
+[[need]]
+engine = "v5"
+signal = "setup"
+max_age_bars = 12
+
+[entry]
+type = "limit"
+limit_at = "v5.setup.entry"
+expires_bars = 12                 # gate G7: price back in the FVG within 12 M15 candles
+no_entry_utc = ["20:45", "22:15"]
+
+[stop]
+at = "v5.setup.sl"
+min_spread_x = 3.0
+max_atr = 3.0
+
+[target]
+at = "v5.setup.tp"
+min_rr = 2.0                      # profile "profit" (the V5 text says 3.0)
+min_spread_x = 10.0
+
+[exit]
+flat_at_utc = "20:45"
+
+[live_engine]                     # done by engine/ today, not by the conductor yet
+filter_profile = "profit"
+confirm_tf = "M5"
+confirm_max_bars = 36
+sdh4_sl_atr_buffer = 0.25
+sl_widen_to_stops_level = true
+max_spread_atr = 0.10
+layer_depth_weak = 0.25
+layer_depth_moderate = 0.40
+layer_depth_strong = 0.55
+near_target_progress = 0.80
+reversal_giveback = 0.10
+tp1_fraction = 0.5
+lock_start_r = 3.0
+lock_gap_r = 2.0

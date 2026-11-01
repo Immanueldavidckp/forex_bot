@@ -13,7 +13,7 @@ max_risk_pct = 2.5                # money lost at the stop, % of balance (V5 nor
 
 [positions]
 max_open = 0                      # 0 = no limit (David 2026-10-30: "no limit for trade and position")
-max_per_concepter = 0             # 0 = no limit
+max_per_owner = 0                 # per strategy; 0 = no limit
 block_opposite_same_symbol = true # no buy and sell on one symbol at once: both sides pay the spread for nothing
 
 [loss]

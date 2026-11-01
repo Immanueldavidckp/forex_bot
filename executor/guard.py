@@ -1,6 +1,6 @@
 """
-executor/guard.py — David's account limits (executor/limits.toml), checked before EVERY command of EVERY concepter.
-The guard never judges a setup. It only keeps the account safe and each concepter inside its own trades.
+executor/guard.py — David's account limits (executor/limits.toml), checked before EVERY command of EVERY strategy.
+The guard never judges a setup. It only keeps the account safe and each strategy inside its own trades.
 
     Guard().check(cmd, executor) -> None (allowed) | "the reason it is refused"
 """
@@ -81,13 +81,13 @@ class Guard:
         mx = int(self.lim("positions.max_open", 0))
         if mx and len(mine) >= mx:
             return f"{len(mine)} positions open (limit {mx})"
-        mpc = int(self.lim("positions.max_per_concepter", 0))
-        if mpc and len([p for p in mine if p.concepter == c.concepter]) >= mpc:
-            return f"{c.concepter} has {mpc} positions open (limit)"
+        mpc = int(self.lim("positions.max_per_owner", 0))
+        if mpc and len([p for p in mine if p.owner == c.owner]) >= mpc:
+            return f"{c.owner} has {mpc} positions open (limit)"
         if self.lim("positions.block_opposite_same_symbol", True):
             other = [p for p in mine if p.symbol == c.symbol and p.side != c.side]
             if other:
-                return f"{other[0].concepter} holds a {other[0].side} on {c.symbol} (ticket {other[0].ticket})"
+                return f"{other[0].owner} holds a {other[0].side} on {c.symbol} (ticket {other[0].ticket})"
         return None
 
     # ── modify / close ──────────────────────────────────────────────────────────────────────────────────────────
@@ -95,8 +95,8 @@ class Guard:
         p = next((p for p in ex.positions() if p.ticket == c.ticket), None)
         if p is None:
             return f"no open position {c.ticket}"
-        if p.concepter != c.concepter:
-            return f"position {c.ticket} belongs to {p.concepter}, not {c.concepter}"
+        if p.owner != c.owner:
+            return f"position {c.ticket} belongs to {p.owner}, not {c.owner}"
         return None
 
     def _modify(self, c: Modify, ex) -> Optional[str]:

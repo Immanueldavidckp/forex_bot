@@ -1,0 +1,17 @@
+# Kronos-base forecaster for the V5 engine's Kronos trades. Install (user service, starts at login):
+#   cp ~/forex/kronos/kronos-signals.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now kronos-signals
+[Unit]
+Description=Kronos-base forecasts for the V5 engine's Kronos trades (GPU; engine/kronos_book.py places the trades)
+
+[Service]
+WorkingDirectory=%h/forex
+Environment=PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+Environment=PYTHONWARNINGS=ignore
+ExecStart=%h/opt/kronos-venv/bin/python -m concepter.kronos.signals
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:%h/forex/engine_data/kronos/signals.log
+StandardError=append:%h/forex/engine_data/kronos/signals.log
+
+[Install]
+WantedBy=default.target

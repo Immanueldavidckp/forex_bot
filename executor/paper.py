@@ -74,9 +74,10 @@ class PaperExecutor(Executor):
             bid, ask = self.quote(cmd.symbol)
             limit = cmd.order == "limit"
             entry = cmd.price if limit else (ask if cmd.side == "buy" else bid)
-            p = Position(ticket=self.next_ticket, concepter=cmd.concepter, symbol=cmd.symbol, side=cmd.side,
+            p = Position(ticket=self.next_ticket, owner=cmd.owner, symbol=cmd.symbol, side=cmd.side,
                          lots=self.guard.lots_for(cmd), entry=entry, sl=cmd.sl, tp=cmd.tp, opened_t=self.now,
-                         status="pending" if limit else "open", setup_id=cmd.setup_id, reason=cmd.reason, sl0=cmd.sl)
+                         status="pending" if limit else "open", setup_id=cmd.setup_id, reason=cmd.reason, sl0=cmd.sl,
+                         placed_t=self.now)
             self.next_ticket += 1
             self.open.append(p)
             return Result(True, command_to_dict(cmd), ticket=p.ticket, why=f"{p.status} at {entry:g}")
@@ -95,8 +96,8 @@ class PaperExecutor(Executor):
         return Result(True, command_to_dict(cmd), ticket=p.ticket, why=f"closed at {t.exit:g}, {t.r:+.2f}R")
 
     # ── state ───────────────────────────────────────────────────────────────────────────────────────────────────
-    def positions(self, concepter: Optional[str] = None, symbol: Optional[str] = None) -> List[Position]:
-        return [p for p in self.open if (concepter is None or p.concepter == concepter)
+    def positions(self, owner: Optional[str] = None, symbol: Optional[str] = None) -> List[Position]:
+        return [p for p in self.open if (owner is None or p.owner == owner)
                 and (symbol is None or p.symbol == symbol)]
 
     def account(self) -> Dict[str, float]:
@@ -120,7 +121,7 @@ class PaperExecutor(Executor):
         sign = 1 if p.side == "buy" else -1
         pnl = (price - p.entry) * sign * money_per_price(self.infos[p.symbol], p.lots)
         risk = abs(p.entry - p.sl0) or 1e-12
-        t = Trade(ticket=p.ticket, concepter=p.concepter, symbol=p.symbol, side=p.side, lots=p.lots, entry=p.entry,
+        t = Trade(ticket=p.ticket, owner=p.owner, symbol=p.symbol, side=p.side, lots=p.lots, entry=p.entry,
                   exit=price, opened_t=p.opened_t, closed_t=self.now, pnl=round(pnl, 2),
                   r=round((price - p.entry) * sign / risk, 3), exit_reason=why, setup_id=p.setup_id)
         self.balance += pnl

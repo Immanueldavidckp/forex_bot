@@ -1,0 +1,32 @@
+# As engine/config.py KRONOS holds it (that file is what the live engine reads; tests keep both equal).
+
+[strategy]
+name = "kronos_forecast"
+version = "1.1"
+status = "forecast-only"
+timeframe = "M15"
+magic = 5050600
+
+[[need]]
+engine = "kronos"
+signal = "direction"
+max_age_bars = 1
+min = { p = 0.75, move_spread_x = 2.0 }
+
+[entry]
+type = "market"
+friday_last_utc = "19:30"
+
+[stop]
+atr = 1.0
+max_spread_frac = 0.3
+
+[target]
+atr = 2.0
+
+[exit]
+hold_bars = 8
+
+[live_engine]                     # done by engine/kronos_book.py, not by the conductor yet
+min_free_margin_pct = 30
+signal_max_age_sec = 600

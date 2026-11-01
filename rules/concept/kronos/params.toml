@@ -1,0 +1,13 @@
+# Kronos engine: WHAT IT LOOKS AT, as numbers (concept.md in words). engine/config.py KRONOS holds the same for
+# the running forecaster; tests/test_architecture.py keeps both equal.
+
+[concept]
+engine = "kronos"
+version = "1.1"
+signals = ["direction"]
+
+[forecast]
+tf = "M15"
+context = 512
+horizon = 8
+paths = 16

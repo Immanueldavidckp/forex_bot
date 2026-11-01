@@ -1,0 +1,32 @@
+# V5 engine: WHAT IT LOOKS FOR, as numbers (concept.md in words). How it is traded is in rules/strategy/.
+#
+# NOTE: the live engine (engine/) still reads engine/config.py, not this file. tests/test_architecture.py fails
+# if the two disagree, so change both together until the V5 engine reads this file (ARCHITECTURE.md step 3).
+
+[concept]
+engine = "v5"
+version = "5.0"
+timeframes = ["H4", "H1", "M30", "M15", "M5"]   # all analysed and drawn
+signals = ["bos", "choch", "setup"]
+
+[structure]
+swing_length = 2
+major_swing_length = 4
+bias_tfs = ["H4", "H1"]
+bias_exempt_tfs = ["M15", "M30"]
+setup_max_age_bars = 192
+
+[zone]
+lookback_bars = 5
+displacement_mult = 1.5
+body_average_bars = 10
+
+[fvg]
+pick = "nearest"
+protect_candles = 2
+min_runoff_atr = 0.5
+
+[setup]                              # the numbers a V5 setup signal carries
+fvg_depth = 0.10                     # entry 10 % into the trigger FVG
+sl_buffer_points = 20                # sl = the zone's far edge + 20 points
+target = "nearest untouched opposite swing on the setup TF, H1, H4"
