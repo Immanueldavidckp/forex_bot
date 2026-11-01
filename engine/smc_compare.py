@@ -21,10 +21,11 @@ Bars: learn.load_bars (engine_data/history + the engine's view file + live.py's 
 from __future__ import annotations
 
 import argparse
+import json
 import datetime as _dt
 import os
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -105,7 +106,20 @@ def load(sym: str, tf: str, n: int = N_BARS) -> Dict:
     mk = smc_marks.marks(bars, m)
     return {"sym": sym, "tf": tf, "bars": [r[:5] for r in rows], "major": major(rows, bars, m, mk), "zones": smc_zones(rows),
             "lux": lux(rows), "levels": prev_day(rows), "v5": learn.detect_rows(rows, tf, sym), "ta": concepts(bars, m, mk, tf),
-            "sd": supply_demand.page(bars, m), "sdbt": sd_backtest.saved(sym, tf)}
+            "sd": supply_demand.page(bars, m), "sdbt": sd_backtest.saved(sym, tf), "kcbz": kcbz_saved(sym, tf)}
+
+
+KCBZ_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "engine_data", "backtest",
+                        "kronos_claude_bos_zone")
+
+
+def kcbz_saved(sym: str, tf: str) -> Optional[Dict]:
+    """the Kronos + Claude BOS → zone backtest (concepter/backtests/kronos_claude_bos_zone.py), or None"""
+    try:
+        with open(os.path.join(KCBZ_DIR, f"chart_{sym}_{tf}.json")) as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return None
 
 
 def major(rows: List[list], bars=None, m=None, mk=None) -> Dict:
@@ -325,16 +339,20 @@ _CACHE: Dict[tuple, tuple] = {}
 CACHE_S = 30          # the internet copy serves this page too: one computation per chart per 30 s, whoever asks
 
 
-def page(sym: str, tf: str) -> Dict:
-    hit = _CACHE.get((sym, tf))
-    if hit and time.time() - hit[0] < CACHE_S:
+FULL_BARS = 60000     # "whole history": every bar on disk (GOLD M15 ≈ 33,000 → ~30 s to compute, kept 10 min)
+FULL_CACHE_S = 600
+
+
+def page(sym: str, tf: str, n: int = N_BARS) -> Dict:
+    hit = _CACHE.get((sym, tf, n))
+    if hit and time.time() - hit[0] < (CACHE_S if n <= N_BARS else FULL_CACHE_S):
         return hit[1]
-    d = load(sym, tf)
+    d = load(sym, tf, n)
     if "error" not in d:
         d["summary"] = summary(d)
     if len(_CACHE) > 64:
         _CACHE.clear()
-    _CACHE[(sym, tf)] = (time.time(), d)
+    _CACHE[(sym, tf, n)] = (time.time(), d)
     return d
 
 

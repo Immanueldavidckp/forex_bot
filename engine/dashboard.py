@@ -205,7 +205,10 @@ class Handler(BaseHTTPRequestHandler):
             sym, tf = q.get("sym", ""), q.get("tf", "")
             if not SYM.match(sym) or tf not in learn.TF_MS:
                 return self._send(400, b'{"error":"bad symbol / tf"}')
-            return self._send(200, json.dumps(smc_compare.page(sym, tf)).encode())
+            want = q.get("bars", "")
+            n = smc_compare.FULL_BARS if want == "all" else (max(500, min(smc_compare.FULL_BARS, int(want)))
+                                                             if want.isdigit() else smc_compare.N_BARS)
+            return self._send(200, json.dumps(smc_compare.page(sym, tf, n)).encode())
         if u.path == "/api/smc/orderflow":     # the footprint chart (orderflow.py); since = only the bars from that time on
             from . import learn, orderflow
             sym, tf = q.get("sym", ""), q.get("tf", "")

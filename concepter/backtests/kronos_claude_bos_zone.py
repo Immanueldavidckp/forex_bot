@@ -276,6 +276,34 @@ def table_png(lines: List[List[str]], title: str, path: str) -> None:
     plt.close(fig)
 
 
+def write_chart(bt: str, main_run: Dict, base_run: Dict, by_key: Dict, kron: Dict, ms_: Dict, bs_: Dict, bars) -> str:
+    """<bt>/chart_<SYM>_<TF>.json: every trade with its BOS, zone, leg and levels, for the /smc page's
+    "BOS-zone backtest" layer (engine/smc_compare.py reads it)."""
+    def rows(run):
+        out = []
+        for n, t in enumerate(run["trades"], 1):
+            key = next(k for k in t["setup_id"].split("+") if k.startswith("claude.setup"))
+            s = by_key[key]
+            d = s["data"]
+            fc = kron.get(s["now"] - MS)
+            out.append({"n": n, "side": t["side"], "setup_t": s["now"], "t_break": d["t_break"], "bos": d["bos_level"],
+                        "origin": d["origin"], "zone": {"top": d["top"], "bottom": d["bottom"], "t0": d["zone_t0"],
+                                                        "kind": d["zone_kind"], "score": d["zone_score"]},
+                        "leg": d["leg_extreme"], "entry": t["entry"], "sl": t["sl0"], "tp": t["tp"],
+                        "t_open": t["opened_t"], "t_close": t["closed_t"], "exit": t["exit"],
+                        "why": t["exit_reason"], "r": t["r"], "p_up": fc["p_up"] if fc else None})
+        return out
+    d = {"made": utc(int(dt.datetime.now(dt.timezone.utc).timestamp() * 1000)), "from": bars[0].t, "to": bars[-1].t,
+         "strategy": "Kronos direction + Claude BOS → its supply / demand zone; SL beyond the zone + 0.25 ATR + spread; "
+                     "TP the BOS leg's swing (rules/strategy/kronos_claude_bos_zone)",
+         "stats": {"kronos_claude": ms_, "claude_only": bs_},
+         "kronos_claude": rows(main_run), "claude_only": rows(base_run)}
+    path = os.path.join(bt, f"chart_{SYM}_{TF}.json")
+    with open(path, "w") as f:
+        json.dump(d, f)
+    return path
+
+
 # ── 4. the report ───────────────────────────────────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -424,6 +452,7 @@ def main() -> int:
             fig.figimage(img)
             pdf.savefig(fig)
             plt.close(fig)
+    write_chart(bt, main_run, base_run, by_key, kron, ms_, bs_, bars)
     summary = {"crosscheck": {"same_r": same, "different": diff}, "main": ms_, "no_kronos": bs_, "kronos_agrees_alone": ka, "kronos_not_alone": kn,
                "all_alone": group(alone), "setups": len(setups), "forecasts": len(kron),
                "runs": {n: stats(r["trades"]) | {"orders": r["orders"], "unfilled": r["expired"], "cancelled": r["cancelled"]}
