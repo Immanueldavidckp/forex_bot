@@ -13,7 +13,7 @@ header { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; padding:
 h1 { font-size:14px; margin:0 8px 0 0; letter-spacing:.08em } h1 a { color:var(--muted); text-decoration:none; font-weight:normal }
 button, select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font:inherit; cursor:pointer }
 button[aria-pressed="false"] { opacity:.45 } #tfs button { padding:4px 7px } #tfs button.on { border-color:#5c6bc0; color:#aab6ff; background:#1a2030; opacity:1 }
-button.l-major { border-color:var(--major) } button.l-new { border-color:#00e676; color:#b9f6ca } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
+button.l-major { border-color:var(--major) } button.l-new { border-color:#00e676; color:#b9f6ca } button.l-david { border-color:#ffd54f; color:#ffe082; font-weight:600 } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
 .muted { color:var(--muted) } .grow { flex:1 }
 #status { padding:5px 12px; border-bottom:1px solid var(--line); color:var(--muted); min-height:27px }
 #status b { color:var(--text); font-weight:600 }
@@ -38,10 +38,10 @@ footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line);
   <select id="pick"></select><span id="tfs"></span>
   <button class="l-major" data-layer="major" aria-pressed="true" title="BOS = close beyond the leg's extreme, CHoCH = close beyond the protected swing (the low / high the last BOS came from; after a CHoCH the old trend's top / bottom). Internal breaks are not marked.">BOS / CHoCH</button>
   <button class="l-major" data-layer="ob" aria-pressed="true" title="order blocks of the major BOS / CHoCH: the last opposite candle before the displacement that broke structure (full wick, 50 % line); live = not closed through; the nearest 3 per side, plus breakers (a failed OB price came back to)">OB</button>
-  <button class="l-major" data-layer="sd" aria-pressed="true" title="supply / demand — only the VALID zones: the base (1–3 small candles, or David's last opposite candle) before a displacement (body ≥ 1.5 × the 10 before) whose move out closed beyond a major swing (BOS / CHoCH: David's rule), box ≤ 1.5 ATR, left cleanly; score 0–10 = the odds enhancers (shown, never a filter); dashed line = the body edge (entry)">Supply / Demand</button>
+  <button class="l-major" data-layer="sd" aria-pressed="false" title="supply / demand — only the VALID zones: the base (1–3 small candles, or David's last opposite candle) before a displacement (body ≥ 1.5 × the 10 before) whose move out closed beyond a major swing (BOS / CHoCH: David's rule), box ≤ 1.5 ATR, left cleanly; score 0–10 = the odds enhancers (shown, never a filter); dashed line = the body edge (entry)">Supply / Demand</button>
+  <button class="l-david" data-layer="sdd" aria-pressed="true" title="DAVID's supply / demand: a bull BOS → DEMAND, a bear BOS → SUPPLY (only BOS, not CHoCH), valid only when the BOS move holds an FVG (≥ 0.3 ATR, the FVG layer's rule). The zone = where the BOS move started: far edge = the wick of the origin candle, near edge = the highest (demand) / lowest (supply) candle body up to the first big candle of the move (≤ 6 candles). Dotted boxes = the FVG(s) that make it valid. Only these places may take an entry.">S&amp;D David</button>
   <button class="l-new" data-layer="sdc" aria-pressed="false" title="NEW supply / demand, the S&amp;D school's way (Seiden / OTA, research 2026-11-01, engine/sd_classic.py): the BASE (1–6 small-body candles) at the ORIGIN of a leg before a strong move away; near edge = the base's body, far edge = its wick; solid = the origin zone of a leg, the pauses inside a leg are 'continuation' (button +cont.); BOS ✓ = its move broke structure (a strength point, not required by this school)">S&amp;D new</button>
   <button class="l-new" data-layer="sdcc" aria-pressed="false" title="also the continuation zones of the new supply / demand: pauses inside a leg (RBR / DBD …), lower grade">+cont.</button>
-  <button class="l-new" data-layer="sdb" aria-pressed="false" title="supply / demand the way Brad Goh (The Trading Geek) teaches it — Market Mechanics Ep 7: a big candle → its ORIGIN: the consolidation or pullback before it; light box = RANGE method (highest wick → lowest wick of the consolidation), dark box = PIVOT method (the turning candle, wick included); dashed = the 50 % line: the zone counts as MITIGATED only when price reaches it">S&amp;D Brad</button>
   <button class="l-new" data-layer="obr" aria-pressed="false" title="NEW order blocks, the ICT / SMC-indicator way (research 2026-11-01, engine/order_blocks.py): ONE down candle (bullish) / up candle (bearish) — at the extreme of the leg that broke structure by close, blended with the same-colour candles right before it; full-range box, dashed = the open (ICT entry), dotted = 50 % of the body (mean threshold); needs a displacement">OB new</button>
   <button class="l-major" data-layer="sdbt" aria-pressed="false" title="the backtest of David's UPDATED supply / demand rules (Drive: Trade / Crypto strategy, 2026-10-31; engine/sd_backtest.py): every trade on this chart with its entry, SL, TP1 (50 % at the broken BOS, then break-even) and TP2 (the leg extreme), the score and the result in R; run python3 -m engine.sd_backtest SYMBOL TF to make / refresh it">S&amp;D backtest</button>
   <button class="l-major" data-layer="kcbz" aria-pressed="false" title="the backtest of Kronos direction + Claude BOS → its supply / demand zone (rules/strategy/kronos_claude_bos_zone, 2026-11-01): every trade with the BOS it came from (dashed purple), the zone it traded, entry / SL / TP, the fill ▲▼ and the exit ✕; label C = Claude only, K+C = with Kronos. Made for GOLD M15 — turn on &quot;whole history&quot; to see all of them">BOS-zone backtest</button>
@@ -87,7 +87,7 @@ const C = {major: "#4dd0e1", mBOS: "#b388ff", mCHoCH: "#ff5252", bull: "#26a69a"
 let BARS = "";   // "all" = the whole history (?bars=all)
 let AT = null;   // ?at=<UTC time>: open the chart there
 let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
-const LAYER = {major: true, ob: true, sd: true, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, sdb: false, liq: true, fvg: true, pd: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
+const LAYER = {major: true, ob: true, sd: false, sdd: true, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, liq: true, fvg: true, pd: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
   sess: false, cdl: false, cdlall: false, tl: false, cp: false, fib: false, vwap: false, osc: false, vp: false, wy: false, ew: false, of: false};   // default: the SMC row only
 
 async function api(p) { const r = await fetch(p); if (!r.ok) throw new Error(p + " " + r.status); return r.json(); }
@@ -220,9 +220,9 @@ function side() {
   if (LAYER.sd && D.sd) h += sideSD(row);
   if (LAYER.sdbt) h += sideSDBT(row);
   if (LAYER.kcbz) h += sideKCBZ(row);
+  if (LAYER.sdd && D.sdd) h += sideSDD(row);
   if (LAYER.sdc && D.sdc) h += sideSDC(row);
   if (LAYER.obr && D.obr) h += sideOBR(row);
-  if (LAYER.sdb && D.sdb) h += sideSDB(row);
   if (LAYER.liq) h += `<h3>liquidity not yet taken</h3><table>${M.pools_above.slice().reverse().map(q => row(q.t_first, [`<span class="bear">▲ ${q.label}</span>`, fx(q.level), ist(q.t_first)])).join("")}` +
     row(s.t_last, ["— price", fx(s.price), ""]) + `${M.pools_below.map(q => row(q.t_first, [`<span class="bull">▼ ${q.label}</span>`, fx(q.level), ist(q.t_first)])).join("")}</table>
     <h3>sweeps (newest first)</h3><table>${M.sweeps.slice().reverse().map(w => row(w.t, [ist(w.t), `<span class="${w.side === "high" ? "bear" : "bull"}">$ ${w.label}</span>`, `${fx(w.level)} → ${fx(w.extreme)}${w.kind === "failed break" ? " (failed break)" : ""}`])).join("") || `<tr><td class="muted">none</td></tr>`}</table>`;
@@ -387,9 +387,9 @@ function draw() {
   if (LAYER.sd && D.sd) drawSD(g, G, vis);
   if (LAYER.sdbt && D.sdbt) drawSDBT(g, G, vis);
   if (LAYER.kcbz && D.kcbz) drawKCBZ(g, G, vis);
+  if (LAYER.sdd && D.sdd) drawSDD(g, G, vis);
   if (LAYER.sdc && D.sdc) drawSDC(g, G, vis);
   if (LAYER.obr && D.obr) drawOBR(g, G, vis);
-  if (LAYER.sdb && D.sdb) drawSDB(g, G, vis);
   if (LAYER.strat) drawStrategy(g, G);
   if (LAYER.sess) drawSessions(g, G, vis);
   if (LAYER.wy) drawWyckoff(g, G, vis);
@@ -781,33 +781,38 @@ function drawOBR(g, G, vis) {
   }
   g.restore();
 }
-function sdbTip(z) {
-  return `S&D (Brad Goh method) · ${z.side === "demand" ? "DEMAND" : "SUPPLY"}${z.bos ? " · its move broke structure (BOS✓)" : ""}` +
-    `\nRANGE (whole consolidation, wick to wick, ${z.n} bars from ${ist(z.t0)}): ${fx(z.bottom)} – ${fx(z.top)} · 50 % ${fx(z.mid)}` +
-    `\nPIVOT candle ${ist(z.t_p)}: ${fx(z.p_bottom)} – ${fx(z.p_top)}` +
-    `\nbig candle ${ist(z.t_dep)} → broke out ${ist(z.t_brk)} · moved ${z.away_h}× the range away` +
-    `\n${z.status}${z.t_touch ? " · edge touched " + ist(z.t_touch) : ""}${z.t_mitigated ? " · MITIGATED (50 %) " + ist(z.t_mitigated) : ""}${z.t_broken ? " · broken " + ist(z.t_broken) : ""}`;
+// ── DAVID's supply / demand (engine/sd_david.py) ──
+const DVC = {demand: ["76,175,80", "#66bb6a"], supply: ["239,83,80", "#ef5350"]};
+function sddTip(z) {
+  return `DAVID S&D · ${z.side === "demand" ? "DEMAND (bull BOS)" : "SUPPLY (bear BOS)"} · ${z.status}` +
+    `\nBOS ${z.side === "demand" ? "↑" : "↓"} through ${fx(z.bos_level)} at ${ist(z.t_break)}` +
+    `\nzone ${fx(z.bottom)} – ${fx(z.top)}: far edge (wick) ${fx(z.distal)} · near edge (body, entry) ${fx(z.proximal)} · ${z.n} candle(s) from ${ist(z.t0)}` +
+    `\nFVG inside the BOS move: ${z.fvgs.map(f => fx(f.bottom) + " – " + fx(f.top) + " (" + f.atr + " ATR, " + ist(f.t) + ")").join(" · ")}` +
+    `${z.t_touch ? "\ntested " + ist(z.t_touch) : ""}${z.t_broken ? " · broken " + ist(z.t_broken) : ""}${z.t_superseded && (!z.t_broken || z.t_superseded < z.t_broken) ? " · CHoCH against " + ist(z.t_superseded) : ""}`;
 }
-function drawSDB(g, G, vis) {
-  g.save(); g.font = "10px system-ui,sans-serif";
-  for (const z of D.sdb) {
+function drawSDD(g, G, vis) {
+  g.save(); g.font = "bold 10px system-ui,sans-serif";
+  for (const z of D.sdd) {
+    if (!z.valid) continue;
     if (!z.live && !LAYER.mit) continue;
-    const t1 = z.live ? null : z.t_broken;
+    const t1 = z.live ? null : z.t_end;
     if (!vis(z.t0, t1)) continue;
-    const [rgb, col] = NEWC[z.side], tip = sdbTip(z), used = !!z.t_mitigated;
-    box(g, G, z.t0, t1, z.top, z.bottom, `rgba(${rgb},${used ? .05 : .11})`, `rgba(${rgb},.75)`, used ? [4, 3] : [], tip);   // RANGE
-    box(g, G, z.t_p, t1, z.p_top, z.p_bottom, `rgba(${rgb},${used ? .10 : .22})`, col, [], tip);                           // PIVOT
-    const xa = Math.max(G.xt(z.t0), G.PL), xb = t1 == null ? G.W - G.PR : G.xt(t1), ym = G.y(z.mid);
-    g.strokeStyle = col; g.setLineDash([6, 4]); g.beginPath(); g.moveTo(xa, ym); g.lineTo(xb, ym); g.stroke(); g.setLineDash([]);
+    const [rgb, col] = DVC[z.side], tip = sddTip(z);
+    for (const f of z.fvgs)                                                      // the FVG(s) that make it valid
+      box(g, G, f.t, z.t_break, f.top, f.bottom, `rgba(${rgb},.10)`, `rgba(${rgb},.6)`, [2, 2], tip);
+    box(g, G, z.t0, t1, z.top, z.bottom, `rgba(${rgb},${z.live ? .24 : .10})`, col, z.live ? [] : [5, 3], tip);
+    const xa = Math.max(G.xt(z.t0), G.PL), xb = t1 == null ? G.W - G.PR : G.xt(t1), yp = G.y(z.proximal);
+    g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(xa, yp); g.lineTo(xb, yp); g.stroke(); g.lineWidth = 1;   // the entry edge
     g.fillStyle = col;
-    g.fillText(`${z.side === "demand" ? "Demand" : "Supply"} (Brad) · ${z.status}${z.bos ? " · BOS✓" : ""}`, xa + 3, z.side === "demand" ? G.y(z.bottom) + 10 : G.y(z.top) - 4);
+    g.fillText(`${z.side === "demand" ? "DEMAND" : "SUPPLY"} · BOS ${z.side === "demand" ? "↑" : "↓"} · FVG ✓ · ${z.status}`, xa + 3, z.side === "demand" ? G.y(z.bottom) + 11 : G.y(z.top) - 5);
   }
   g.restore();
 }
-function sideSDB(row) {
-  const L = D.sdb, live = L.filter(z => z.live).sort((a, b) => b.top - a.top);
-  return `<h3>S&amp;D — Brad Goh method (Market Mechanics Ep 7)</h3><table>${live.map(z => row(z.t0, [`<span style="color:${NEWC[z.side][1]}">${z.side === "demand" ? "Demand" : "Supply"}${z.bos ? " · BOS✓" : ""}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, `${z.status} · pivot ${fx(z.p_bottom)} – ${fx(z.p_top)}`])).join("") || `<tr><td class="muted">none live</td></tr>`}</table>` +
-    `<div class="note">${L.length} zones on this chart. Find the big candle, then its ORIGIN: the consolidation or pullback it broke out of. Light box = RANGE method (highest wick → lowest wick of that consolidation), dark box = PIVOT method (the turning candle with its wick). A zone is MITIGATED only when price reaches its 50 % line (dashed); touching the edge is not enough. Source: youtube.com/watch?v=52aKS7HN_jI (8:13, 10:18, 14:58, 23:20).</div>`;
+function sideSDD(row) {
+  const L = D.sdd, V = L.filter(z => z.valid), live = V.filter(z => z.live).sort((a, b) => b.top - a.top);
+  return `<h3>DAVID supply / demand</h3><table>${live.map(z => row(z.t0, [`<span style="color:${DVC[z.side][1]}">${z.side === "demand" ? "Demand · bull BOS" : "Supply · bear BOS"}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, `${z.status} · entry ${fx(z.proximal)}`])).join("") || `<tr><td class="muted">none live</td></tr>`}</table>` +
+    `<h3>latest (newest first)</h3><table>${V.slice(-8).reverse().map(z => row(z.t0, [`<span style="color:${DVC[z.side][1]}">${z.side === "demand" ? "Demand" : "Supply"}</span> ${ist(z.t_break)}`, `${fx(z.bottom)} – ${fx(z.top)}`, z.status])).join("")}</table>` +
+    `<div class="note">${L.length} BOS on this chart → ${V.length} valid zones (${L.length - V.length} BOS had no FVG ≥ 0.3 ATR inside the move → not valid). Bull BOS → demand, bear BOS → supply; CHoCH gives no zone. Zone = where the BOS move started: far edge = the origin candle's wick, near edge (solid line, the entry) = the highest / lowest candle body up to the first big candle (≤ 6 candles). Dotted = the FVG that makes it valid. Ends on a close through the far edge, or a CHoCH against it.</div>`;
 }
 function sideSDC(row) {
   const L = D.sdc, live = L.filter(z => z.live).sort((a, b) => b.top - a.top), orig = L.filter(z => z.role === "origin");
