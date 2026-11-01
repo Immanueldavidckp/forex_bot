@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 
 from . import learn
-from . import order_blocks, sd_backtest, sd_classic, smc_marks, supply_demand
+from . import order_blocks, sd_backtest, sd_brad, sd_classic, smc_marks, supply_demand
 from . import candles, chart_patterns, elliott, indicators, levels, trendlines, volume_profile, wyckoff
 from .major_structure import atr14, major_structure
 from .config import ENGINE, VIEW_DIR
@@ -107,7 +107,17 @@ def load(sym: str, tf: str, n: int = N_BARS) -> Dict:
     return {"sym": sym, "tf": tf, "bars": [r[:5] for r in rows], "major": major(rows, bars, m, mk), "zones": smc_zones(rows),
             "lux": lux(rows), "levels": prev_day(rows), "v5": learn.detect_rows(rows, tf, sym), "ta": concepts(bars, m, mk, tf),
             "sd": supply_demand.page(bars, m), "sdbt": sd_backtest.saved(sym, tf), "kcbz": kcbz_saved(sym, tf),
-            "sdc": sdc_page(bars, m), "obr": obr_page(bars, m)}
+            "sdc": sdc_page(bars, m), "obr": obr_page(bars, m), "sdb": sdb_page(bars, m)}
+
+
+def sdb_page(bars: List[Dict], m: Dict) -> List[Dict]:
+    """supply / demand the way Brad Goh (The Trading Geek, Market Mechanics Ep 7) draws it — sd_brad.py"""
+    T = lambda i: _T(bars, i)
+    return [{"side": z["side"], "top": z["top"], "bottom": z["bottom"], "mid": z["mid"], "p_top": z["p_top"],
+             "p_bottom": z["p_bottom"], "t0": T(z["s"]), "t_p": T(z["p"]), "t_dep": T(z["d"]), "t_brk": T(z["brk"]),
+             "n": z["n"], "away_h": z["away_h"], "bos": z["bos"], "status": z["status"], "t_touch": T(z["touch_idx"]),
+             "t_mitigated": T(z["mitigated_idx"]), "t_p_mitigated": T(z["p_mitigated_idx"]), "t_broken": T(z["broken_idx"]),
+             "live": z["live"]} for z in sd_brad.zones(bars, m)]
 
 
 def _T(bars, i):
