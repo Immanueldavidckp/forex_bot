@@ -29,8 +29,9 @@ from typing import Dict, List
 
 from . import book as B
 from . import filters as FL
-from .backtest import fixed_outcome, load
-from .config import DATA_DIR, ENGINE, FILTERS
+from . import profit as PR
+from .backtest import fixed_outcome, load, managed_outcome
+from .config import DATA_DIR, ENGINE, FILTERS, STRATEGY as S
 from .feed import TF_MIN
 from .history import HIST_DIR, server_to_utc_ms
 
@@ -102,6 +103,9 @@ class SimMT5:
         bk = self.book
         rec = bk.sim_rec
         m5 = bk.feed.get(sym, "M5")
+        if rec.get("entry_bos_t"):           # entry_confirm "M5": the order goes in at the close of the M5 BOS candle
+            hit = next((b for b in reversed(m5) if b["t"] == rec["entry_bos_t"]), m5[-1])
+            return {"bid": hit["c"], "ask": hit["c"] + hit["sp"], "time": 0}
         hit = next((b for b in reversed(m5) if b["t"] == rec["touch_t"]), m5[-1])
         e = rec["entry"]
         bid = max(e, hit["o"]) if rec["side"] == "sell" else min(e, hit["o"])
@@ -144,16 +148,51 @@ def run_pass(d: Dict, start: int, end: int, on: bool) -> Dict:
         except Exception as e:                  # one bad step must not end the replay
             jr.append({"event": "error", "t": feed.now, "error": f"{type(e).__name__}: {e}"})
     attempts = [{"id": r["id"], "tf": r["tf"], "entry_type": r.get("entry_type"), "status": r["status"], "why": r.get("why"),
-                 "gate": r.get("gate"), "touch_t": r.get("touch_t"), "side": r["side"], "plan": r.get("plan")}
+                 "gate": r.get("gate"), "touch_t": r.get("touch_t"), "side": r["side"], "plan": r.get("plan"),
+                 "entry_bos_t": r.get("entry_bos_t"), "formed_t": r.get("formed_t"), "invalidation": r.get("invalidation"),
+                 "bos": {k: (r.get("bos") or {}).get(k) for k in ("kind", "level", "level_t", "t")},
+                 "zone": {k: (r.get("poi") or r.get("zone") or {}).get(k) for k in ("kind", "top", "bottom", "t")},
+                 "fvg": {k: (r.get("fvg") or {}).get(k) for k in ("top", "bottom", "t")} if r.get("fvg") else None}
                 for r in bk.setups.values() if r["status"] in ("signal", "refused", "against bias") and r.get("touch_t", 0) >= start
                 and r["tf"] != ENGINE["sdh4"]["zone_tf"]]
-    for a in attempts:                          # outcome of the trades taken: stop / target only, on M5
+    for a in attempts:                          # outcome of the trades taken, on M5 from the bar after the entry
         if a["status"] == "signal":
             p = a["plan"]
-            j = bisect.bisect_left(feed.T["M5"], a["touch_t"])
+            j = (bisect.bisect_left(feed.T["M5"], a["entry_bos_t"]) + 1) if a.get("entry_bos_t") else \
+                bisect.bisect_left(feed.T["M5"], a["touch_t"])
+            a["entry_t"] = m5[min(j, len(m5) - 1)]["t"]
             a["outcome"] = fixed_outcome(a["side"], p["entry"], p["stop"], p["target"]["price"], m5, j)
+            a["managed"] = managed(d, a, m5, j, feed)
+            a["levels"] = {"entry": p["entry"], "stop": p["stop"], "target": p["target"]["price"], "target_label": p["target"].get("label"),
+                           "layer": (p.get("layer") or {}).get("price"), "rr": p["target"].get("rr"), "bid": p.get("bid"), "ask": p.get("ask")}
         a.pop("plan", None)
     return {"attempts": attempts, "records": recs, "errors": [x for x in jr if x["event"] == "error"][:5]}
+
+
+def managed(d: Dict, a: Dict, m5: List[Dict], j: int, feed: "SimFeed") -> Dict:
+    """The live management on M5 (Book.trail via backtest.managed_outcome: break-even, T1, locks, the layer) and the
+    profit profile's flat-before-swap (PR.P NO_OVERNIGHT): still open at the cut-off -> closed at that bar's open."""
+    p = a["plan"]
+    tf, side, sell = a["tf"], a["side"], a["side"] == "sell"
+    entry, stop, tp = p["entry"], p["stop"], p["target"]["price"]
+    layer = (p.get("layer") or {}).get("price")
+    inv = a.get("invalidation")
+    ser = feed.ser.get(tf) or []
+    cancel = next((b["t"] + TF_MIN[tf] * 60_000 for b in ser if b["t"] >= m5[min(j, len(m5) - 1)]["t"] and inv is not None
+                   and ((b["c"] > inv) if sell else (b["c"] < inv))), None)
+    cut = len(m5)
+    if PR.P["NO_OVERNIGHT"]:
+        cut = next((k for k in range(j, len(m5)) if PR.minutes_to_swap(m5[k]["t"]) <= 1), len(m5))   # the 20:45 UTC bar: closed at its open
+    r = managed_outcome(d["symbol"], d["info"], side, tf, entry, stop, tp, layer, m5[:cut], j, cancel)
+    if r["exit"] == "open" and cut < len(m5):
+        b = m5[cut]
+        px = b["o"] + b["sp"] if sell else b["o"]
+        sg, risk = (-1 if sell else 1), abs(entry - stop)
+        pct = float(S["normal_risk_pct"]) * sg * (px - entry) / risk
+        if r.get("layer") == "filled" and layer is not None:
+            pct += float(S["layer_risk_pct"]) * sg * (px - layer) / abs(layer - stop)
+        r = {**r, "pct": round(pct, 3), "r": round(pct / float(S["normal_risk_pct"]), 3), "exit": "swap", "exit_t": b["t"], "exit_px": px}
+    return r
 
 
 def _job(arg):
@@ -227,6 +266,9 @@ def report(res: List[Dict], days: int) -> str:
         g = x.get("first_fail")
         L.append(f"  {ist(a['touch_t'])}  {a['id']:28s} {a['side']:4s} {o.get('exit') or '?':4s} {o.get('r') if o.get('r') is not None else '':>6}R  "
                  f"→ {g or 'pass'} {(x.get('why') or {}).get(g, '')[:90]}")
+    md = [a["managed"] for a in took_new if a.get("managed") and a["managed"].get("r") is not None]
+    L.append(f"\nfilters on, LIVE management (Book.trail: break-even, T1, locks, layer; flat before the swap): {len(md)} closed, "
+             f"{sum(1 for o in md if o['r'] > 0)} won, {sum(1 for o in md if o['r'] < 0)} lost, {sum(o['r'] for o in md):+.1f} R")
     for name, took in (("old logic", took_old), ("filters on", took_new)):
         done = [a["outcome"] for a in took if a.get("outcome") and a["outcome"]["r"] is not None]
         L.append(f"\n{name}: {len(took)} taken, {len(done)} reached the stop or the target in the window: "

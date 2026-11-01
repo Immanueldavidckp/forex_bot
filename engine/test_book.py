@@ -244,6 +244,41 @@ def test_clock_is_measured_again_when_bars_look_an_hour_old(monkeypatch):
     assert not f.check_clock()                                               # a fresh bar: nothing to do
 
 
+def test_view_gives_every_live_setup_its_sl_tp_and_a_taken_entry_its_trade(env):
+    """David 2026-10-25: the chart shows each live setup's SL / TP as they would be now (not only the focus one, and
+    also against the bias) and, for a setup whose entry was taken, its trade: open, or closed with its P&L."""
+    from engine import strategy as V
+    from engine.test_strategy import UP, bars
+    bk, fake, feed = env
+    m15 = feed.m15 = feed.m5 = bars(UP)
+    st = V.structure(m15)
+    c = [c for c in V.bos_setups(m15, st, "M15", "TEST") if c["complete"]][0]
+    live = {**c, "status": "waiting pullback", "aligned": False}
+    taken = {**c, "id": "TEST-M15-taken", "status": "closed", "trade_id": "TEST-M15-taken"}
+    bk.trades["TEST-M15-taken"] = {"id": "TEST-M15-taken", "symbol": "TEST", "closed": True, "pnl_usd": -25.0}
+    v = bk.view("TEST", {"bias": None, "why": "test"}, [live, taken], {"M15": st})
+    by = {s["id"]: s for s in v["setups"]}
+    assert v["focus"] is None and by[c["id"]]["preview"]["stop"] is not None
+    assert by["TEST-M15-taken"]["preview"] is None and by["TEST-M15-taken"]["result"] == {"closed": True, "pnl_usd": -25.0}
+
+
+def test_bars_keep_their_own_offset_across_the_dst_switch():
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from engine.feed import Feed, mt5c
+    f = Feed()
+    f.offset = dt.datetime.now(ZoneInfo(C.ENGINE["server_tz"])).utcoffset()
+    tz = f.clock()
+    assert isinstance(tz, dt.tzinfo)
+    srv = lambda *a: int(dt.datetime(*a, tzinfo=dt.timezone.utc).timestamp())       # server wall time, as MT5 stamps it
+    utc = lambda *a: int(dt.datetime(*a, tzinfo=dt.timezone.utc).timestamp() * 1000)
+    # FxPro 2026-10-25: the coins' last bar before the switch is 02:00 summer time, the next one 04:00 winter time
+    assert mt5c.server_to_utc_ms(srv(2026, 10, 25, 2, 0), tz) == utc(2026, 10, 24, 23, 0)
+    assert mt5c.server_to_utc_ms(srv(2026, 10, 25, 4, 0), tz) == utc(2026, 10, 25, 2, 0)
+    f.offset += dt.timedelta(hours=1)                    # a measured clock the zone doesn't explain: that offset for every bar
+    assert f.clock() == f.offset
+
+
 def test_minimum_lot_mode(env, monkeypatch):
     bk, fake, _ = env
     monkeypatch.setitem(C.ENGINE, "lot_mode", "min")

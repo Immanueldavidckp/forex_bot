@@ -7,7 +7,9 @@ engine/run.py — the V5 engine's loop and commands. Run from ~/forex with the s
     python3 -m engine.run trading on|off
     python3 -m engine.run mt5 status|start|stop|restart|login      the MT5 terminal (the loop runs it: engine/terminal.py)
     python3 -m engine.run filters on|off|status      the structure filter layer (engine/filters.py), no restart needed
-    python3 -m engine.run filters strict|test        its thresholds: the spec as written, or the 0.01-lot test profile
+    python3 -m engine.run filters strict|test|profit its thresholds: the spec as written, the 0.01-lot test
+                                                    profile, or "profit" (no caps + the cost gate, David 2026-10-30)
+    python3 -m engine.run kronos on|off|status       Kronos' trades (engine/kronos_book.py; forecasts: service kronos-signals)
 
 Every loop_sec: read the account / positions / pending layers, apply the dashboard's commands, manage
 the open trades. Every time a timeframe is due (M5 / M15 each minute, M30 / H1 every 5 min, H4 every
@@ -25,6 +27,9 @@ from .book import Book, journal, log
 from .config import ENGINE, STRATEGY, load_control, save_control
 from . import filters as FL
 from .feed import Feed, mt5c
+from .kronos_book import KronosBook
+from . import live as LV
+from . import kronos_book as KB
 from .terminal import Terminal
 
 
@@ -120,6 +125,10 @@ def cmd_run(a) -> int:
         f"trading {'ON' if load_control()['trading'] else 'off (watch mode)'}, lots {ENGINE.get('lot_mode', 'risk')}, "
         f"structure filters {'ON (' + FL.profile() + ')' if FL.enabled() else 'off'}")
     journal("engine_start", symbols=len(feed.symbols))
+    kronos = KronosBook(feed)
+    log(f"kronos: {', '.join(KB.K['SYMBOLS'])} on {KB.K['TF']}, magic {kronos.magic}, "
+        f"{'ON' if KB.enabled() else 'off'} (forecasts from the kronos-signals service)")
+    k_err = l_err = ""
     errors = 0
     first = True
     while True:
@@ -153,6 +162,20 @@ def cmd_run(a) -> int:
                         traceback.print_exc()
                 first = False
             book.manage()
+            try:                                  # Kronos never stops V5: its errors are logged (once each) and skipped
+                kronos.step(trading, book.account)
+                k_err = ""
+            except Exception as e:
+                if str(e) != k_err:
+                    log(f"kronos: {type(e).__name__}: {e}")
+                k_err = str(e)
+            try:                                  # the /smc page's live quotes: the same, never stops V5
+                LV.step(feed)
+                l_err = ""
+            except Exception as e:
+                if str(e) != l_err:
+                    log(f"live: {type(e).__name__}: {e}")
+                l_err = str(e)
             book.overview(trading, term.status)
             book.save()
             errors = 0
@@ -181,6 +204,16 @@ def cmd_filters(a) -> int:
     print(f"structure filters {'ON' if FL.enabled() else 'off'} (control.json: {c.get('structure_filters')}, config default: "
           f"{STRUCTURE_FILTERS_ENABLED}); profile {FL.profile()} (control.json: {c.get('filter_profile')}, config default: "
           f"{FILTER_PROFILE}); the running engine picks it up at its next entry attempt")
+    return 0
+
+
+def cmd_kronos(a) -> int:
+    if a.state != "status":
+        save_control(kronos=a.state == "on")
+        journal("kronos", on=a.state == "on", by="cli")
+    c = load_control()
+    print(f"kronos trading {'ON' if KB.enabled() else 'off'} (control.json: {c.get('kronos')}, config default: {KB.K['ENABLED']}); "
+          f"orders also need engine trading {'ON' if c['trading'] else 'off'}; symbols {', '.join(KB.K['SYMBOLS'])}")
     return 0
 
 
@@ -213,10 +246,13 @@ def main() -> int:
     t.add_argument("state", choices=["on", "off"])
     m = sub.add_parser("mt5", help="the MT5 terminal: status, start, stop (stays off), restart, login")
     m.add_argument("op", choices=["status", "start", "stop", "restart", "login"])
-    fl = sub.add_parser("filters", help="the structure filter layer: on, off, status, or its profile strict | test (control.json overrides config)")
-    fl.add_argument("state", choices=["on", "off", "status", "strict", "test"])
+    fl = sub.add_parser("filters", help="the structure filter layer: on, off, status, or its profile strict | test | profit (control.json overrides config)")
+    fl.add_argument("state", choices=["on", "off", "status", "strict", "test", "profit"])
+    kr = sub.add_parser("kronos", help="Kronos' trades (engine/kronos_book.py): on, off, status (control.json overrides config)")
+    kr.add_argument("state", choices=["on", "off", "status"])
     a = ap.parse_args()
-    return {"check": cmd_check, "once": cmd_once, "run": cmd_run, "trading": cmd_trading, "mt5": cmd_mt5, "filters": cmd_filters}[a.cmd](a)
+    return {"check": cmd_check, "once": cmd_once, "run": cmd_run, "trading": cmd_trading, "mt5": cmd_mt5, "filters": cmd_filters,
+            "kronos": cmd_kronos}[a.cmd](a)
 
 
 if __name__ == "__main__":

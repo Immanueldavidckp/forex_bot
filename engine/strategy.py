@@ -84,42 +84,82 @@ def trend_label(bars: List[Dict]) -> Dict:
 # ── BOS on any timeframe (David 2026-10-24: "BOS is the key") ───────────────
 
 def structure(bars: List[Dict], n: Optional[int] = None, window: Optional[int] = None) -> Dict:
-    """Breaks by candle CLOSE (a wick through is not a break), as in David's pictures:
-      BOS   = close above a swing high labelled HH / below a swing low labelled LL (the trend going on)
-      CHoCH = close above a lower high (LH) / below a higher low (HL) (the structure turning)
-    Every confirmed swing stays breakable until a close goes through it; when one close breaks several,
-    the event is the most recent HH / LL among them (else the most recent). Each break carries the move that
-    made it: from the lowest low (buy) / highest high (sell) since that swing → the break candle; swings of
-    the other side older than that move's start are dropped (they belong to the old structure).
+    """Breaks by candle CLOSE (a wick through is not a break). Reworked 2026-10-26 from David's learning-chart
+    labels (EURUSD M15 / GBPUSD H1 — the old swing-label kinds matched 10 of his 18 lines, this 15):
+      with the trend      every broken swing is a BOS (an HL / LH broken while the bias already points that
+                          way is the trend going on, not a change — David drew those as BOS)
+      against the trend   only MAJOR structure turns it: the last major swing (major_swing_length bars each
+                          side) formed before the current leg extreme. A close beyond it is the turn — BOS /
+                          CHoCH by that major swing's own HH/LL vs LH/HL label, drawn at the major level.
+                          A retrace poking through minor swings is NOT an event: those levels are just spent
+                          (the old code flipped its bias there and pruned the real BOS levels, so David's
+                          lines at 1.12684 / 1.15744 / 1.11882 had no engine event at all).
+    Minor swings stay breakable until a close goes through them; when one close breaks several, the event is
+    the most recent HH / LL among them (else the most recent). Each break carries the move that made it: from
+    the lowest low (buy) / highest high (sell) since that swing → the break candle; minor swings of the other
+    side older than that move's start are dropped (they belong to the old structure). Without a major swing
+    yet (short series), an against-trend break falls back to the old rule: kind from the minor swing's label.
     window (backtest only): a swing more than `window` bars old stops being breakable, as when the live engine
     reads only its last ENGINE["bars"][tf] bars; None = the whole list (live).
     → {trend: up|down|None (last two swing highs and lows), events, swings, bos_level, choch_level}"""
     sw = swings(bars, n)
+    nn = n or int(S["swing_length"])
+    mj = swings(bars, max(int(S.get("major_swing_length", 4)), nn + 1)) if len(bars) > 2 * nn + 3 else []
     by_conf: Dict[int, List[Dict]] = {}
     for s in sw:
         by_conf.setdefault(s["confirmed"], []).append(s)
+    mj_conf: Dict[int, List[Dict]] = {}
+    for s in mj:
+        mj_conf.setdefault(s["confirmed"], []).append(s)
     alive: Dict[str, List[Dict]] = {"high": [], "low": []}
+    majors: Dict[str, List[Dict]] = {"high": [], "low": []}
     events: List[Dict] = []
+    bias: Optional[str] = None
+    ext: Optional[Dict] = None            # the current leg's extreme since the bias last turned
     for x, b in enumerate(bars):
         if window and x % 16 == 0:
             for k in alive:
                 alive[k] = [s for s in alive[k] if s["idx"] >= x - window]
+                majors[k] = [s for s in majors[k] if s["idx"] >= x - window]
         for kind, side in (("high", "buy"), ("low", "sell")):
             hit = [s for s in alive[kind] if (b["c"] > s["price"] if side == "buy" else b["c"] < s["price"])]
-            if not hit:
-                continue
+            ref = None
+            if bias is not None and side != bias:
+                refs = [m for m in majors[kind] if ext is None or m["idx"] <= ext["idx"]]
+                ref = refs[-1] if refs else None
+            if ref is not None:
+                if not (b["c"] > ref["price"] if side == "buy" else b["c"] < ref["price"]):
+                    if hit:               # a retrace through minor levels only: spent, no event, no turn
+                        alive[kind] = [s for s in alive[kind] if all(s is not h for h in hit)]
+                    continue
+                lv = ref
+            else:
+                if not hit:
+                    continue
+                lv = max([s for s in hit if s.get("label") in ("HH", "LL")] or hit, key=lambda s: s["idx"])   # the HH / LL wins
             alive[kind] = [s for s in alive[kind] if all(s is not h for h in hit)]
-            lv = max([s for s in hit if s.get("label") in ("HH", "LL")] or hit, key=lambda s: s["idx"])   # the HH / LL wins
-            rng = range(lv["idx"], x + 1)
+            rng = range(min(lv["idx"], x), x + 1)
             o = min(rng, key=lambda i: bars[i]["l"]) if side == "buy" else max(rng, key=lambda i: bars[i]["h"])
             other = "low" if side == "buy" else "high"   # the other side's swings from before this move: old structure
             alive[other] = [s for s in alive[other] if s["idx"] >= o]
-            events.append({"kind": "BOS" if lv.get("label") in ("HH", "LL") else "CHoCH", "side": side,
+            events.append({"kind": "BOS" if side == bias or lv.get("label") in ("HH", "LL") else "CHoCH", "side": side,
                            "level": lv["price"], "level_t": lv["t"], "level_idx": lv["idx"], "level_label": lv.get("label"),
                            "t": b["t"], "idx": x, "close": b["c"],
                            "origin": {"price": bars[o]["l" if side == "buy" else "h"], "t": bars[o]["t"], "idx": o}})
+            if bias != side or ext is None:
+                bias = side
+                e_rng = range(o, x + 1)
+                ei = max(e_rng, key=lambda i: bars[i]["h"]) if side == "buy" else min(e_rng, key=lambda i: bars[i]["l"])
+                ext = {"idx": ei, "price": bars[ei]["h" if side == "buy" else "l"]}
+        if ext is not None:               # the leg extreme runs with the trend (checked next bar on)
+            if bias == "buy" and b["h"] >= ext["price"]:
+                ext = {"idx": x, "price": b["h"]}
+            elif bias == "sell" and b["l"] <= ext["price"]:
+                ext = {"idx": x, "price": b["l"]}
         for s in by_conf.get(x, []):              # a swing confirmed by this bar counts from the next bar on
             alive[s["kind"]].append(s)
+        for s in mj_conf.get(x, []):
+            majors[s["kind"]].append(s)
     hs, ls = [s for s in sw if s["kind"] == "high"][-2:], [s for s in sw if s["kind"] == "low"][-2:]
     trend = None
     if len(hs) == 2 and len(ls) == 2:

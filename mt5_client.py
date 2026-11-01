@@ -83,8 +83,12 @@ def one(req: Dict, timeout: float = 120):
 
 # ── server clock → UTC ──────────────────────────────────────────────────────
 
-def server_to_utc_ms(t: int, offset: Optional[_dt.timedelta] = None) -> int:
+def server_to_utc_ms(t: int, offset=None) -> int:
+    """offset: server clock minus UTC (a timedelta, the same for every bar), or the server's time zone (a tzinfo:
+    each bar with its own date's offset, so bars from before a DST change keep theirs); None = New York + 7 h."""
     wall = _dt.datetime.fromtimestamp(t, _dt.timezone.utc).replace(tzinfo=None)
+    if isinstance(offset, _dt.tzinfo):
+        return int(wall.replace(tzinfo=offset).timestamp() * 1000)
     if offset is not None:
         return int((wall - offset).replace(tzinfo=_dt.timezone.utc).timestamp() * 1000)
     return int((wall - SERVER_AHEAD_OF_NY).replace(tzinfo=NY).timestamp() * 1000)

@@ -18,9 +18,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FOREX_DIR = os.path.dirname(HERE)
 DATA_DIR = os.path.join(FOREX_DIR, "engine_data")
 VIEW_DIR = os.path.join(DATA_DIR, "view")            # one JSON per symbol: bars + markings for the dashboard
+LIVE_DIR = os.path.join(DATA_DIR, "live")            # one JSON per symbol a /smc page watches: tick + latest bars (live.py)
 STATE_FILE = os.path.join(DATA_DIR, "state.json")    # setups and the positions that belong to them
 JOURNAL_FILE = os.path.join(DATA_DIR, "journal.jsonl")
 OVERVIEW_FILE = os.path.join(DATA_DIR, "overview.json")
+PNL_FILE = os.path.join(DATA_DIR, "pnl.json")       # the 24/7 profit report (engine/pnl.py), written by the engine
 CONTROL_FILE = os.path.join(DATA_DIR, "control.json")
 COMMANDS_FILE = os.path.join(DATA_DIR, "commands.jsonl")  # dashboard → engine: cancel / close / trading on-off
 for _d in (DATA_DIR, VIEW_DIR):
@@ -33,6 +35,10 @@ STRATEGY = {
     "max_combined_risk_pct": 4.0,
     "min_rr": 3.0,                       # no maximum RR
     "swing_length": 2,
+    # learning chart 2026-10-26 (David's EURUSD M15 labels): the trend only turns at MAJOR structure — a
+    # retrace poking over a minor LH / under a minor HL is not a CHoCH (it kept flipping the engine's bias
+    # and pruning the real BOS levels). Major swings = fractals this many bars each side.
+    "major_swing_length": 4,
     "displacement_mult": 1.5,
     "body_average_bars": 10,
     "sl_buffer_points": 20,
@@ -167,6 +173,49 @@ FILTER_PROFILES = {
     # 120-day replay (strict took 2, both lost; V5 alone took 352, -33 R): 19 trades, 6 won, +16.1 R
     "test": {"MIN_RR": 2.0, "MIN_ROOM_R": 2.0, "PD_REQUIRED": False, "ZONE_FRESH_REQUIRED": False,
              "SL_WIDEN_TO_STOPS_LEVEL": True},
+    # David 2026-10-30: "take all the valid trade, no limit for trade and position, lot 0.01". Same structure
+    # gates as "test" (so nothing valid is turned away), every cap lifted, and the cost gate G9 doing the work
+    # -- measured: direction is a coin flip (gross -$0.024/trade, t=-1.91), the spread is the entire P&L.
+    "profit": {"MIN_RR": 2.0, "MIN_ROOM_R": 2.0, "PD_REQUIRED": False, "ZONE_FRESH_REQUIRED": False,
+               "SL_WIDEN_TO_STOPS_LEVEL": True,
+               "MAX_POSITIONS": 0,                 # 0 = unlimited (book.max_slots)
+               "NO_REENTRY_AFTER_LOSS": False,     # a cap on trades, not a quality gate
+               "ONE_TRADE_PER_H4_ZONE": False},    # same
+}
+
+# ── Kronos (David 2026-10-26: "run this llm and take the trade and show in the dashboard") ──
+# Kronos-base (NeoQuasar, the largest public Kronos) forecasts the next HORIZON M15 bars as PATHS sampled paths; the
+# GPU side is kronos/signals.py (service kronos-signals, ~/opt/kronos-venv), the trades are engine/kronos_book.py.
+# A trade: ≥ P_MIN of the paths end on one side of the last close and the median move is ≥ MIN_MOVE_SPREAD_X spreads
+# → market order at the minimum lot, SL SL_ATR × ATR(14, M15), TP TP_ATR × ATR,
+# closed after HOLD_BARS bars if neither is hit. Its own magic: V5's book never sees these positions.
+# Out-of-sample test before going live (kronos/evaluate.py, GOLD M15 Sep 2025 → Oct 2026): direction right 48.5 %.
+# control.json "kronos" (python3 -m engine.run kronos on|off, or the /kronos page) overrides ENABLED; orders also
+# need trading ON (control.json "trading") like V5's.
+KRONOS = {
+    "ENABLED": True,
+    # David 2026-10-26 "why only three": the engine's 17 forex pairs + gold + the two big coins. FxPro's other coins
+    # are left out: their spread is 0.6-3 × ATR(M15) (median, Sep 2025 → Oct 2026) and MAX_SPREAD_SL allows 0.45 ×,
+    # so they could never trade and would only cost GPU time (16 paths ≈ 10-20 s per symbol per bar)
+    "SYMBOLS": ["GOLD", "BITCOIN", "ETHEREUM", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
+                "EURGBP", "EURJPY", "EURCHF", "EURCAD", "GBPJPY", "GBPCHF", "GBPCAD", "CADJPY", "CADCHF", "CHFJPY"],
+    "MAGIC": 5050600,
+    "TF": "M15", "CONTEXT": 512, "HORIZON": 8, "PATHS": 16,
+    "P_MIN": 0.75, "MIN_MOVE_SPREAD_X": 2.0,
+    # David 2026-10-27 (162 live trades −$8.48, 47 % won: the stop 1.5 ATR was bigger than the target = the median,
+    # mostly < 1 ATR): target twice the stop. The 14-month replay (1,740 GOLD/EURUSD/BITCOIN forecasts) loses about the
+    # spread with every size (SL 1.5/TP median −0.076 ATR a trade, SL 1/TP 2 −0.065, 38 % won): fewer wins, not an edge
+    "ATR_PERIOD": 14, "SL_ATR": 1.0, "TP_ATR": 2.0, "MAX_SPREAD_SL": 0.3,
+    # David 2026-10-26 "make it unlimited, it's just a testing": 0 = no cap — every forecast that passes is its own
+    # trade, also on a symbol that already has a Kronos trade open (FxPro demo is a hedging account)
+    "HOLD_BARS": 8, "MAX_POSITIONS": 0, "MAX_PER_SYMBOL": 0,
+    "MIN_FREE_MARGIN_PCT": 30,           # the one guard left: no new Kronos trade below 30 % free margin (V5 needs it too)
+    "SIGNAL_MAX_AGE_SEC": 600,           # act on a forecast only within 10 min of its bar's close
+    "FRIDAY_LAST_ENTRY_UTC": "19:30",    # forex / gold: no entry later on a Friday (the 2 h hold would cross the weekly close)
+    # David 2026-10-27 "instead of v5 engine take the trade in MT5 ... check with kronos": Claude's own trades, placed with
+    # the mt5 tools (mt5_mcp.py, MT5_MCP_MAGIC), are shown on /kronos next to Kronos' — read only, never managed here
+    "CLAUDE_MAGIC": 24102099,
+    "DIR": os.path.join(DATA_DIR, "kronos"),
 }
 
 

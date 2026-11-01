@@ -34,7 +34,73 @@ limits    ≤ 20 open positions (pending layers reserve their slot), no daily tr
 Dashboard (David 2026-10-25): every card shows the three entries — **S&D H4**, **S&D M30**, **S&D M15** — each on
 the chart its entry is taken on (S&D H4 = M15 with the H4 zones on it). Click one: its two timeframes (S&D H4: H4 zones
 + M15 entry; S&D M30 / M15: H4 for the bias only + that timeframe) and every mark on / off — only that entry
-(remembered in the browser). Setups superseded by a newer BOS setup are not drawn. Every setup says how it went: "waiting pullback" or "waiting M5 BOS" (retraced, new rules §18; both with the dashed SL~ / TP~ it would trade with if price came back now, worked out again on every analysis, also against the bias), "entry taken · open" / "entry taken · closed ±$" or "failed · against bias / missed / refused / expired / FVG traded into too soon / no run before the retrace / no M5 entry BOS / zone lost before the M5 BOS / …" (hover: why). An open trade's entry / SL / TP as they are now; a level off the chart sits as an ↑ / ↓ tag on its edge.
+(remembered in the browser). Setups superseded by a newer BOS setup, and refused ones, are not drawn (David 2026-10-25). The big chart's header carries the current setup's rule check in order — "now: structure ✓ (BOS ↑/↓) · FVG ✓ (n of m) · waiting: …" (on the S&D H4 chart, "H4 zone ✓" first) — in place of the old grey hidden-things note. Every setup says how it went: "waiting pullback" or "waiting M5 BOS" (retraced, new rules §18; both with the dashed SL~ / TP~ it would trade with if price came back now, worked out again on every analysis, also against the bias, which since 2026-10-25 is informational only: M15/M30 entries do not need H4/H1 agreement), "entry taken · open" / "entry taken · closed ±$" or "failed · against bias / missed / refused / expired / FVG traded into too soon / no run before the retrace / no M5 entry BOS / zone lost before the M5 BOS / …" (hover: why). An open trade's entry / SL / TP as they are now; a level off the chart sits as an ↑ / ↓ tag on its edge.
+
+**The learning chart** (David 2026-10-25: "the engine is not finding the correct structure, so I draw it and you
+train the engine from that"): `/learn` on the local dashboard; the internet copy shows it view-only unless the link carries the secret key (`engine_data/learn/key.txt`), so strangers with the tunnel link cannot write into the training labels. Pick a symbol and
+timeframe, then draw the structure as it SHOULD be — BOS / CHoCH (the broken level, dragged to the break candle,
+side ↑/↓), FVG / supply / demand boxes, swing ▲▼, and ✓ regions over spans marked completely. Labels land in
+`engine_data/learn/labels.jsonl` (append-only; deletes and notes are extra lines, nothing is lost); the engine's
+own finds show faded next to them, and the top line says how far they agree. Training: `python3 -m engine.learn
+report` (every label: ok / called otherwise / missed, plus the engine's extra finds inside ✓ regions) and
+`python3 -m engine.learn fit` (re-runs the structure finding over a grid of swing_length × displacement_mult,
+scores each against the labels — the live config always among them as the baseline — and writes `engine_data/learn/fit.json` — config.py is never touched; David
+applies the winner). With ~200+ labels the same file can feed a real classifier.
+
+**SMC compare** (David 2026-10-28: "use this in our website and show", not in MT5): `/smc` draws two free SMC
+indicators next to the V5 engine on the same bars, any symbol and timeframe, and lists their live zones nearest
+price and their latest confirmations. Both are computed in Python from the bar files (`smc_compare.py`): **SMC
+Zones** (allanninal, PolyForm-Noncommercial — the author's own Python reference, `third_party/smc_zones_ref.py`;
+swing 3, ATR 14, FVG ≥ 0.2 ATR, OB ends on a close past its far edge) and **LuxAlgo Smart Money Concepts** (CC
+BY-NC-SA — a Python port, `third_party/luxalgo_smc.py`: internal 5 / swing 50 structure, order blocks, FVG,
+EQH/EQL, premium / discount, strong / weak high / low). `test_smc_compare.py` holds both to what the MT5
+indicators drew on our GOLD / EURUSD M15 bars (identical). Non-commercial licences: personal use only.
+`python3 -m engine.smc_compare report --sym GOLD --tf M15` prints the same as text.
+
+Since 2026-10-28/29 the page opens on **David's own structure** (`major_structure.py`: BOS only at a leg's extreme after
+a ≥ 3 ATR pullback, CHoCH only at the protected swing, a close ≥ 0.25 ATR beyond; boxed "Bull BOS / Bear CHoCH" marks,
+nothing internal — 14 of his 18 drawn lines, the engine 13) and on the marks hung on it (`smc_marks.py`, researched
+against public SMC sources, his V5 rules win where they define a thing): **OB** = the last opposite candle before
+the last displacement of each major break (full wick, 50 % line; live until a close through it, then breaker),
+**FVG** = gaps ≥ 0.3 ATR inside the major breaking moves only (touched / 50 % / filled / inverted, plus his V5
+invalidation), **liquidity** = EQH / EQL (≥ 2 swings within 0.5 ATR, a ≥ 1 ATR pullback between), swing highs /
+lows and PDH / PDL not yet taken, and sweeps (wick through + close back inside, or a failed break within 3
+candles), **premium / discount** = protected swing ↔ the leg's high / low, EQ 50 %, OTE 62–79 %. The free
+indicators stay behind their buttons.
+
+**Supply / demand** (`supply_demand.py`, David 2026-10-30: "supply and demand should be the valid one … go to the
+internet and all open source"; three Fable 5.1 agents read Seiden's SFO article, Online Trading Academy's odds
+enhancers, LuxAlgo, Dukascopy and the open-source S&D indicators — `research/supply_demand/`) draws **only the valid
+zones**: a base of 1–3 small-body candles (or David's last opposite candle) before a displacement candle (body ≥ 1.5 ×
+the mean of the 10 before) whose move out **closed beyond a major swing** — his BOS / CHoCH gate, "do NOT mark every
+supply / demand" — with the box ≤ 1.5 ATR and price never back at its proximal edge before that break. Box = the
+base's wicks, the dashed line = the body edge (entry); each zone carries its kind (RBR / DBD / RBD / DBR), its life
+cycle from the break on (fresh → tested → spent after 3 visits → broken on a close through the distal edge → flipped),
+and a 0–10 checklist of the educators' odds enhancers (departure, FVG in the move out, time at the base, freshness,
+trend, curve, room). **The checklist is shown, never a filter, and it is not an edge**: measured over 39,106 zones
+(GOLD, EURUSD, GBPUSD, USDJPY, AUDUSD, M15 + H1, ~16 months) the zones held at the first return 58.2 % of the time
+against 57.9 % for random levels of the same size, side and distance, and the BOS gate, freshness, base count,
+displacement, trend and location all moved that by ±2 points with no consistent sign (`research/supply_demand/
+validity_report.md`). Valid = David's definition still intact — the zones his strategy trades from — not a prediction.
+The side panel says how many candidates were dropped and why; "mitigated" shows the used and broken ones.
+
+The rest of the concept table (2026-10-29, "every concept a professional uses is a rule"; each researched by a
+Fable 5.1 agent against the public reference implementations, the sources are in each module's docstring) sits
+behind the **concepts:** buttons, all hung on the same major structure, all known only from closed bars:
+
+| row | buttons | module | the rule in one line |
+|---|---|---|---|
+| 2 | Sessions | `levels.py` (+ PWH/PWL, PMH/PML pools in `smc_marks.py`) | Asia 20–00 NY, London 08–16:30 London, NY 08–17 NY in their own time zones; H/L with the liquidity lifecycle; killzones; D/W/M/midnight/08:30 opens; pullback depth of the major leg |
+| 3 | Candles, all candles | `candles.py` | TA-Lib's 61 patterns, a port that matches TA-Lib bar for bar (`test_candles.py`); shown by default: reversals that make a 10-bar extreme at a level of their own side |
+| 4 | Trend lines | `trendlines.py` | pivot(5) pairs rising / falling ≥ 0.5 ATR, legs ≥ 2 ATR, touches = pivot(3) within 0.5 ATR, break = close 0.25 ATR beyond; parallel + regression channel |
+| 5 | Patterns | `chart_patterns.py` | H&S, double / triple, triangles, wedges, rectangles, flags / pennants on pivots, ATR tolerances (LMW, Osler & Chang, Bulkowski, Trendoscope) |
+| 6 | Fib, VWAP, RSI/MACD | `indicators.py` | Fib of the major leg + BOS extension; Wilder ATR (and MT5's SMA ATR), RSI, MACD = TA-Lib to 1e-12; TradingView's divergence recipe; VWAP of the server day / week / protected swing |
+| 7 | Volume profile | `volume_profile.py` | rows fixed in price, tick volume spread over each bar's range, POC, 70 % value area by the CBOT two-row step, HVN / LVN, naked POCs |
+| 8 | Wyckoff, Elliott | `wyckoff.py`, `elliott.py` | Wyckoff: SC → AR → ST → Spring / Test → SOS → LPS state machine (distribution mirrored), phases provisional until the SOS; Elliott: the hard impulse / diagonal / zigzag / flat rules on the major zigzag, Fibonacci score, invalidation |
+
+VWAP and the volume profile need MT5 tick volume: `history.py` saves it since 2026-10-29 (re-run
+`python3 -m engine.history` for a symbol whose file is older; without it the profile is time-at-price and there is
+no VWAP).
 
 ## Run (from `~/forex`, system `python3`)
 
@@ -92,6 +158,10 @@ passed in the 7-day replay: on FxPro the crypto spread is ~2 × ATR(M15) and the
 nearest structure, premium / discount and zone freshness logged but not required, a stop inside the broker's stops
 level moved out to it. G1-G4, G7, G8, the ≤ 3 ATR(M15) stop cap and the 3 × spread rule are the same in both. 120-day
 replay: V5 alone 352 trades -33 R; strict 2 trades -2 R; test 19 trades, 6 won, +16.1 R (stop / target only).
+With the 2026-10-26 structure rework (same 120 days, offline): old marking, test profile 8 trades 5 won +11.7 R;
+new marking 2 trades 1 won +1.8 R — the new continuation-BOS setups anchor on minor swings, so G1 (significant
+swing) is now the first failing gate for 45 % of attempts (was 26 %). The marking now matches David's drawn lines
+15/18 (was 10/18); G1/G2 may want retuning to the new marking (David's call, `learn fit` + this replay).
 
 ```bash
 python3 -m engine.run filters on|off|status     # instant switch (control.json), no restart
@@ -106,11 +176,117 @@ to test the engine without real exposure (David); `"risk"` = V5's 2.5 % / 1.5 % 
 Starts in **watch mode**: complete setups are recorded as "signal" and drawn, nothing is sent until trading
 is switched on. Orders need a demo account and the terminal's Algo Trading on. Magic number 5050505.
 
+## The cost layer and the "profit" profile (David 2026-10-30)
+
+David asked for logic that makes more profit, taking every valid trade with no cap on trades or positions
+and always the 0.01 minimum lot. What the measurement said, and what was built because of it:
+
+**Direction is a coin flip; the spread is the whole P&L.** On our own 16 months of FxPro history
+(`engine/research/profit/`, 0.01 lot, one full spread per round trip), random entries decompose as
+
+| | per trade |
+|---|---|
+| gross, before cost | **-$0.024** (t = -1.91) — a coin flip, as expected |
+| cost, one spread | **+$0.081** |
+| net | **-$0.106** |
+
+About 360 rule x geometry combinations were scanned (Donchian breakout and its fade, RSI reversion and its
+follow, EMA cross both ways, displacement follow/fade, every hour of the day, time-series momentum) over
+M15 / H1 / H4. **Not one reached t > 1.0**, where chance alone across that many tests should have thrown up
+several above 2. Two candidates looked strong and both died under scrutiny:
+
+- *hour 21 UTC long, t = 7.7* — an artifact of charging half a spread. MT5 bars are bid prices; at the
+  rollover the bid is marked down 5-27x its usual distance and then recovers, so buying that dip looked
+  free. Charging the full round-trip spread (the honest model, now in `lab.py`) takes it to t = 0.40.
+- *gold time-series momentum, t = 9.2* — 2,140 overlapping 120-bar holds on ONE symbol that rose 23 %:
+  about 18 independent bets. Corrected for the overlap, t ~ 0.8.
+
+The one effect with strong published evidence, the Krohn-Mueller-Whelan dollar drift around the daily fixes
+(*J. Finance* 79(1) 2024, four datasets, 1999-2019), is **not present in our 2025-26 sample** (pooled
+t = -0.39), which matches the paper's own finding that it decayed after 2013.
+
+So the lever is not a better entry. It is paying less for the entries the engine already takes.
+`engine/profit.py` holds that layer; it never judges direction.
+
+- **G9, a ninth gate** in `filters.py`: refuses a setup that is simply too dear — a symbol whose spread is
+  over 10 % of its ATR, a live spread over 1.5x its own median (this is what keeps the engine out of the
+  rollover), a target under 10 spreads away, or any entry inside 20:45-22:15 UTC.
+- **`engine_data/symbol_cost.json`** (`python3 -m engine.profit`): median spread / ATR(14, M15) per symbol.
+  15 are worth trading (gold + 14 majors and crosses); **39 are not, including every one of the 36 crypto
+  CFDs** — their spread is 31 % to 284x of an M15 ATR, so they can never pay for themselves.
+- **Flat before the swap**: positions close at 20:45 UTC rather than pay financing (gold long -$0.58..0.96
+  a night, USDJPY short -$0.28, crypto 20 %/yr).
+- **No opposing positions on one symbol** — both sides pay the spread for zero net exposure.
+- **No caps, a margin floor instead**: profile `profit` sets `MAX_POSITIONS: 0` (= unlimited in
+  `Book.max_slots`) and drops `NO_REENTRY_AFTER_LOSS` and `ONE_TRADE_PER_H4_ZONE`, which are caps on trade
+  count rather than quality gates. The account is protected by a 30 % free-margin floor, so the number of
+  open positions is never the thing being limited.
+
+`python3 -m engine.run filters profit` switches to it.
+
+**What this does and does not claim.** It does not claim an edge: with gross expectancy at zero, no entry
+rule found here turns a profit, and taking more trades multiplies the spread paid rather than the profit.
+What it does is stop the engine paying for trades that cannot pay for themselves. The honest expectation is
+a much slower bleed than the current engine, not a profit.
+
+## The 24/7 run and its profit report (David 2026-10-30)
+
+"Run this in the 24/7, will check how much profit it can make." What that means in practice:
+
+- `v5-engine` is **enabled at boot** with a drop-in (`~/.config/systemd/user/v5-engine.service.d/24-7.conf`)
+  setting `Restart=always`. The engine starts `mt5-terminal` itself (`control.json` `mt5=auto`,
+  `terminal.ensure_running`), so enabling the one unit brings the desk back after a reboot. `forex-awake`
+  keeps the laptop from sleeping; user lingering is on.
+- `engine_data/profit_run.json` marks when the run began, so the report can be anchored to it rather than
+  mixing in the older Kronos and hand-placed trades.
+- **`python3 -m engine.pnl --run`** prints what the run has actually made. The engine also writes it to
+  `engine_data/pnl.json` every 5 minutes (it is MT5's only user), the dashboard serves it at `/api/pnl`,
+  and the header strip shows it.
+
+Every number is net of commission and swap. The report prints a **95 % confidence interval for the true
+mean**, and while that interval spans zero it says the result is indistinguishable from zero no matter how
+good the total looks. That is not decoration: at 0.01 lot a trade's dollar outcome has a standard deviation
+several times its mean, so a few dozen trades can show any total at all. Kronos' own 214 live trades are
+the worked example — **+$15.37 total, but t = 0.60, and about 1,612 trades would be needed to tell that
+mean from zero.**
+
+What the run can and cannot show: with gross expectancy measured at zero (see the cost layer above), the
+honest expectation is a slow negative drift of roughly one spread per trade. The report exists so that a
+lucky fortnight is not mistaken for an edge.
+
+**One thing "24/7" does not mean.** The cost gate rules out all 36 crypto CFDs, and those are the only
+instruments that trade at weekends. Forex and gold close from Friday ~21:00 UTC to Sunday ~21:00 UTC, and
+the book goes flat before the 20:45 UTC swap each day. So the engine *runs* around the clock but *trades*
+only while the forex week is open. Letting it trade the weekend would mean re-admitting instruments whose
+spread is 31 % to 284 % of an M15 ATR, which the measurement says costs more than it can win.
+
+## Strategy status on /smc (David 2026-10-30)
+
+"Show which charts are approaching our trading strategy, what is in trade with its P&L, and the SL / TP on
+the chart." That is `engine/status.py` -> `/api/status` -> the **Strategy** panel and layer on /smc.
+
+- **Approaching** — every setup still alive, nearest to firing first. A V5 setup walks BOS/CHoCH -> zone ->
+  FVG -> price back to the entry -> M5 BOS -> the nine gates -> order, so its status *is* the step it is on
+  (`pullback`, `M5 BOS`, `READY`), and "away" is how far price still has to travel, in ATR.
+- Each row carries its entry, SL, TP and RR. The engine writes a committed plan only for its trade
+  timeframes (M15 / M30), so an H4 or M5 setup shows **`~SL` = the zone's far edge**, which is where the
+  stop will go, marked provisional rather than left blank.
+- **Symbols the cost gate refuses are listed separately, not hidden**, with the reason ("TRON costs 941 % of
+  an ATR to trade"). Without that the panel would show crypto setups about to fire that the engine will
+  never take.
+- **In trade** — live P&L per position with its entry, current price, SL, TP and how far it has run in R.
+- **On the chart** — entry (amber), SL (red) and TP (cyan) as labelled lines: dashed for a setup waiting,
+  solid for an open trade. Hovering a line names the setup.
+- **The 24/7 run** is at the bottom of the panel, with the same confidence interval the report prints.
+
+Everything is read from files the engine already writes (state, view, overview, pnl), so the dashboard
+never touches MT5. Clicking a row switches the chart to that symbol.
+
 ## Choices made where V5 describes judgement in words (all in `config.py`)
 
 | V5 | engine |
 |---|---|
-| BOS (pictures, 2026-10-24) | a candle CLOSE beyond a swing labelled HH (buy) / LL (sell); beyond an LH / HL it is a CHoCH (always drawn, light grey; not traded). Swings stay breakable until closed through; a break drops the other side's swings older than its move |
+| BOS (pictures, 2026-10-24; reworked from the learning chart 2026-10-26) | a candle CLOSE beyond a swing (a wick through is not a break). WITH the trend every broken swing is a BOS — an HL / LH broken while the bias already points that way is the trend going on, not a change (David drew the engine's old continuation "CHoCH"s as BOS: his 18 lines matched 10 before, 15 after). AGAINST the trend only major structure turns it: the last `major_swing_length` (4) fractal formed before the current leg extreme — a close beyond it is the turn, BOS / CHoCH by that major swing's HH/LL vs LH/HL label, drawn at the major level; a retrace poking through minor swings is no event, the levels are just spent (the old engine flipped its bias there and pruned the real BOS levels, so lines like EURUSD 1.12684 / 1.15744 / 1.11882 had no event at all). CHoCH stays drawn light grey, not traded. Minor swings stay breakable until closed through; a break drops the other side's minor swings older than its move |
 | "supply / demand at the BOS" | V5 §3-4 inside the BOS move (from the lowest low / highest high since the broken swing to the BOS candle) |
 | "mitigation block when no supply / demand" | §6 pattern inside the BOS move, used only when that move has no supply / demand zone |
 | "FVG inside the BOS", FVG cluster (new rules §15) | every FVG whose middle candle lies in the BOS move is one associated cluster = one setup; the retrace trigger is the nearest one (`fvg_pick` "nearest"; an int picks that one from the left, the engine before 2026-10-25) |

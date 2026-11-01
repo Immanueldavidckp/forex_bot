@@ -1,0 +1,40 @@
+1. Shved Supply and Demand (mq4 14545 / mq5 29395)
+  [ok] Fractal(): fast = 7 bars each side and slow = 15 on EVERY timeframe (the timeframe cancels)  [(1, 7, 15), (5, 7, 15), (15, 7, 15), (30, 7, 15), (60, 7, 15), (240, 7, 15), (1440, 7, 15)]
+  [ok] fractal is asymmetric: an equal high in the OLDER bars is allowed, an equal high in the NEWER bars is not  older-equal True, newer-equal False
+  [ok] box of an up fractal = High + 0.375 ATR7 down to max(min(Close, High-0.375ATR), High-0.75ATR)  103.4643..104.5357, ATR7 1.4286
+  [ok] so the height is 0.75-1.125 ATR7 and it is anchored on the wick extreme, not the body  0.750 ATR7
+  [ok] no displacement / impulse / volume test anywhere: a lone fractal on a flat series is already a zone
+  [ok] a WICK through the far side turns the zone (resistance -> support), it is not closed through  then the flat price below the box busts it a second time -> dropped, nothing is drawn
+  [ok] a zone busted twice is simply gone (the original draws nothing for it)
+2. cmike444 supply-and-demand-zones 1.3.1 (rally-base-drop)
+  [ok] rally-base-drop found with the 4 patterns tried in order (RBD first)  ['RBD']
+  [ok] supply box = lowest BODY of the base .. highest HIGH of the WHOLE formation (leg-in + base + leg-out)  proximal 109.0 distal 109.7 (base bodies 109.0/109.1, formation high 109.7)
+  [ok] explosive = body/range >= 0.7 AND range >= 1.5 x the local ATR of the 14 candles BEFORE the bar
+  [ok] a base longer than MAX_BASE_CANDLES (6) is not a zone  8 base candles
+  [ok] isValidBase: a base taller than 1.5 x ATR is rejected (its high-low, not the box)  base 4.1 tall, ATR 1.0
+  [ok] freshness: a zone never entered since the pattern ended is fresh  confidence 0.865
+  [ok] a later bar reaching the proximal makes it not fresh (freshness 1.0 -> 0.5, the only invalidation there is)
+3. Svopex S&D Scan (Pine v6)
+  [ok] zone = the base candles' WICK range (not bodies), anchored on the FIRST base bar
+  [ok] the zone is handed on one bar late (sig[1]): known_idx = the explosive bar + 1  expl 23 known 24
+  [ok] a base longer than baseMax (3) is discarded (baseCount := 0), no zone  4 base candles
+  [ok] default breakPct 0: the zone is DELETED the first time a bar reaches its near edge (fresh-only tool)  removed 27
+  [ok] breakPct 100: the same touch leaves it alive (removal needs the far edge)
+4. Supply and Demand Zones | Flux Charts
+  [ok] box = the pivot(30) HIGH down by the mean UPPER WICK of the pivot bar and the 4 before it (a tiny box)  103.5..104.0, mean upper wick 0.5
+  [ok] a new zone overlapping an active zone of either side is skipped
+  [ok] first close through the far edge = pendingFlip; still through on the next bar = breakout and the zone FLIPS side
+  [ok] a wick into the box with the close back outside is a RETEST, not a break (max one per 3 bars)
+  [ok] a Flux zone never dies: no mitigation, no invalidation — only the held statistic and the side flip
+5. Supply and Demand Zones [BigBeluga]
+  [ok] supply box = [low of the last BULL candle within 6 bars, that low + 2 x ATR(200)] — a fixed height, not the candle's range  99.4..101.406
+  [ok] the trigger needs the PREVIOUS bar's volume above the 1000-bar average  flat volume, and the spike one bar too early, both give nothing
+  [ok] deleted on a CLOSE beyond the far edge
+6. Supply Demand Zones PRO (ProjectSyndicate)
+  [ok] every zone is EXACTLY 1 ATR(20) tall, centred on the pivot candle's mid (forced up, then clamped down)  101.4168..102.5832, ATR20 1.1664
+  [ok] the zone is known at the pivot bar + swingLen (12), never earlier
+  [ok] a second pivot of the same side within minZoneDistance (44 bars) gives no new zone
+  [ok] strength = int(clamp(8 - 0.8 x retests - min(age/500, 2), 0, 10)) — fewer retests and younger = stronger  retests 3 age 149 -> strength 5
+  [ok] broken on a CLOSE beyond the far edge (invalidation = Close), then it is grey 'historic'
+
+ALL OK

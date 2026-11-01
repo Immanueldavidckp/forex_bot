@@ -1,0 +1,27 @@
+1. worked example (therighttrader practice numbers: base 100-104, rally to 130, return to 104)
+  [ok] one major BOS buy fired by the leg-out (bar 32 or 33: the 0.25-ATR close margin of David's structure rule) [('BOS', 'buy', 33, 112)]
+  [ok] exactly one valid demand zone 1 valid of 6 candidates
+  [ok] box = base wicks 100..104 (distal 100, proximal 104) 100..104
+  [ok] entry line = highest base body 103.5 103.5
+  [ok] kind DBR (drop in, rally out), base 3 candles DBR x3
+  [ok] leg-out = displacement >= 1.5x avg body with an FVG x9.07 fvg {'idx': 32, 'bottom': 103.5, 'top': 112.5}
+  [ok] status tested after the return to 104 (1 touch, shallow) tested touches 1 depth 0.00 at bar 39
+  [ok] zone is only known from the break candle (touch_idx > break_idx) 
+  [ok] score 10 before the touch would be 9 after (freshness 2 -> 1) {'departure': 3, 'fvg': 1, 'time_at_base': 1, 'freshness': 1, 'trend': 1, 'curve': 1, 'margin': 1}
+2. same series, leg-out that breaks NO swing -> INVALID (David §9-10)
+  [ok] no major event, no valid zone, the candidate is filtered with the no-BOS reason events 0, reasons ['no major BOS / CHoCH from this leg-out (David §9-10: INVALID, do not mark)', 'no major BOS / CHoCH from this leg-out (David §9-10: INVALID, do not mark)', 'no major BOS / CHoCH from this leg-out (David §9-10: INVALID, do not mark)', 'no major BOS / CHoCH from this leg-out (David §9-10: INVALID, do not mark)', 'box taller than 1.5 ATR after refinement (2.58)', 'box taller than 1.5 ATR after refinement (2.52)']
+3. second worked example (Dukascopy: EURUSD H4 base 1.0850-1.0870, +150 pips to 1.1020 'in a few candles')
+  [ok] one valid demand zone 1.0850..1.0870, fresh, DBR [('DBR', 1.085, 1.087, 'fresh')]
+  [ok] run from the proximal = 150 pips = 7.5 box heights (>= 2: departure point) 7.5
+4. internal checks on real bars (GOLD M15, last 3000)
+  [ok] every valid zone hangs on a major event of its side, base inside origin..break, leg-out <= break 
+  [ok] box geometry: bottom < top, proximal/entry on the near side 
+  [ok] David's candle (last opposite candle within 5 before the leg-out) is inside the base of every valid zone, when it exists 
+  [ok] all boxes <= 1.5 ATR 
+  [ok] all base runs <= MAX_BASE + 1 (base + David's candle) 
+  [ok] clean departure: no bar between leg-out and break reaches the proximal line 
+  [ok] exactly one origin per event with a valid zone 
+  [ok] status monotone: tested implies touch_idx; broken implies a close beyond the distal; flipped/dead after broken 
+  [ok] no look-ahead in zone creation (truncated series gives the same valid zones) 63 vs 63, diff 0
+
+ALL OK

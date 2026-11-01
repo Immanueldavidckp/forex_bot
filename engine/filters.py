@@ -39,11 +39,12 @@ from zoneinfo import ZoneInfo
 
 from . import strategy as V
 from . import tools
+from . import profit as PR
 from .config import (ENGINE, FILTER_PROFILE, FILTER_PROFILES, FILTERS, STRATEGY, STRUCTURE_FILTERS_ENABLED,
                      load_control)
 
 GATES = {"G1": "swing", "G2": "break", "G3": "regime", "G4": "bias", "G5": "location", "G6": "stop/RR",
-         "G7": "expiry/zone", "G8": "market"}
+         "G7": "expiry/zone", "G8": "market", "G9": "cost"}
 IST = _dt.timezone(_dt.timedelta(hours=5, minutes=30), "IST")
 FORCE: Optional[bool] = None                    # tests / the replay: on or off regardless of config and control.json
 SINK: Optional[Callable[[Dict], None]] = None   # tests / the replay collect the records here instead of the file
@@ -444,7 +445,18 @@ def evaluate(rec: Dict, ctx: Dict) -> Dict:
             (sp_ok, f"spread {spread:g} > {F['SPREAD_MAX_X_AVG']:g} × the {F['SPREAD_AVG_BARS']}-bar average {avg_sp:g}"),
             (sess_ok, f"session {sess}")) if not ok)
 
-    order = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"]
+    # G9 cost (David 2026-10-30): the spread is the whole P&L at 0.01 lot, so a setup is refused when it is
+    # simply too dear to be worth taking -- never for its direction. engine/profit.py carries the numbers.
+    tgt_dist = abs(tp - entry) if (tp and entry) else None
+    atr_now = a15s[-1] if a15s else None
+    cost_ok, cost_why, cost_val = PR.cost_gate(rec.get("symbol", ""), ctx.get("market") or "", spread,
+                                               atr_now, tgt_dist, now)
+    val.update(cost_val)
+    g["G9"] = cost_ok
+    if not cost_ok:
+        why["G9"] = cost_why
+
+    order = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9"]
     first = next((k for k in order if not g[k]), None)
     lots, mpm, eq = ctx.get("lots") or 0.0, ctx.get("money_per_move") or 0.0, ctx.get("equity") or 0.0
     risk_usd = dist * mpm * lots

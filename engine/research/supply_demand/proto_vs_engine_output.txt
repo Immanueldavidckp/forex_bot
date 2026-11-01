@@ -1,0 +1,6 @@
+  [ok] GOLD M15: prototype 71 valid zones, engine 71; boxes, kinds, life cycle, score and every filtered reason identical
+  [ok] GOLD H1: prototype 57 valid zones, engine 57; boxes, kinds, life cycle, score and every filtered reason identical
+  [ok] EURUSD M15: prototype 57 valid zones, engine 57; boxes, kinds, life cycle, score and every filtered reason identical
+  [ok] EURUSD H1: prototype 51 valid zones, engine 51; boxes, kinds, life cycle, score and every filtered reason identical
+
+ALL OK — the page runs the researched algorithm

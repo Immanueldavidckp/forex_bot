@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V5 SMC Compare</title>
+<style>
+:root { --bg:#0b0e14; --panel:#121722; --line:#232a3a; --text:#e6e9ef; --muted:#667085; --bull:#26a69a; --bear:#ef5350;
+  --zones:#5c9ded; --lux:#f0a04b; --v5:#f5c542; --major:#4dd0e1 }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui,sans-serif; height:100vh; display:flex; flex-direction:column }
+header { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line) }
+h1 { font-size:14px; margin:0 8px 0 0; letter-spacing:.08em } h1 a { color:var(--muted); text-decoration:none; font-weight:normal }
+button, select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font:inherit; cursor:pointer }
+button[aria-pressed="false"] { opacity:.45 } #tfs button { padding:4px 7px } #tfs button.on { border-color:#5c6bc0; color:#aab6ff; background:#1a2030; opacity:1 }
+button.l-major { border-color:var(--major) } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
+.muted { color:var(--muted) } .grow { flex:1 }
+#status { padding:5px 12px; border-bottom:1px solid var(--line); color:var(--muted); min-height:27px }
+#status b { color:var(--text); font-weight:600 }
+main { flex:1; display:flex; min-height:0 }
+#wrap { flex:1; position:relative; min-width:0 } canvas { position:absolute; inset:0; width:100%; height:100% }
+#tip { position:absolute; pointer-events:none; background:#0e121bee; border:1px solid var(--line); border-radius:6px; padding:5px 8px;
+  font-size:12px; white-space:pre; display:none; z-index:2 }
+aside { width:400px; border-left:1px solid var(--line); overflow-y:auto; overflow-x:hidden; padding:4px 10px 12px; font-size:12px }
+aside h2 { font-size:12px; margin:12px 0 4px; font-weight:700; letter-spacing:.04em }
+aside h3 { font-size:11px; margin:8px 0 2px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em }
+.h-major { color:var(--major) } .h-ta { color:#bcaaa4 } .h-zones { color:var(--zones) } .h-lux { color:var(--lux) } .h-v5 { color:var(--v5) }
+table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums }
+td { padding:2px 4px; white-space:nowrap } tr.r { cursor:pointer } tr.r:hover { background:#1a2030 }
+.bull { color:var(--bull) } .bear { color:var(--bear) } .note { color:var(--muted); font-size:11px; margin-top:4px }
+footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line); font-size:12px }
+@media (max-width:760px){ aside{ display:none } }
+</style>
+</head>
+<body>
+<header>
+  <h1>V5 SMC COMPARE <a href="/">← dashboard</a></h1>
+  <select id="pick"></select><span id="tfs"></span>
+  <button class="l-major" data-layer="major" aria-pressed="true" title="BOS = close beyond the leg's extreme, CHoCH = close beyond the protected swing (the low / high the last BOS came from; after a CHoCH the old trend's top / bottom). Internal breaks are not marked.">BOS / CHoCH</button>
+  <button class="l-major" data-layer="ob" aria-pressed="true" title="order blocks of the major BOS / CHoCH: the last opposite candle before the displacement that broke structure (full wick, 50 % line); live = not closed through; the nearest 3 per side, plus breakers (a failed OB price came back to)">OB</button>
+  <button class="l-major" data-layer="sd" aria-pressed="true" title="supply / demand — only the VALID zones: the base (1–3 small candles, or David's last opposite candle) before a displacement (body ≥ 1.5 × the 10 before) whose move out closed beyond a major swing (BOS / CHoCH: David's rule), box ≤ 1.5 ATR, left cleanly; score 0–10 = the odds enhancers (shown, never a filter); dashed line = the body edge (entry)">Supply / Demand</button>
+  <button class="l-major" data-layer="sdbt" aria-pressed="false" title="the backtest of David's UPDATED supply / demand rules (Drive: Trade / Crypto strategy, 2026-10-31; engine/sd_backtest.py): every trade on this chart with its entry, SL, TP1 (50 % at the broken BOS, then break-even) and TP2 (the leg extreme), the score and the result in R; run python3 -m engine.sd_backtest SYMBOL TF to make / refresh it">S&amp;D backtest</button>
+  <button class="l-major" data-layer="liq" aria-pressed="true" title="liquidity: equal highs / lows (≥ 2 swings within 0.5 ATR), swing highs / lows and the previous day's high / low not yet taken (nearest 3 above and below), and the latest sweeps (wick through, close back inside)">Liquidity</button>
+  <button class="l-major" data-layer="fvg" aria-pressed="true" title="fair value gaps of the major BOS / CHoCH moves only (≥ 0.3 ATR); live = not filled, not invalid by your V5 rule, not cancelled by a later CHoCH">FVG</button>
+  <button class="l-major" data-layer="pd" aria-pressed="true" title="premium / discount of the major dealing range: protected swing ↔ the leg's high / low; EQ 50 %, OTE 62–79 %">Premium/Discount</button>
+  <span class="sep">concepts:</span>
+  <button class="l-ta" data-layer="sess" aria-pressed="false" title="row 2 — sessions in their own time zones: Asia range 20:00–00:00 New York, London 08:00–16:30 London, New York 08:00–17:00 New York; their high / low as levels until broken (swept = wick through + close back); ICT killzones as the strip at the bottom; daily / weekly / monthly / midnight / 08:30 opens; the pullback depth of the major leg in the panel">Sessions</button>
+  <button class="l-ta" data-layer="cdl" aria-pressed="false" title="row 3 — TA-Lib's 61 candlestick patterns (a port that matches TA-Lib bar for bar); shown: reversal patterns that make the high / low of the 10 bars before them, at a level of their own side (bullish in a bull OB / FVG or at sell-side liquidity, bearish in a bear OB / FVG or at buy-side liquidity); ‘all candles’ shows every one">Candles</button>
+  <button class="l-ta" data-layer="cdlall" aria-pressed="false" title="every candle pattern, not only the ones at a level">all candles</button>
+  <button class="l-ta" data-layer="tl" aria-pressed="false" title="row 4 — trend lines: two pivot(5) lows rising (support) / highs falling (resistance), legs ≥ 2 ATR, no close through between; touches = pivot(3) within 0.5 ATR; break = a close 0.25 ATR beyond; dotted = its parallel channel; the regression channel (±2σ) of the major leg">Trend lines</button>
+  <button class="l-ta" data-layer="cp" aria-pressed="false" title="row 5 — classic chart patterns on pivots with ATR tolerances (Lo-Mamaysky-Wang, Osler & Chang, Bulkowski, Trendoscope): head & shoulders, double / triple tops & bottoms, triangles, wedges, rectangles, flags, pennants; confirmed by a close 0.1 ATR beyond the trigger line">Patterns</button>
+  <button class="l-ta" data-layer="fib" aria-pressed="false" title="row 6 — Fibonacci of the major leg (1 = protected swing, 0 = the leg's extreme): 0.236 … 0.786 and targets −0.27 / −0.618 / −1; the extension of the latest BOS (A → B, from C)">Fib</button>
+  <button class="l-ta" data-layer="vwap" aria-pressed="false" title="row 6 — VWAP of the FxPro server day (= the NY 17:00 forex day) with ±1 / ±2 σ bands, the weekly VWAP (dashed) and the VWAP anchored at the protected swing (dotted); weighted by MT5 tick volume">VWAP</button>
+  <button class="l-ta" data-layer="osc" aria-pressed="false" title="row 6 — RSI 14 (Wilder) and MACD 12/26/9 under the chart, ATR in the panel, and the RSI / MACD divergences (TradingView's recipe: oscillator pivots 5 / 5, 5–60 bars apart, + the line test)">RSI/MACD</button>
+  <button class="l-ta" data-layer="vp" aria-pressed="false" title="row 7 — volume profile: each server day inside its own span and the major leg at the right edge; POC (yellow), value area 70 % (blue), naked POCs carried forward">Volume profile</button>
+  <button class="l-ta" data-layer="wy" aria-pressed="false" title="row 8 — Wyckoff trading ranges as a state machine: SC / AR / ST / Spring / Test / SOS / LPS (distribution: BC … UTAD, SOW, LPSY), phases A–E, provisional until the SOS / SOW">Wyckoff</button>
+  <button class="l-ta" data-layer="of" aria-pressed="false" title="order flow (footprint): buy / sell per price = how often FxPro's bid ticked up / down there — ESTIMATED from quote changes, FxPro has no trade tape; zoom in for the numbers; delta + CVD panes below, CVD divergences, activity spikes">Order flow</button>
+  <button class="l-ta" data-layer="ew" aria-pressed="false" title="row 8 — Elliott count on the major structure zigzag: the hard rules (wave 2 not beyond 0, wave 3 not the shortest, wave 4 not into wave 1), a Fibonacci score, the invalidation level and the targets; the newest pivot is provisional">Elliott</button>
+  <button class="l-zones" data-layer="zones" aria-pressed="false" title="allanninal SMC Zones: swing 3, ATR 14, FVG ≥ 0.2 ATR; OB ends on a close past its far edge, FVG on a wick through it">SMC Zones</button>
+  <button class="l-lux" data-layer="lux" aria-pressed="false" title="LuxAlgo Smart Money Concepts: internal (5) + swing (50) structure, order blocks, FVG, EQH/EQL, premium/discount — Python port, identical to the MT5 indicator on our bars">LuxAlgo</button>
+  <button class="l-v5" data-layer="v5" aria-pressed="false" title="the V5 engine's own structure on the same bars">V5 engine</button>
+  <button data-layer="internal" aria-pressed="false" title="the indicators' own BOS / CHoCH: SMC Zones (swing 3) and LuxAlgo's internal structure (5) — the small breaks inside a leg">internal</button>
+  <button data-layer="mit" aria-pressed="false" title="also the zones already mitigated (SMC Zones and LuxAlgo, up to their mitigation bar)">mitigated</button>
+  <button class="l-major" data-layer="strat" aria-pressed="true" title="the V5 engine's own state: which symbols are approaching a valid setup, what is in trade with its live P&amp;L, and this chart's entry / SL / TP lines">Strategy</button>
+  <span class="grow"></span>
+  <button id="reload" title="read the files again">⟳</button>
+</header>
+<div id="status">loading…</div>
+<main>
+  <div id="wrap"><canvas id="cv"></canvas><canvas id="ov"></canvas><div id="tip"></div></div>
+  <aside id="side"></aside>
+</main>
+<footer>times IST · wheel = zoom · drag = scroll · double-click = back to now · hover a zone or line for its numbers · click a row on the right to jump there · everything is computed here from our own bars, nothing runs in MT5 ·
+SMC Zones © Allan Niñal (PolyForm Noncommercial) · LuxAlgo SMC © LuxAlgo, MQL5 port by I. Ladjohounlou (CC BY-NC-SA 4.0)</footer>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const IST_MS = 19800000, TF_MS = {M5: 3e5, M15: 9e5, M30: 18e5, H1: 36e5, H4: 144e5};
+const C = {major: "#4dd0e1", mBOS: "#b388ff", mCHoCH: "#ff5252", bull: "#26a69a", bear: "#ef5350", zones: "#5c9ded", lux: "#f0a04b", v5: "#f5c542",
+  zOBbull: "rgba(31,111,92,.45)", zOBbear: "rgba(128,52,52,.45)", zFVGbull: "rgba(46,92,140,.40)", zFVGbear: "rgba(140,100,38,.40)"};
+let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
+const LAYER = {major: true, ob: true, sd: true, sdbt: false, liq: true, fvg: true, pd: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
+  sess: false, cdl: false, cdlall: false, tl: false, cp: false, fib: false, vwap: false, osc: false, vp: false, wy: false, ew: false, of: false};   // default: the SMC row only
+
+async function api(p) { const r = await fetch(p); if (!r.ok) throw new Error(p + " " + r.status); return r.json(); }
+const ist = ms => { const d = new Date(ms + IST_MS); return d.toISOString().slice(5, 10) + " " + d.toISOString().slice(11, 16); };
+const hm = ms => new Date(ms + IST_MS).toISOString().slice(11, 16);
+const fx = p => { if (p == null) return "–"; const dec = Math.max(2, 5 - Math.floor(Math.log10(Math.abs(p) || 1))); return p.toFixed(dec); };
+const sideCls = s => s === "bull" ? "bull" : s === "bear" ? "bear" : "";
+const argb = h => h && h.length === 8 ? `rgba(${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${parseInt(h.slice(6, 8), 16)},${(parseInt(h.slice(0, 2), 16) / 255 * 1.6).toFixed(2)})` : "rgba(150,150,150,.2)";
+
+async function loadList() {
+  const L = await api("/api/smc/list"), q = new URLSearchParams(location.search);
+  $("#pick").innerHTML = L.map(x => `<option>${x}</option>`).join("");
+  SYM = L.includes(q.get("sym")) ? q.get("sym") : L[0] || ""; TF = TF_MS[q.get("tf")] ? q.get("tf") : "M15";
+  $("#pick").value = SYM;
+  $("#tfs").innerHTML = Object.keys(TF_MS).map(t => `<button data-tf="${t}" class="${t === TF ? "on" : ""}">${t}</button>`).join("");
+  $("#tfs").querySelectorAll("button").forEach(b => b.onclick = () => { TF = b.dataset.tf; pick(); });
+}
+function pick() {
+  $("#tfs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tf === TF));
+  history.replaceState(null, "", `?sym=${encodeURIComponent(SYM)}&tf=${TF}`); load(false); pollLive();
+}
+async function load(keepView) {
+  if (!SYM) { $("#status").textContent = "no bars on disk yet"; return; }
+  $("#status").textContent = `computing ${SYM} ${TF}…`;
+  D = await api(`/api/smc?sym=${encodeURIComponent(SYM)}&tf=${TF}`); LOADED = Date.now();
+  if (D.error) { $("#status").textContent = D.error; $("#side").innerHTML = ""; D = null; draw(); return; }
+  if (!keepView) VP = null;
+  const s = D.summary, age = Math.round((Date.now() - s.t_last) / 60000);
+  $("#status").innerHTML = `<b>${SYM} ${TF}</b> · last bar ${ist(s.t_last)} IST` + (age > 120 ? ` <span class="bear">(${age > 2880 ? Math.round(age / 1440) + " days" : Math.round(age / 60) + " h"} old — bars refresh while the V5 engine runs)</span>` : "") +
+    ` · close <b>${fx(s.price)}</b> · ${D.bars.length} bars · <b class="h-major">structure: ${s.major.trend || "–"}</b>` +
+    (s.major.protected ? ` · CHoCH level ${fx(s.major.protected.price)}` : "") + (s.major.bos_level ? ` · BOS level ${fx(s.major.bos_level.price)}` : " · BOS level: waiting for a pullback") +
+    ` · <span id="live"></span>`;
+  liveBadge(); side(); draw(); loadStatus();
+  if (LAYER.of) loadOF(!OF || OF.sym !== SYM || OF.tf !== TF);
+}
+
+// ── the V5 engine's own state (engine/status.py via /api/status) ──
+let ST = null;
+async function loadStatus() {
+  try { ST = await (await fetch(`/api/status?sym=${encodeURIComponent(SYM)}`, {cache: "no-store"})).json(); }
+  catch (e) { ST = null; return; }
+  if (D) { side(); draw(); }
+}
+
+function stratPanel() {
+  if (!ST || !LAYER.strat) return "";
+  const n = ST.counts || {}, money = v => (v >= 0 ? "+" : "") + (v || 0).toFixed(2);
+  const px = v => v == null ? "—" : fx(v);
+  let h = `<h2 class="h-major">STRATEGY STATUS</h2>`
+    + `<div class="note">trading <b class="${ST.trading ? "bull" : "bear"}">${ST.trading ? "ON" : "off"}</b>`
+    + ` · profile <b>${ST.profile || "–"}</b> · equity <b>${ST.equity == null ? "—" : ST.equity}</b>`
+    + ` · ${n.approaching || 0} setups live, ${n.ready || 0} ready to fire, ${n.in_trade || 0} in trade</div>`;
+
+  // in trade first: the money that is actually at risk
+  h += `<h3>in trade — live P&amp;L (${n.in_trade || 0})</h3>`;
+  if (!(ST.in_trade || []).length) h += `<table><tr><td class="muted">nothing open</td></tr></table>`;
+  else {
+    h += `<table>` + ST.in_trade.map(t => `<tr class="r sx" data-sym="${t.symbol}"><td colspan="4">`
+        + `<b>${t.symbol}</b> <span class="muted">${t.tf || ""}</span> `
+        + `<span class="${t.side === "buy" ? "bull" : "bear"}">${t.side}</span> ${t.volume} · `
+        + `<b class="${(t.pnl || 0) >= 0 ? "bull" : "bear"}">${money(t.pnl)}</b>`
+        + `${t.r_now == null ? "" : ` <span class="muted">(${t.r_now}R)</span>`}`
+        + `<br><span class="muted">entry</span> ${px(t.entry)} → ${px(t.price)} · `
+        + `<span class="muted">SL</span> <span class="bear">${px(t.sl)}</span> · `
+        + `<span class="muted">TP</span> <span class="bull">${px(t.tp)}</span>`
+        + `</td></tr>`).join("")
+      + `</table><div class="note">open P&amp;L <b class="${ST.open_pnl >= 0 ? "bull" : "bear"}">${money(ST.open_pnl)}</b></div>`;
+  }
+
+  // approaching: what the engine can actually trade, nearest to firing first
+  const ap = ST.approaching || [], ok = ap.filter(a => a.tradeable), dear = ap.filter(a => !a.tradeable);
+  // two lines per setup: the panel is 400 px, and a seven-column table clips the SL / TP off the edge
+  const step = a => a.status === "waiting M5 BOS" ? "M5 BOS" : a.status === "signal" ? "READY" : "pullback";
+  const away = a => a.distance_atr == null ? (a.distance_pct == null ? "—" : a.distance_pct + " %")
+                                           : a.distance_atr + " ATR";
+  const arow = a => `<tr class="r sx" data-sym="${a.symbol}"><td colspan="4">`
+    + `<b>${a.symbol}</b> <span class="muted">${a.tf}</span> `
+    + `<span class="${a.side === "buy" ? "bull" : "bear"}">${a.side}</span> · `
+    + `<b class="${a.status === "signal" ? "bull" : ""}">${step(a)}</b> · ${away(a)} away`
+    + `<br><span class="muted">entry</span> ${px(a.entry)} · `
+    + `<span class="muted">SL</span> <span class="bear">${a.stop != null ? px(a.stop)
+         : (a.stop_provisional != null ? "~" + fx(a.stop_provisional) : "—")}</span> · `
+    + `<span class="muted">TP</span> <span class="bull">${px(a.target)}</span>`
+    + (a.rr ? ` · <span class="muted">RR</span> ${a.rr.toFixed(2)}` : "")
+    + (a.stop == null ? ` <span class="muted">(~SL = the zone edge; the plan is made when price arrives)</span>` : "")
+    + (a.target_label ? ` <span class="muted">(${a.target_label})</span>` : "")
+    + (a.blocked ? `<br><span class="bear">${a.blocked}</span>` : "")
+    + (a.cost_why ? `<br><span class="bear">${a.cost_why}</span>` : "")
+    + `</td></tr>`;
+  h += `<h3>approaching the strategy (${ok.length} tradeable)</h3>`
+    + `<div class="note">a V5 setup walks BOS/CHoCH → zone → FVG → price back to the entry → M5 BOS → the nine gates → order. "away" is how far price still is from the entry; click a row to show that symbol.</div>`
+    + `<table>` + (ok.map(arow).join("") || `<tr><td class="muted">none</td></tr>`) + `</table>`;
+  if (dear.length) h += `<h3>not traded — too dear (${dear.length})</h3>`
+    + `<div class="note">these reach the entry but gate G9 refuses them: the spread is over 10 % of their ATR, so they cannot pay for themselves. Every crypto CFD is in here.</div>`
+    + `<table>` + dear.slice(0, 6).map(arow).join("")
+    + (dear.length > 6 ? `<tr><td class="muted">… and ${dear.length - 6} more</td></tr>` : "") + `</table>`;
+
+  const r = ST.run || {};
+  if (r.n) h += `<h3>the 24/7 run so far</h3><div class="note">${r.n} closed · net <b class="${r.total >= 0 ? "bull" : "bear"}">${money(r.total)}</b>`
+    + ` · per trade ${r.mean == null ? "—" : r.mean.toFixed(4)}`
+    + (r.lo == null ? "" : ` <span class="muted">(95 % ${r.lo.toFixed(4)} … ${r.hi.toFixed(4)})</span>`)
+    + `<br>${r.verdict || ""}</div>`;
+  return h;
+}
+
+// ── right panel: the data ──
+function side() {
+  const s = D.summary, row = (t, cells) => `<tr class="r" data-t="${t}">${cells.map(c => `<td>${c}</td>`).join("")}</tr>`;
+  const zrows = zs => zs.map(z => row(z.t0, [`<span class="${sideCls(z.side)}">${z.kind} ${z.side}${z.scope ? " · " + z.scope : ""}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, ist(z.t0)])).join("") || `<tr><td class="muted">none</td></tr>`;
+  const brows = bs => bs.slice().reverse().map(b => row(b.t, [ist(b.t), `<span class="${sideCls(b.side)}">${b.kind} ${b.side}${b.scope ? " · " + b.scope : ""}</span>`, fx(b.level)])).join("") || `<tr><td class="muted">none</td></tr>`;
+  const M = s.major;
+  let h = `<h2 class="h-major">BOS / CHoCH</h2><div class="note">BOS only at a leg's extreme after a real pullback (≥ 3 ATR), CHoCH only at the protected swing, a candle close at least 0.25 ATR beyond the level — internal breaks are not marked</div>
+    <table>${row(M.protected ? M.protected.t : 0, ["trend", `<b class="${M.trend === "up" ? "bull" : M.trend === "down" ? "bear" : ""}">${M.trend || "–"}</b>`, ""])}` +
+    (M.protected ? row(M.protected.t, [`CHoCH level (protected ${M.protected.kind})`, fx(M.protected.price), ist(M.protected.t)]) : "") +
+    (M.bos_level ? row(M.bos_level.t, [`BOS level (leg ${M.bos_level.kind})`, fx(M.bos_level.price), ist(M.bos_level.t)]) : row(0, ["BOS level", "waiting for a pullback", ""])) +
+    `</table><h3>confirmations (newest first)</h3><table>${brows(M.breaks)}</table>`;
+  const R = M.range;
+  if (LAYER.pd && R) h += `<h3>premium / discount (major range)</h3><table>` +
+    row(R.t0, ["range", `${fx(R.low)} – ${fx(R.high)}`, ""]) + row(R.t0, ["EQ 50 %", fx(R.eq), ""]) +
+    row(R.t0, [`OTE 62–79 %`, `${fx(R.ote[0])} – ${fx(R.ote[1])}`, ""]) +
+    row(s.t_last, ["price now", `<b class="${R.zone === "premium" ? "bear" : R.zone === "discount" ? "bull" : ""}">${Math.round(R.pos * 100)} % · ${R.zone}${R.in_ote ? " · in OTE" : ""}</b>`, ""]) + `</table>`;
+  if (LAYER.ob) h += `<h3>order blocks — live (nearest)</h3><table>${M.obs_live.map(o => row(o.t0, [`<span class="${sideCls(o.side)}">${o.side === "bull" ? "Bull" : "Bear"} OB</span>`, `${fx(o.bottom)} – ${fx(o.top)}`, `${o.status === "mean" ? "past 50 %" : o.status} · ${ist(o.t0)}`])).join("") || `<tr><td class="muted">none live</td></tr>`}` +
+    (LAYER.mit ? M.breakers : []).map(o => row(o.t_breaker, [`<span class="${o.side === "bull" ? "bear" : "bull"}">Breaker (was ${o.side} OB)</span>`, `${fx(o.bottom)} – ${fx(o.top)}`, ist(o.t_breaker)])).join("") + `</table>`;
+  if (LAYER.sd && D.sd) h += sideSD(row);
+  if (LAYER.sdbt) h += sideSDBT(row);
+  if (LAYER.liq) h += `<h3>liquidity not yet taken</h3><table>${M.pools_above.slice().reverse().map(q => row(q.t_first, [`<span class="bear">▲ ${q.label}</span>`, fx(q.level), ist(q.t_first)])).join("")}` +
+    row(s.t_last, ["— price", fx(s.price), ""]) + `${M.pools_below.map(q => row(q.t_first, [`<span class="bull">▼ ${q.label}</span>`, fx(q.level), ist(q.t_first)])).join("")}</table>
+    <h3>sweeps (newest first)</h3><table>${M.sweeps.slice().reverse().map(w => row(w.t, [ist(w.t), `<span class="${w.side === "high" ? "bear" : "bull"}">$ ${w.label}</span>`, `${fx(w.level)} → ${fx(w.extreme)}${w.kind === "failed break" ? " (failed break)" : ""}`])).join("") || `<tr><td class="muted">none</td></tr>`}</table>`;
+  if (LAYER.fvg) h += `<h3>FVG of the major moves — live</h3><table>${M.fvgs_live.map(f => row(f.t0, [`<span class="${sideCls(f.side)}">${f.side === "bull" ? "Bull" : "Bear"} FVG</span>`, `${fx(f.bottom)} – ${fx(f.top)}`, `${f.status} · ${ist(f.t0)}`])).join("") || `<tr><td class="muted">none live now (all filled, invalid or cancelled by a CHoCH)</td></tr>`}</table>
+    <h3>FVG — latest</h3><table>${M.fvgs_recent.slice().reverse().map(f => row(f.t0, [`<span class="${sideCls(f.side)}">${f.side === "bull" ? "Bull" : "Bear"} FVG</span>`, `${fx(f.bottom)} – ${fx(f.top)}`, `${f.inverted ? "inverted" : f.status}${f.invalid ? " · invalid" : ""}`])).join("")}</table>`;
+  h += sideTA(row);
+  if (LAYER.zones) h += `<h2 class="h-zones">SMC ZONES</h2><h3>live zones nearest price</h3><table>${zrows(s.zones.live)}</table>
+    <h3>confirmations (newest first)</h3><table>${brows(s.zones.breaks)}</table>
+    <h3>liquidity sweeps</h3><table>${s.zones.sweeps.slice().reverse().map(w => row(w.t, [ist(w.t), `<span class="${sideCls(w.side)}">sweep of a ${w.side === "bull" ? "low" : "high"}</span>`, fx(w.level)])).join("") || `<tr><td class="muted">none</td></tr>`}</table>`;
+  const L = s.lux, tr = L.trailing, z = L.zones, lv = s.levels || {};
+  if (LAYER.lux) h += `<h2 class="h-lux">LUXALGO SMC</h2><h3>live order blocks + FVG nearest price</h3><table>${zrows(L.live)}</table>
+    <h3>confirmations (newest first)</h3><table>${brows(L.breaks.slice().sort((a, b) => a.t - b.t))}</table>
+    <h3>premium / discount, strong / weak, previous day</h3><table>` +
+    (z ? row(z.t0, ["premium", `${fx(z.premium[0])} – ${fx(z.premium[1])}`, ""]) + row(z.t0, ["equilibrium", `${fx(z.equilibrium[0])} – ${fx(z.equilibrium[1])}`, ""]) + row(z.t0, ["discount", `${fx(z.discount[0])} – ${fx(z.discount[1])}`, ""]) : "") +
+    (tr.top != null ? row(tr.top_t, [`<span class="bear">${tr.top_text}</span>`, fx(tr.top), ist(tr.top_t)]) : "") +
+    (tr.bottom != null ? row(tr.bottom_t, [`<span class="bull">${tr.bottom_text}</span>`, fx(tr.bottom), ist(tr.bottom_t)]) : "") +
+    (lv.PDH != null ? row(lv.PDH_t, ["PDH", fx(lv.PDH), lv.day]) + row(lv.PDL_t, ["PDL", fx(lv.PDL), lv.day]) : "") + `</table>`;
+  if (LAYER.v5) h += `<h2 class="h-v5">V5 ENGINE</h2><div class="note">trend: ${s.v5.trend || "–"}</div><h3>confirmations (newest first)</h3><table>${brows(s.v5.breaks)}</table>
+    <h3>zones (newest)</h3><table>${s.v5.zones.slice().reverse().map(z => row(z.t, [`<span class="${sideCls(z.side === "buy" ? "bull" : "bear")}">${z.kind}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, ist(z.t)])).join("") || `<tr><td class="muted">none</td></tr>`}</table>`;
+  if (LAYER.zones || LAYER.lux) h += `<div class="note">SMC Zones runs here with the author's Python reference (it matched the MT5 indicator bar for bar on our data). LuxAlgo is a Python port that drew exactly what the MT5 indicator drew on our bars. Both run here on the dashboard; nothing runs in MT5.</div>`;
+  $("#side").innerHTML = stratPanel() + h;
+  $("#side").querySelectorAll("tr.r").forEach(tr => tr.onclick = () => {
+    if (tr.dataset.sym) { if (tr.dataset.sym !== SYM) { SYM = tr.dataset.sym; $("#pick").value = SYM; pick(); } return; }
+    jump(+tr.dataset.t);
+  });
+}
+function jump(t) {
+  const i = idxOf(t), w = VP ? VP.b - VP.a : 200;
+  VP = {a: i - w * 0.6, b: i + w * 0.4}; draw();
+}
+
+// ── the live market: tick + forming bar from the engine (it reads them while this page asks) ──
+const liveOn = () => LIVE && LIVE.sym === SYM && LIVE.at && Date.now() - LIVE.at < 60000;
+function newer() {      // the live bars of this timeframe after the last closed bar from the server
+  if (!liveOn() || !D || !D.bars.length) return [];
+  const t = D.bars[D.bars.length - 1][0];
+  return ((LIVE.bars || {})[TF] || []).filter(b => b[0] > t);
+}
+const behind = () => newer().some(b => b[0] + TF_MS[TF] <= LIVE.at);     // a bar closed that the server's chart lacks
+const liveBars = () => behind() ? [] : newer();                           // the forming bar, drawn in the next slot
+function liveBadge() {
+  const el = $("#live"); if (!el) return;
+  // before the first poll LIVE is simply not fetched yet — that is not the engine being down
+  if (LIVE === null && !POLLED) { el.innerHTML = `<span class="muted">connecting…</span>`; return; }
+  if (!liveOn()) { el.innerHTML = `<span class="bear">not live</span> <span class="muted">(live prices come from the V5 engine — it is not running)</span>`; return; }
+  const tickAge = LIVE.t_ms ? (Date.now() - LIVE.t_ms) / 1000 : null;
+  el.innerHTML = `<b class="bull">● LIVE</b> bid <b>${fx(LIVE.bid)}</b> ask ${fx(LIVE.ask)}` +
+    (tickAge != null ? ` · tick ${ist(LIVE.t_ms).slice(6)}:${new Date(LIVE.t_ms + IST_MS).toISOString().slice(17, 19)} IST` +
+      (tickAge > 300 ? ` <span class="bear">(no new tick for ${tickAge > 5400 ? Math.round(tickAge / 3600) + " h" : Math.round(tickAge / 60) + " min"} — market closed?)</span>` : "") : "");
+}
+async function pollLive() {
+  if (!SYM || document.hidden) return;
+  try { LIVE = await api(`/api/smc/live?sym=${encodeURIComponent(SYM)}`); } catch (e) { LIVE = null; }
+  POLLED = true;
+  liveBadge();
+  if (behind() && Date.now() - LOADED > 20000) return load(true).catch(() => {});     // a bar closed / the chart was stale: catch up now
+  if (D && !DRAG) draw();
+}
+
+// ── chart ──
+function idxOf(t) {   // fractional bar index of a time (binary search; off the ends by bar steps)
+  const B = D.bars, N = B.length, step = TF_MS[TF];
+  if (t <= B[0][0]) return (t - B[0][0]) / step;
+  if (t >= B[N - 1][0]) return N - 1 + (t - B[N - 1][0]) / step;
+  let lo = 0, hi = N - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (B[m][0] <= t) lo = m; else hi = m; }
+  return lo + (t - B[lo][0]) / Math.max(1, B[hi][0] - B[lo][0]);
+}
+function geo() {
+  const cv = $("#cv"), W = cv.clientWidth, H = cv.clientHeight, PR = 70, PT = 10, PB = 22, PL = 4, N = D.bars.length;
+  if (!VP) VP = {a: Math.max(0, N - 200), b: N + 10};
+  const cw = (W - PL - PR) / (VP.b - VP.a);
+  const iA = Math.max(0, Math.ceil(VP.a - 0.5)), iB = Math.min(N - 1, Math.floor(VP.b - 0.5));
+  let lo = Infinity, hi = -Infinity;
+  for (let i = iA; i <= iB; i++) { lo = Math.min(lo, D.bars[i][3]); hi = Math.max(hi, D.bars[i][2]); }
+  liveBars().forEach((b, k) => { const i = N + k; if (i >= VP.a - 0.5 && i <= VP.b + 0.5) { lo = Math.min(lo, b[3]); hi = Math.max(hi, b[2]); } });
+  if (!isFinite(lo)) { lo = 0; hi = 1; }
+  const span = (hi - lo) || 1; lo -= span * 0.06; hi += span * 0.06;
+  const OSC = (LAYER.osc ? 150 : 0) + (LAYER.of ? 140 : 0);     // RSI + MACD panes, then delta + CVD, under the price
+  return {W, H, PR, PT, PB, PL, N, cw, lo, hi, iA, iB, OSC, yBot: H - PB - OSC,
+    xi: i => PL + (i - VP.a + 0.5) * cw, xt: t => PL + (idxOf(t) - VP.a + 0.5) * cw,
+    y: p => PT + (hi - p) / (hi - lo) * (H - PT - PB - OSC)};
+}
+function box(g, G, t0, t1, top, bot, fill, stroke, dash, tip) {
+  const x0 = G.xt(t0), x1 = t1 == null ? G.W - G.PR : G.xt(t1), y0 = G.y(top), y1 = G.y(bot);
+  if (x1 < G.PL || x0 > G.W - G.PR) return;
+  g.fillStyle = fill; g.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+  if (stroke) { g.setLineDash(dash || []); g.strokeStyle = stroke; g.strokeRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0)); g.setLineDash([]); }
+  HITS.push({x0, x1, y0, y1, tip, area: (x1 - x0) * (y1 - y0)});
+}
+function hline(g, G, t0, t1, p, color, dash, text, tip, below) {
+  const x0 = G.xt(t0), x1 = G.xt(t1), y = G.y(p);
+  if (x1 < G.PL || x0 > G.W - G.PR) return;
+  g.strokeStyle = color; g.setLineDash(dash || []); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
+  if (text) { g.fillStyle = color; g.textAlign = "center"; g.fillText(text, (x0 + x1) / 2, y + (below ? 9 : -7)); g.textAlign = "left"; }
+  HITS.push({x0, x1, y0: y - 4, y1: y + 4, tip, area: 0});
+}
+function draw() {
+  const cv = $("#cv"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H); HITS = [];
+  if (!D || !D.bars.length) return;
+  const G = geo(), B = D.bars; window._G = G;
+  g.font = "10px ui-monospace,monospace"; g.textBaseline = "middle";
+  for (let k = 0; k <= 6; k++) { const p = G.lo + (G.hi - G.lo) * k / 6, yy = G.y(p);
+    g.strokeStyle = "#151b27"; g.beginPath(); g.moveTo(G.PL, yy); g.lineTo(W - G.PR, yy); g.stroke();
+    g.fillStyle = "#667085"; g.fillText(fx(p), W - G.PR + 4, yy); }
+  const every = Math.max(1, Math.ceil(80 / G.cw));
+  g.fillStyle = "#667085";
+  for (let i = G.iA; i <= G.iB; i++) if (i % every === 0) g.fillText((TF === "H4" ? ist(B[i][0]) : (hm(B[i][0]) === "00:00" || i % (every * 4) === 0) ? ist(B[i][0]) : hm(B[i][0])), G.xi(i) - 16, H - 9);
+  const tA = B[G.iA][0], tB = B[G.iB][0];
+  const vis = (t0, t1) => (t1 == null || t1 >= tA - TF_MS[TF] * 2) && t0 <= tB + TF_MS[TF] * 20;
+  // zones first (under the candles' wicks), lines and labels after
+  if (LAYER.pd && D.major.range) {
+    const R = D.major.range, x0 = Math.max(G.PL, G.xt(R.t0)), xr = W - G.PR;
+    const band = (a, b, col) => { const y0 = G.y(Math.max(a, b)), y1 = G.y(Math.min(a, b)); g.fillStyle = col; g.fillRect(x0, y0, xr - x0, y1 - y0); };
+    band(R.eq, R.high, "rgba(239,83,80,.07)"); band(R.low, R.eq, "rgba(38,166,154,.07)");
+    band(R.ote[0], R.ote[1], R.trend === "up" ? "rgba(38,166,154,.10)" : "rgba(239,83,80,.10)");
+    const ye = G.y(R.eq); g.strokeStyle = "#8892b0"; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(x0, ye); g.lineTo(xr, ye); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#8892b0";
+    g.fillText("Premium", x0 + 4, G.y(R.high) + 9); g.fillText("EQ " + fx(R.eq), x0 + 4, ye - 7); g.fillText("Discount", x0 + 4, G.y(R.low) - 8);
+    g.fillText("OTE", x0 + 4, G.y((R.ote[0] + R.ote[1]) / 2));
+    HITS.push({x0, x1: xr, y0: G.y(R.high), y1: G.y(R.low), area: 1e9, tip: `major range ${fx(R.low)} – ${fx(R.high)}\nEQ ${fx(R.eq)} · OTE ${fx(R.ote[0])} – ${fx(R.ote[1])}\nprice ${Math.round(R.pos * 100)} % = ${R.zone}`});
+  }
+  if (LAYER.fvg) {
+    g.font = "10px system-ui,sans-serif";
+    for (const f of D.major.fvgs) {
+      if (!f.live && !LAYER.mit) continue;
+      const t1 = f.live ? null : f.t_end;
+      if (!vis(f.t0, t1)) continue;
+      const bull = f.side === "bull", a = f.live ? .26 : .10;
+      box(g, G, f.t0, t1, f.top, f.bottom, bull ? `rgba(38,166,154,${a})` : `rgba(239,83,80,${a})`, f.live ? (bull ? "#26a69a" : "#ef5350") : null, [3, 3],
+        `${bull ? "Bull" : "Bear"} FVG (of the ${f.of})\n${fx(f.bottom)} – ${fx(f.top)} · ${f.atr} ATR\nformed ${ist(f.t_mid)} · ${f.inverted ? "inverted (a close through it) " + ist(f.t_end) : f.status + (f.t_end ? " " + ist(f.t_end) : "")}` +
+        (f.invalid ? `\ninvalid by your V5 rule: ${f.invalid}` : "") + (f.superseded ? "\ncancelled: a CHoCH against it came later" : ""));
+      const yc = G.y((f.top + f.bottom) / 2), xa = G.xt(f.t0), xb = t1 == null ? W - G.PR : G.xt(t1);
+      g.strokeStyle = bull ? "rgba(38,166,154,.6)" : "rgba(239,83,80,.6)"; g.setLineDash([1, 3]); g.beginPath(); g.moveTo(xa, yc); g.lineTo(xb, yc); g.stroke(); g.setLineDash([]);
+      if (f.live) { g.fillStyle = "#e6e9ef"; g.fillText(`${bull ? "Bull" : "Bear"} FVG`, xa + 3, G.y(f.top) + 7); }
+    }
+    g.font = "10px ui-monospace,monospace";
+  }
+  if (LAYER.ob) {
+    const S = D.summary.major, show = new Set([...S.obs_live, ...(LAYER.mit ? S.breakers : [])].map(o => o.t0 + "|" + o.side));   // breakers with "mitigated"
+    g.font = "10px system-ui,sans-serif";
+    for (const o of D.major.obs) {
+      const key = o.t0 + "|" + o.side, shown = show.has(key), brk = o.status === "breaker";
+      if (!shown && !LAYER.mit) continue;
+      const t1 = shown ? null : (o.t_dead || o.t_invalid || o.t_break);
+      if (!vis(o.t0, t1)) continue;
+      const bull = o.side === "bull", fill = brk ? (bull ? "rgba(239,83,80,.12)" : "rgba(38,166,154,.12)") : (bull ? "rgba(38,166,154,.20)" : "rgba(239,83,80,.20)");
+      const col = brk ? (bull ? "#ef5350" : "#26a69a") : (bull ? "#26a69a" : "#ef5350");
+      box(g, G, o.t0, t1, o.top, o.bottom, shown ? fill : "rgba(136,146,176,.07)", shown ? col : null, brk ? [5, 3] : [],
+        `${brk ? "Breaker — a failed " + o.side + " OB, now works the other way" : (bull ? "Bull" : "Bear") + " OB"} (of the ${o.of})\n${fx(o.bottom)} – ${fx(o.top)} · 50 % ${fx(o.mid)}\ncandle ${ist(o.t0)} · break ${ist(o.t_break)}` +
+        `\nstatus: ${o.status === "mean" ? "past 50 %" : o.status}${o.t_touch ? " · touched " + ist(o.t_touch) : ""}${o.t_invalid ? " · closed through " + ist(o.t_invalid) : ""}${o.has_fvg ? "\nleft an FVG" : ""}`);
+      if (shown) {
+        const xa = G.xt(o.t0), xb = W - G.PR, ym = G.y(o.mid);
+        g.strokeStyle = col; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(xa, ym); g.lineTo(xb, ym); g.stroke(); g.setLineDash([]);
+        g.fillStyle = "#e6e9ef"; g.fillText(brk ? "Breaker" : (bull ? "Bull OB" : "Bear OB") + (o.status === "mean" ? " · 50 %" : o.status === "touched" ? " · touched" : ""), Math.max(xa, G.PL) + 3, G.y(o.top) + 8);
+      }
+    }
+    g.font = "10px ui-monospace,monospace";
+  }
+  if (G.OSC) { g.save(); g.beginPath(); g.rect(0, 0, W, G.yBot); g.clip(); }    // price marks stay above the RSI / MACD panes
+  if (LAYER.sd && D.sd) drawSD(g, G, vis);
+  if (LAYER.sdbt && D.sdbt) drawSDBT(g, G, vis);
+  if (LAYER.strat) drawStrategy(g, G);
+  if (LAYER.sess) drawSessions(g, G, vis);
+  if (LAYER.wy) drawWyckoff(g, G, vis);
+  if (LAYER.vp) drawProfile(g, G, vis);
+  if (LAYER.zones) for (const z of D.zones.zones) {
+    if (z.t_end != null && !LAYER.mit) continue;
+    if (!vis(z.t0, z.t_end)) continue;
+    const live = z.t_end == null;
+    box(g, G, z.t0, live ? null : z.t_end, z.top, z.bottom, C["z" + z.kind + z.side], live ? null : "#556", [2, 3],
+      `SMC Zones · ${z.kind} ${z.side}${live ? " · LIVE" : " · mitigated " + ist(z.t_end)}\n${fx(z.bottom)} – ${fx(z.top)}\nfrom ${ist(z.t0)} · confirmed ${ist(z.t_born)}${z.touches ? " · touched " + z.touches + "×" : ""}`);
+  }
+  if (LAYER.lux) {
+    const L = D.lux, z = L.zones;
+    if (z) for (const [k, col] of [["premium", "rgba(242,54,69,.13)"], ["equilibrium", "rgba(135,139,148,.13)"], ["discount", "rgba(8,153,129,.13)"]])
+      box(g, G, z.t0, null, z[k][1], z[k][0], col, null, null, `LuxAlgo · ${k}\n${fx(z[k][0])} – ${fx(z[k][1])}`);
+    const OBC = {"swing bull": "rgba(24,72,204,.28)", "swing bear": "rgba(178,40,51,.28)", "internal bull": "rgba(49,121,245,.22)", "internal bear": "rgba(247,124,128,.22)"};
+    for (const ob of L.obs) {
+      const live = ob.t_end == null;
+      if (live ? !ob.shown : !LAYER.mit) continue;
+      if (!vis(ob.t0, ob.t_end)) continue;
+      box(g, G, ob.t0, live ? null : ob.t_end, ob.top, ob.bottom, OBC[ob.scope + " " + ob.side], ob.scope === "swing" ? (ob.side === "bull" ? "#1848cc" : "#b22833") : null, [4, 3],
+        `LuxAlgo · ${ob.scope} order block ${ob.side}${live ? " · LIVE" : " · mitigated " + ist(ob.t_end)}\n${fx(ob.bottom)} – ${fx(ob.top)}\ncandle ${ist(ob.t0)} · confirmed ${ist(ob.t_born)}`);
+    }
+    for (const f of L.fvgs) {
+      const live = f.t_end == null;
+      if (!live && !LAYER.mit) continue;
+      if (!vis(f.t0, f.t1)) continue;
+      box(g, G, f.t0, f.t1, f.top, f.bottom, f.side === "bull" ? "rgba(0,255,104,.30)" : "rgba(255,0,8,.30)", null, null,
+        `LuxAlgo · FVG ${f.side}${live ? " · LIVE" : " · mitigated " + ist(f.t_end)}\n${fx(f.bottom)} – ${fx(f.top)}\nat ${ist(f.t_born)}`);
+    }
+  }
+  if (LAYER.v5) {
+    for (const z of D.v5.zones) if (vis(z.t, null)) box(g, G, z.t, null, z.top, z.bottom, "rgba(245,197,66,.10)", C.v5, [5, 3], `V5 · ${z.kind} (${z.side})\n${fx(z.bottom)} – ${fx(z.top)}\nfrom ${ist(z.t)}`);
+    for (const f of D.v5.fvgs) if (vis(f.t, null)) box(g, G, f.t, f.t + TF_MS[TF] * 12, f.top, f.bottom, "rgba(245,197,66,.06)", "rgba(245,197,66,.6)", [2, 2], `V5 · FVG (${f.side})\n${fx(f.bottom)} – ${fx(f.top)}\nat ${ist(f.t)}`);
+  }
+  if (ofOn()) drawFootprint(g, G);
+  // candles
+  const bw = Math.max(1, Math.min(9, G.cw * 0.7));
+  for (let i = G.iA; i <= G.iB; i++) {
+    const [, o, h, l, c] = B[i], x = G.xi(i), up = c >= o;
+    g.strokeStyle = g.fillStyle = up ? "#26a69a" : "#ef5350";
+    g.beginPath(); g.moveTo(x, G.y(h)); g.lineTo(x, G.y(l)); g.stroke();
+    const y0 = G.y(Math.max(o, c)), y1 = G.y(Math.min(o, c)); g.fillRect(x - bw / 2, y0, bw, Math.max(1, y1 - y0));
+  }
+  liveBars().forEach(([t, o, h, l, c], k) => {          // the forming bar, in the slot after the last closed one
+    const x = G.xi(G.N + k), up = c >= o, y0 = G.y(Math.max(o, c)), y1 = G.y(Math.min(o, c));
+    g.strokeStyle = g.fillStyle = up ? "#26a69a" : "#ef5350";
+    g.beginPath(); g.moveTo(x, G.y(h)); g.lineTo(x, G.y(l)); g.stroke(); g.fillRect(x - bw / 2, y0, bw, Math.max(1, y1 - y0));
+    HITS.push({x0: x - bw, x1: x + bw, y0: G.y(h), y1: G.y(l), area: 1, tip: `live ${TF} bar ${ist(t)} IST (forming)\nO ${fx(o)}  H ${fx(h)}  L ${fx(l)}  C ${fx(c)}`});
+  });
+  if (LAYER.zones) {
+    if (LAYER.internal) for (const b of D.zones.breaks) if (vis(b.t_from, b.t))
+      hline(g, G, b.t_from, b.t, b.level, b.side === "bull" ? C.bull : C.bear, b.kind === "CHoCH" ? [] : [], b.kind,
+        `SMC Zones · ${b.kind} ${b.side}\nlevel ${fx(b.level)} (swing ${ist(b.t_from)})\nconfirmed: close at ${ist(b.t)}`, b.side === "bear");
+    for (const w of D.zones.sweeps) if (vis(w.t_from, w.t)) {
+      hline(g, G, w.t_from, w.t, w.level, "#b39ddb", [1, 3], "", `SMC Zones · liquidity sweep of a ${w.side === "bull" ? "low" : "high"}\nlevel ${fx(w.level)} (swing ${ist(w.t_from)})\nswept ${ist(w.t)}, closed back`);
+      g.fillStyle = "#b39ddb"; g.fillText("$", G.xt(w.t) - 3, G.y(w.level) + (w.side === "bull" ? 9 : -9));
+    }
+  }
+  if (LAYER.lux) {
+    const L = D.lux;
+    for (const k of L.breaks) if ((k.scope === "swing" || LAYER.internal) && vis(k.t_from, k.t))
+      hline(g, G, k.t_from, k.t, k.level, k.side === "bull" ? "#089981" : "#F23645", k.scope === "internal" ? [5, 4] : [], k.scope === "internal" ? k.kind.toLowerCase() : k.kind,
+        `LuxAlgo · ${k.kind} ${k.side} · ${k.scope} structure\nlevel ${fx(k.level)} (swing ${ist(k.t_from)})\nconfirmed: close at ${ist(k.t)}`, k.side === "bear");
+    for (const e of L.equal) if (vis(e.t_from, e.t)) {
+      const col = e.text === "EQH" ? "#F23645" : "#089981";
+      g.strokeStyle = col; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(G.xt(e.t_from), G.y(e.level_from)); g.lineTo(G.xt(e.t), G.y(e.level)); g.stroke(); g.setLineDash([]);
+      g.fillStyle = col; g.textAlign = "center"; g.fillText(e.text, (G.xt(e.t_from) + G.xt(e.t)) / 2, G.y(e.level) + (e.text === "EQH" ? -8 : 9)); g.textAlign = "left";
+      HITS.push({x0: G.xt(e.t_from), x1: G.xt(e.t), y0: G.y(e.level) - 4, y1: G.y(e.level) + 4, area: 0, tip: `LuxAlgo · ${e.text === "EQH" ? "equal highs" : "equal lows"} (liquidity)\n${fx(e.level_from)} / ${fx(e.level)}\nknown ${ist(e.t_known)}`});
+    }
+    for (const w of L.swings) if (vis(w.t, w.t)) {
+      const up = w.text === "HH" || w.text === "LH";
+      g.fillStyle = up ? "#F23645" : "#089981"; g.textAlign = "center"; g.fillText(w.text, G.xt(w.t), G.y(w.price) + (up ? -9 : 10)); g.textAlign = "left";
+    }
+    const tr = L.trailing, xr = W - G.PR;
+    for (const [p, tt, txt, col] of [[tr.top, tr.top_t, tr.top_text, "#F23645"], [tr.bottom, tr.bottom_t, tr.bottom_text, "#089981"]]) if (p != null)
+      hline(g, G, tt, D.bars[D.bars.length - 1][0] + TF_MS[TF] * 10, p, col, [], txt, `LuxAlgo · ${txt}\n${fx(p)} (${ist(tt)})`, col === "#089981");
+    const lv = D.levels || {};
+    for (const [k, col] of [["PDH", "#2157F3"], ["PDL", "#2157F3"]]) if (lv[k] != null)
+      hline(g, G, lv[k + "_t"], D.bars[D.bars.length - 1][0] + TF_MS[TF] * 10, lv[k], col, [], k, `previous day ${k === "PDH" ? "high" : "low"} (${lv.day})\n${fx(lv[k])}`, k === "PDL");
+  }
+  if (LAYER.v5) for (const e of D.v5.events) if (vis(e.level_t, e.t)) {
+    const s = e.side === "buy" ? "bull" : "bear";
+    hline(g, G, e.level_t, e.t, e.level, C.v5, [6, 3], "V5 " + e.kind, `V5 engine · ${e.kind} ${s}\nlevel ${fx(e.level)} (swing ${ist(e.level_t)})\nconfirmed ${ist(e.t)} (close ${fx(e.close)})`, s === "bear");
+  }
+  if (LAYER.liq) {
+    const S = D.summary.major, xr = W - G.PR;
+    g.font = "10px system-ui,sans-serif";
+    for (const q of [...S.pools_above, ...S.pools_below]) {
+      const y = G.y(q.level), x0 = Math.max(G.PL, G.xt(q.t_first)), col = q.side === "high" ? "#ffb74d" : "#4fc3f7";
+      if (y < G.PT || y > H - G.PB) continue;
+      g.strokeStyle = col; g.setLineDash([1, 3]); g.beginPath(); g.moveTo(x0, y); g.lineTo(xr, y); g.stroke(); g.setLineDash([]);
+      const txt = (q.side === "high" ? "BSL · " : "SSL · ") + q.label;
+      g.fillStyle = col; g.textAlign = "right"; g.fillText(txt, xr - 4, y + (q.side === "high" ? -7 : 8)); g.textAlign = "left";
+      HITS.push({x0, x1: xr, y0: y - 4, y1: y + 4, area: 0, tip: `${q.side === "high" ? "buy-side" : "sell-side"} liquidity (stops ${q.side === "high" ? "above" : "below"}): ${q.label}\n${fx(q.level)} · since ${ist(q.t_first)}\nnot taken yet`});
+    }
+    for (const w of S.sweeps.slice(-3)) {
+      if (!vis(w.t, w.t_end)) continue;
+      const high = w.side === "high", col = high ? "#ef5350" : "#26a69a", xa = G.xt(w.t) - G.cw / 2, xb = G.xt(w.t_end) + G.cw / 2;
+      const ya = G.y(Math.max(w.level, w.extreme)), yb = G.y(Math.min(w.level, w.extreme));
+      g.fillStyle = high ? "rgba(239,83,80,.18)" : "rgba(38,166,154,.18)"; g.fillRect(xa, ya, Math.max(2, xb - xa), Math.max(2, yb - ya));
+      g.strokeStyle = col; g.beginPath(); g.moveTo(xa - 6, G.y(w.level)); g.lineTo(xb + 6, G.y(w.level)); g.stroke();
+      g.fillStyle = col; g.textAlign = "center"; g.fillText("$ " + w.label, (xa + xb) / 2, high ? ya - 7 : yb + 8); g.textAlign = "left";
+      HITS.push({x0: xa, x1: xb, y0: ya, y1: yb, area: 0, tip: `liquidity sweep: ${w.label} ${fx(w.level)}\nran to ${fx(w.extreme)} ${ist(w.t)} → back inside ${ist(w.t_end)}\n${w.kind === "failed break" ? "a failed break (closed beyond, then back inside)" : "wick only"}`});
+    }
+    g.font = "10px ui-monospace,monospace";
+  }
+  if (LAYER.major) {
+    const M = D.major;
+    g.font = "bold 11px system-ui,sans-serif";
+    for (const b of M.breaks) if (vis(b.t_from, b.t)) {
+      const bull = b.side === "bull", col = bull ? "#26a69a" : "#ef5350", x0 = G.xt(b.t_from), x1 = G.xt(b.t), y = G.y(b.level);
+      g.strokeStyle = col; g.lineWidth = b.kind === "CHoCH" ? 2 : 1.5;
+      g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.lineWidth = 1;
+      const txt = (bull ? "Bull " : "Bear ") + b.kind, w = g.measureText(txt).width + 12, bh = 17;
+      const bx = Math.min(Math.max((x0 + x1) / 2 - w / 2, G.PL + 2), W - G.PR - w - 2), by = bull ? y - bh - 4 : y + 4;
+      g.fillStyle = b.kind === "CHoCH" ? (bull ? "rgba(38,166,154,.30)" : "rgba(239,83,80,.30)") : "rgba(14,18,27,.92)";
+      g.fillRect(bx, by, w, bh); g.strokeStyle = col; g.strokeRect(bx + .5, by + .5, w - 1, bh - 1);
+      g.fillStyle = "#e6e9ef"; g.fillText(txt, bx + 6, by + bh / 2 + .5);
+      const tip = `${txt}\nlevel ${fx(b.level)} (swing ${ist(b.t_from)})\nconfirmed: candle closed beyond it at ${ist(b.t)}\nthe move came from ${fx(b.origin)} (${ist(b.origin_t)})`;
+      HITS.push({x0, x1, y0: y - 4, y1: y + 4, area: 0, tip}, {x0: bx, x1: bx + w, y0: by, y1: by + bh, area: 0, tip});
+    }
+    // the two levels waiting now: a tag on the price scale, no line across the chart
+    g.font = "10px ui-monospace,monospace";
+    for (const [q, txt, col] of [[M.protected, "CHoCH", "#ff8a80"], [M.bos_level, "BOS", "#b388ff"]]) if (q) {
+      const y = G.y(q.price);
+      if (y < G.PT || y > H - G.PB) continue;
+      g.fillStyle = col; g.fillRect(W - G.PR, y - 8, G.PR, 16);
+      g.fillStyle = "#0b0e14"; g.fillText(txt, W - G.PR + 3, y);
+      HITS.push({x0: W - G.PR, x1: W, y0: y - 8, y1: y + 8, area: 0, tip: `next ${txt} level: ${fx(q.price)}\n(swing ${q.kind} ${ist(q.t)}) — a candle close beyond it = ${txt}`});
+    }
+  }
+  if (LAYER.fib) drawFib(g, G);
+  if (LAYER.vwap) drawVwap(g, G);
+  if (LAYER.tl) drawTrend(g, G);
+  if (LAYER.cp) drawPatterns(g, G, vis);
+  if (LAYER.ew) drawElliott(g, G);
+  if (LAYER.cdl || LAYER.cdlall) drawCandles(g, G);
+  if (G.OSC) { g.restore(); if (LAYER.osc) drawOsc(g, G); if (ofOn()) drawFlowPanes(g, G); }
+  // last price
+  const on = liveOn() && LIVE.bid != null, last = on ? LIVE.bid : B[B.length - 1][4], yl = G.y(last);
+  g.strokeStyle = on ? "#2962ff" : "#8892b0"; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(G.PL, yl); g.lineTo(W - G.PR, yl); g.stroke(); g.setLineDash([]);
+  g.fillStyle = on ? "#2962ff" : "#2a3350"; g.fillRect(W - G.PR, yl - 8, G.PR, 16); g.fillStyle = "#e6e9ef"; g.fillText(fx(last), W - G.PR + 4, yl);
+  HITS.push({x0: W - G.PR, x1: W, y0: yl - 8, y1: yl + 8, area: 0, tip: on ? `live bid ${fx(LIVE.bid)} · ask ${fx(LIVE.ask)}` : `last close ${fx(last)} (not live)`});
+}
+
+// ── supply / demand (engine/supply_demand.py): only the valid zones ──
+const SDC = {demand: ["66,165,245", "#42a5f5"], supply: ["255,167,38", "#ffa726"]};
+function sdShown() {        // live = fresh / tested and no CHoCH against it; the origin box of each break (the nested / last ones with "mitigated")
+  const Z = D.sd.zones, price = D.bars[D.bars.length - 1][4];
+  const near = side => Z.filter(z => z.live && z.side === side && z.role.startsWith("origin"))
+    .sort((a, b) => side === "supply" ? a.bottom - b.bottom : b.top - a.top)
+    .filter(z => side === "supply" ? z.top >= price - (z.top - z.bottom) : z.bottom <= price + (z.top - z.bottom)).slice(0, 5);
+  return new Set([...near("supply"), ...near("demand")]);
+}
+function sdTip(z) {
+  const P = z.parts;
+  return `${z.side === "demand" ? "Demand" : "Supply"} · ${z.kind} · ${z.role} box of the ${z.event} at ${ist(z.t_break)}\n${fx(z.bottom)} – ${fx(z.top)} · entry (body edge) ${fx(z.entry)} · 50 % ${fx(z.mid)} · ${z.height_atr} ATR` +
+    `\nbase ${z.base_n} candle${z.base_n > 1 ? "s" : ""} from ${ist(z.t0)} · leg out ${ist(z.t_out)} body ×${z.disp} · ran ${z.run_atr} ATR` +
+    `\nstatus: ${z.status}${z.touches ? ` · ${z.touches} test${z.touches > 1 ? "s" : ""}, first ${ist(z.t_touch)}` : ""}${z.t_mean ? " · past 50 % " + ist(z.t_mean) : ""}${z.t_broken ? " · closed through " + ist(z.t_broken) : ""}${z.t_flipped ? " · flipped " + ist(z.t_flipped) : ""}${z.t_superseded ? " · CHoCH against it " + ist(z.t_superseded) : ""}` +
+    `\nchecklist ${z.score}/10 (the educators' odds enhancers — NOT a measured edge): departure ${P.departure}, FVG ${P.fvg}, time at base ${P.time_at_base}, fresh ${P.freshness}, trend ${P.trend}, curve ${P.curve}, room ${P.margin}${z.margin_rr != null ? ` (${z.margin_rr} × to the opposing zone)` : ""}` +
+    (z.fvg ? `\nFVG in the move out ${fx(z.fvg.bottom)} – ${fx(z.fvg.top)} (David §12: the trade needs it)` : "\nno FVG in the move out (David §12: no trade setup)");
+}
+// entry / SL / TP of this symbol's live setups and open trades (engine/status.py)
+function drawStrategy(g, G) {
+  if (!ST || !ST.levels || !ST.levels.length) return;
+  const W = $("#cv").clientWidth;
+  for (const L of ST.levels) {
+    const y = G.y(L.price);
+    if (y < G.PT - 2 || y > G.yBot + 2) continue;          // off the price pane
+    const col = L.kind === "sl" ? "#e06c75" : L.kind === "tp" ? "#56b6c2" : "#e5c07b";
+    g.save();
+    g.strokeStyle = col;
+    g.lineWidth = L.live ? 1 : 1.6;                 // an open trade's levels are drawn solid and thicker
+    g.setLineDash(L.live ? [5, 4] : []);
+    g.beginPath(); g.moveTo(G.PL, y); g.lineTo(W - G.PR, y); g.stroke();
+    g.setLineDash([]);
+    const tag = (L.kind === "sl" ? "SL" : L.kind === "tp" ? "TP" : "entry")
+      + (L.live ? "" : " · in trade") + " " + fx(L.price);
+    g.font = "10px ui-monospace,monospace";
+    const w = g.measureText(tag).width + 8;
+    g.fillStyle = "#0d1117"; g.fillRect(G.PL + 4, y - 7, w, 14);
+    g.strokeStyle = col; g.strokeRect(G.PL + 4, y - 7, w, 14);
+    g.fillStyle = col; g.textBaseline = "middle"; g.fillText(tag, G.PL + 8, y);
+    g.restore();
+    HITS.push({x0: G.PL, x1: W - G.PR, y0: y - 3, y1: y + 3,
+               text: `${L.status} ${L.side || ""} ${L.tf || ""} · ${tag}` + (L.pnl == null ? "" : ` · P&L ${L.pnl}`)});
+  }
+}
+
+function drawSD(g, G, vis) {
+  const shown = sdShown();
+  g.font = "10px system-ui,sans-serif";
+  for (const z of D.sd.zones) {
+    const on = shown.has(z);
+    if (!on && !LAYER.mit) continue;
+    const t1 = on ? null : (z.t_dead || z.t_broken || z.t_superseded || z.t_spent || null);
+    if (!vis(z.t0, t1)) continue;
+    const [rgb, col] = SDC[z.side];
+    box(g, G, z.t0, t1, z.top, z.bottom, on ? `rgba(${rgb},.16)` : "rgba(136,146,176,.06)", on ? col : "rgba(136,146,176,.5)", z.status === "tested" ? [5, 3] : [], sdTip(z));
+    const xa = Math.max(G.xt(z.t0), G.PL), xb = t1 == null ? G.W - G.PR : G.xt(t1), ye = G.y(z.entry);
+    g.strokeStyle = on ? col : "rgba(136,146,176,.5)"; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(xa, ye); g.lineTo(xb, ye); g.stroke(); g.setLineDash([]);
+    if (on) {                // 50 % of the box, as on the order blocks
+      const ym = G.y(z.mid);
+      g.strokeStyle = `rgba(${rgb},.45)`; g.setLineDash([1, 4]); g.beginPath(); g.moveTo(xa, ym); g.lineTo(xb, ym); g.stroke(); g.setLineDash([]);
+    }
+    if (on) {                // right end, on the near (proximal) edge: the OB label sits at the box's left top
+      g.fillStyle = col; g.textAlign = "right";
+      g.fillText(`${z.side === "demand" ? "Demand" : "Supply"} · ${z.kind.split(" ")[0]} · ${z.status}`, xb - 4, z.side === "demand" ? G.y(z.top) + 10 : G.y(z.bottom) - 5);
+      g.textAlign = "left";
+    }
+  }
+}
+function sideSD(row) {
+  const shown = [...sdShown()], price = D.bars[D.bars.length - 1][4], S = D.sd;
+  const r = z => row(z.t0, [`<span style="color:${SDC[z.side][1]}">${z.side === "demand" ? "Demand" : "Supply"} · ${z.kind.split(" ")[0]}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, `${z.t_mean && z.status === "tested" ? "past 50 %" : z.status} · checklist ${z.score}/10`]);
+  const sup = shown.filter(z => z.side === "supply").sort((a, b) => b.bottom - a.bottom), dem = shown.filter(z => z.side === "demand").sort((a, b) => b.top - a.top);
+  const top = Object.entries(S.filtered).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, n]) => `${n} ${k}`).join("; ");
+  return `<h3>supply / demand — valid, live</h3><table>${sup.map(r).join("")}${row(D.summary.t_last, ["— price", fx(price), ""])}${dem.map(r).join("")}</table>` +
+    `<div class="note">${S.valid} of ${S.candidates} candidates on this chart are valid: the move out of the zone closed beyond a major swing (BOS / CHoCH — David's rule), body ≥ 1.5 × the 10 before, 1–3 base candles, ≤ 1.5 ATR, no return before the break. Not drawn: ${top}. ` +
+    `Checklist 0–10 = the educators' odds enhancers (departure, FVG, time at the base, freshness, trend, curve, room) — shown, never a filter. ` +
+    `<b>Tested</b> on 39,106 zones (GOLD + EURUSD, GBPUSD, USDJPY, AUDUSD, M15 + H1, 16 months): at the first return 58 % held (moved one box height away before a close through) — the same as random levels of the same size and distance (58 %); neither the BOS gate nor freshness, FVG, base, trend or location changed that. Valid = David's definition, not a prediction. "mitigated" shows the used / broken ones.</div>`;
+}
+
+// ── the backtest of the updated supply / demand rules (engine/sd_backtest.py, saved by its last run) ──
+const BTC = {entry: "#e5c07b", sl: "#e06c75", tp: "#56b6c2"};
+function btTip(x, n) {
+  const P = x.parts, z = x.z, sell = z.side === "supply", risk = Math.abs(x.E - x.S);
+  const R = p => p == null ? "" : ` (${(Math.abs(x.E - p) / risk).toFixed(1)}R)`;
+  return `S&D backtest #${n} · ${sell ? "SELL" : "BUY"} · ${x.mode === "limit" ? "LIMIT at the zone 50 %" : "CONFIRMATION (M5 BOS)"} · ${x.R >= 0 ? "+" : ""}${x.R.toFixed(2)}R` +
+    `
+${sell ? "Supply" : "Demand"} ${fx(z.bottom)} – ${fx(z.top)} (base ${ist(z.t0)}) · return #${x.visit} · tap ${ist(x.t_touch)}` +
+    `
+score ${x.score}/10: departure ${P.departure} · base ${P.time_at_base} · fresh ${P.freshness} · margin ${P.margin} · big picture ${P.big_picture} (curve ${x.curve_pos}, H4 ${x.h4 === "buy" ? "up" : x.h4 === "sell" ? "down" : "–"})${x.counter_choch_t ? " · CHoCH against −0.5" : ""}` +
+    `
+entry ${fx(x.E)} ${ist(x.t_entry)} · SL ${fx(x.S)} · TP1 ${x.tp1 == null ? "–" : fx(x.tp1) + R(x.tp1)} · TP2 ${fx(x.tp2)}${R(x.tp2)}` +
+    `
+${{SL: "stopped", BE: "break-even after TP1", TP2: "TP2 hit", open: "still open"}[x.reason]} ${x.t_exit ? ist(x.t_exit) : ""}${x.t_tp1 ? " · TP1 " + ist(x.t_tp1) : ""} · best move +${(x.mfe_R || 0).toFixed(1)}R · spread ${x.spread.toFixed(2)}`;
+}
+function drawSDBT(g, G, vis) {
+  const T = D.sdbt.trades, step = TF_MS[TF];
+  g.save(); g.font = "10px ui-monospace,monospace";
+  T.forEach((x, k) => {
+    const t1 = Math.max(x.t_exit || D.bars[D.bars.length - 1][0], x.t_entry + 12 * step);
+    if (!vis(x.t_entry, t1)) return;
+    const sell = x.z.side === "supply", tip = btTip(x, k + 1), [rgb, col] = SDC[x.z.side];
+    box(g, G, Math.max(x.z.t0, x.t_touch - 40 * step), t1, x.z.top, x.z.bottom, `rgba(${rgb},.10)`, col, [3, 3], tip);   // the traded zone
+    hline(g, G, x.t_entry, t1, x.E, BTC.entry, [], "", tip);
+    hline(g, G, x.t_entry, t1, x.S, BTC.sl, [], "", tip);
+    if (x.tp1 != null) hline(g, G, x.t_entry, t1, x.tp1, BTC.tp, [5, 4], "", tip);
+    hline(g, G, x.t_entry, t1, x.tp2, BTC.tp, [], "", tip);
+    const xe = G.xt(x.t_entry), ye = G.y(sell ? x.E : x.E - x.spread);
+    g.fillStyle = BTC.entry; g.beginPath();                       // ▼ sell / ▲ buy at the entry
+    if (sell) { g.moveTo(xe - 6, ye - 9); g.lineTo(xe + 6, ye - 9); g.lineTo(xe, ye); } else { g.moveTo(xe - 6, ye + 9); g.lineTo(xe + 6, ye + 9); g.lineTo(xe, ye); }
+    g.fill();
+    if (x.t_exit) {
+      const px = x.reason === "SL" ? x.S : x.reason === "BE" ? x.E : x.tp2, yb = G.y(sell ? px - x.spread : px), xb = G.xt(x.t_exit);
+      g.strokeStyle = x.reason === "SL" ? BTC.sl : x.reason === "BE" ? "#8892b0" : BTC.tp; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(xb - 5, yb - 5); g.lineTo(xb + 5, yb + 5); g.moveTo(xb + 5, yb - 5); g.lineTo(xb - 5, yb + 5); g.stroke(); g.lineWidth = 1;
+    }
+    const lab = `#${k + 1} ${sell ? "SELL" : "BUY"} ${x.mode} ${x.R >= 0 ? "+" : ""}${x.R.toFixed(2)}R`, w = g.measureText(lab).width + 8, yl = G.y(x.S) + (sell ? -9 : 9);
+    g.fillStyle = "#0d1117"; g.fillRect(xe, yl - 7, w, 14); g.strokeStyle = x.R > 0 ? BTC.tp : BTC.sl; g.strokeRect(xe, yl - 7, w, 14);
+    g.fillStyle = "#e6e9ef"; g.textBaseline = "middle"; g.fillText(lab, xe + 4, yl); g.textBaseline = "alphabetic";
+    HITS.push({x0: xe - 6, x1: xe + w, y0: Math.min(ye, yl) - 9, y1: Math.max(ye, yl) + 9, tip, area: 0});
+  });
+  g.restore();
+}
+function sideSDBT(row) {
+  const B = D.sdbt;
+  if (!B) return `<h3>S&amp;D backtest</h3><div class="note">no run for ${SYM} ${TF} yet: <code>python3 -m engine.sd_backtest ${SYM} ${TF}</code></div>`;
+  const S = B.stats, a = S.all, t0 = D.bars[0][0];
+  const line = (name, s) => row(0, [name, s.n ? `${s.n} · ${s.wins} won` : "0", s.n ? `${s.total_R >= 0 ? "+" : ""}${s.total_R}R · avg ${s.avg_R}R` : ""]);
+  const T = B.trades.map((x, k) => [x, k]).filter(([x]) => x.t_entry >= t0).reverse();
+  return `<h3>S&amp;D backtest — updated rules (${ist(B.from).slice(0, 5)} → ${ist(B.to).slice(0, 5)})</h3><table>` +
+    line("all trades", a) + line("· limit (score ≥ 9)", S.limit) + line("· M5 confirmation", S.confirm) + line("original ticket rule", S.original) + `</table>` +
+    `<table>${T.map(([x, k]) => row(x.t_entry, [`<span style="color:${x.R > 0 ? BTC.tp : BTC.sl}">#${k + 1} ${x.z.side === "supply" ? "SELL" : "BUY"} ${x.mode}</span>`, `${fx(x.E)} · score ${x.score}`, `${x.R >= 0 ? "+" : ""}${x.R.toFixed(2)}R · ${ist(x.t_entry)}`])).join("") || `<tr><td class="muted">no trade inside the loaded bars</td></tr>`}</table>` +
+    `<div class="note">${B.trades.length - T.length} earlier trade(s) fall before the loaded bars (pictures: Drive › Trade › Crypto strategy). Score ≥ 9 → limit at the zone 50 %, 7–8.5 → M5 confirmation, &lt; 7 no trade; SL beyond the distal / M5 rejection + 0.2 ATR + spread (sell); TP1 50 % at the broken BOS → break-even; TP2 the leg extreme. ` +
+    `${a.n ? `${a.mfe_2R} of ${a.n} trades went +2R first, but TP1 sat a median ${a.tp1_R_median}R and TP2 ${a.tp2_R_median}R away.` : ""}</div>`;
+}
+
+// ── order flow (engine/orderflow.py): buy / sell per price ESTIMATED from FxPro's quote changes ──
+let OF = null;
+const ofOn = () => LAYER.of && OF && !OF.error && OF.sym === SYM && OF.tf === TF && D && D.bars.length;
+const nfmt = n => n >= 10000 ? (n / 1000).toFixed(1) + "k" : String(n);
+async function loadOF(full) {
+  if (!LAYER.of || !SYM) return;
+  const sym = SYM, tf = TF, same = OF && !OF.error && OF.sym === sym && OF.tf === tf && OF.t.length > 1;
+  const since = !full && same ? OF.t[OF.t.length - 2] : null;          // the last closed bar + the forming one
+  let d;
+  try { d = await api(`/api/smc/orderflow?sym=${encodeURIComponent(sym)}&tf=${tf}` + (since != null ? `&since=${since}` : "")); } catch (e) { return; }
+  if (sym !== SYM || tf !== TF) return;
+  const k = since != null && !d.error && same ? OF.t.indexOf(since) : -1;
+  OF = k >= 0 ? {...d, t: OF.t.slice(0, k).concat(d.t), bars: OF.bars.slice(0, k).concat(d.bars), cvd: OF.cvd.slice(0, k).concat(d.cvd)}
+    : (since != null && !d.error ? (loadOF(true), OF) : d);
+  if (D) { side(); if (!DRAG) draw(); }
+}
+function ofSlot(j) {      // the chart index of footprint j: a closed bar where the chart has it, the forming one after the last
+  const t = OF.t[j], N = D.bars.length, tl = D.bars[N - 1][0];
+  return t > tl ? N - 1 + Math.round((t - tl) / TF_MS[TF]) : idxOf(t);
+}
+function drawFootprint(g, G) {
+  const R = OF.row, rowPx = R * (G.yBot - G.PT) / (G.hi - G.lo), cw = G.cw;
+  if (cw < 3) return;                                    // far out: the delta / CVD panes only
+  const text = cw >= 64, need = text ? 11 : 2;           // px a cell needs: the numbers, or just the colour
+  const k = [1, 2, 5, 10, 20, 50, 100, 200, 500].find(m => rowPx * m >= need) || 1000;   // rows merged (cells added), 1-2-5
+  const w = cw * 0.46;
+  g.font = "10px ui-monospace,monospace"; g.textBaseline = "middle";
+  const N = D.bars.length;
+  for (let j = 0; j < OF.t.length; j++) {
+    const f = OF.bars[j]; if (!f) continue;
+    const i = ofSlot(j), x = G.xi(i);
+    if (x < G.PL - cw || x > G.W - G.PR + cw) continue;
+    const cells = new Map();
+    for (let r = 0; r < f.sell.length; r++) { const m = Math.floor((f.r0 + r) / k), c = cells.get(m) || [0, 0]; c[0] += f.sell[r]; c[1] += f.buy[r]; cells.set(m, c); }
+    let mx = 1; for (const [a, b] of cells.values()) mx = Math.max(mx, Math.abs(b - a));
+    for (const [m, [a, b]] of cells) {
+      const y0 = G.y((m + 1) * k * R), y1 = G.y(m * k * R), d = b - a, al = (0.10 + 0.55 * Math.abs(d) / mx).toFixed(2);
+      g.fillStyle = d >= 0 ? `rgba(38,166,154,${al})` : `rgba(239,83,80,${al})`;
+      g.fillRect(x - w, y0 + 0.5, 2 * w, Math.max(1, y1 - y0 - 1));
+    }
+    const yr = r => [G.y((f.r0 + r + 1) * R), G.y((f.r0 + r) * R)];
+    const pm = Math.floor((f.r0 + f.poc) / k), p0 = G.y((pm + 1) * k * R), p1 = G.y(pm * k * R);      // the POC's (merged) cell
+    g.strokeStyle = "#ffd54f"; g.lineWidth = 1; g.strokeRect(x - w + 0.5, p0 + 0.5, 2 * w - 1, Math.max(1, p1 - p0 - 1));
+    const va0 = yr(f.va[1])[0], va1 = yr(f.va[0])[1]; g.strokeStyle = "rgba(92,157,237,.8)"; g.beginPath(); g.moveTo(x - w - 1.5, va0); g.lineTo(x - w - 1.5, va1); g.stroke();
+    if (k === 1) {                                       // imbalances belong to the real rows: not shown on merged ones
+      for (const r of f.ib) { const [y0, y1] = yr(r); g.fillStyle = "#00e676"; g.fillRect(x + w - 2, y0, 2, Math.max(1, y1 - y0)); }
+      for (const r of f.is) { const [y0, y1] = yr(r); g.fillStyle = "#ff5252"; g.fillRect(x - w, y0, 2, Math.max(1, y1 - y0)); }
+    }
+    if (text) for (const [m, [a, b]] of cells) {
+      const yc = (G.y((m + 1) * k * R) + G.y(m * k * R)) / 2, r = m - f.r0;   // r = the real row when k = 1
+      g.fillStyle = k === 1 && f.is.includes(r) ? "#ff5252" : "#c9cfdb"; g.textAlign = "right"; g.fillText(nfmt(a), x - 6, yc);
+      g.fillStyle = k === 1 && f.ib.includes(r) ? "#00e676" : "#c9cfdb"; g.textAlign = "left"; g.fillText(nfmt(b), x + 6, yc);
+    }
+    g.textAlign = "left";
+    const top = G.y((f.r0 + f.sell.length) * R), bot = G.y(f.r0 * R), forming = i >= N;
+    HITS.push({x0: x - w, x1: x + w, y0: top, y1: bot, area: (2 * w) * (bot - top) + 1, tip:
+      `${forming ? "forming " : ""}${TF} footprint ${ist(OF.t[j])} IST (estimated)\nvolume ${f.vol} quote ticks · delta ${f.delta > 0 ? "+" : ""}${f.delta} (${f.vol ? (100 * f.delta / f.vol).toFixed(1) : 0} %) · max +${f.dmax} min ${f.dmin}` +
+      `\nPOC ${fx((f.r0 + f.poc) * R)} · value area ${fx((f.r0 + f.va[0]) * R)} – ${fx((f.r0 + f.va[1] + 1) * R)}` +
+      (f.ib.length || f.is.length ? `\nimbalances 3 : 1 — buy ${f.ib.length}, sell ${f.is.length}` : "") +
+      `\nbuy / sell = FxPro's bid ticked up / down at that price, not real orders` + (k > 1 ? `\nrows shown ${fx(k * R)} (${k} × ${fx(R)} added) — imbalances only on the ${fx(R)} rows` : "") + (text ? "" : "\n(zoom in for the numbers)")});
+  }
+  for (const v of OF.div) {                              // CVD divergences on the price
+    if (v.t_known > D.bars[N - 1][0] + TF_MS[TF]) continue;
+    const col = v.side === "bull" ? "#26a69a" : "#ef5350", ia = idxOf(v.t1), ib = idxOf(v.t2);
+    if (ib < G.iA || ia > G.iB) continue;
+    seg(g, G, ia, v.p1, ib, v.p2, col, v.t_invalid ? [2, 3] : [5, 3], 1.4);
+    g.font = "10px system-ui,sans-serif"; tag(g, G.xi(ib), G.y(v.p2) + (v.side === "bull" ? 12 : -10), "CVD div", col, "center"); g.font = "10px ui-monospace,monospace";
+    hitLine(G, ia, v.p1, ib, v.p2, `${v.side} CVD divergence (estimated order flow)\nprice ${fx(v.p1)} → ${fx(v.p2)} · CVD ${v.c1} → ${v.c2}\npivots ${ist(v.t1)} / ${ist(v.t2)}, known ${ist(v.t_known)}` +
+      (v.t_invalid ? `\ninvalid: closed beyond ${fx(v.p2)} at ${ist(v.t_invalid)}` : "") + `\nresearch: right sign on gold, not significant (p 0.09) — not an edge`);
+  }
+}
+function drawFlowPanes(g, G) {
+  const top = G.yBot + 8 + (LAYER.osc ? 150 : 0), h = 62, x0 = G.PL, x1 = G.W - G.PR, top2 = top + h + 6, N = D.bars.length;
+  const pane = (y0, label) => { g.fillStyle = "#0e121b"; g.fillRect(x0, y0, x1 - x0, h); g.strokeStyle = "#232a3a"; g.strokeRect(x0 + .5, y0 + .5, x1 - x0 - 1, h - 1); tag(g, x0 + 4, y0 + 9, label, "#8892b0"); };
+  g.font = "10px ui-monospace,monospace";
+  const vis = [];
+  for (let j = 0; j < OF.t.length; j++) { if (!OF.bars[j]) continue; const i = ofSlot(j); if (i >= G.iA - 1 && i <= Math.max(G.iB, N) + 1 && G.xi(i) <= x1) vis.push([j, i]); }
+  const last = OF.bars[OF.bars.length - 1], cl = OF.cvd[OF.cvd.length - 1];
+  let md = 1; for (const [j] of vis) { const f = OF.bars[j]; md = Math.max(md, f.dmax, -f.dmin, Math.abs(f.delta)); }
+  pane(top, `Delta (estimated)  ${last ? (last.delta > 0 ? "+" : "") + last.delta + " · vol " + last.vol : "–"}${OF.forming ? " (forming)" : ""}`);
+  const yd = v => top + h / 2 - v / md * (h / 2 - 3), bw = Math.max(1, G.cw * 0.6), sp = new Set(OF.spike);
+  g.strokeStyle = "#2c3550"; g.beginPath(); g.moveTo(x0, yd(0)); g.lineTo(x1, yd(0)); g.stroke();
+  for (const [j, i] of vis) {
+    const f = OF.bars[j], x = G.xi(i);
+    g.strokeStyle = "rgba(200,200,200,.35)"; g.beginPath(); g.moveTo(x, yd(f.dmax)); g.lineTo(x, yd(f.dmin)); g.stroke();
+    g.fillStyle = f.delta >= 0 ? "rgba(38,166,154,.75)" : "rgba(239,83,80,.75)";
+    g.fillRect(x - bw / 2, Math.min(yd(0), yd(f.delta)), bw, Math.abs(yd(f.delta) - yd(0)) || 1);
+    if (sp.has(OF.t[j])) { g.fillStyle = "#ffd54f"; g.fillRect(x - 1.5, top + h - 5, 3, 3); }     // activity spike
+  }
+  let lo = Infinity, hi = -Infinity; for (const [j] of vis) { const c = OF.cvd[j]; if (c) { lo = Math.min(lo, c[2]); hi = Math.max(hi, c[1]); } }
+  if (!isFinite(lo)) { lo = -1; hi = 1; } if (hi - lo < 1) hi = lo + 1;
+  const yc = v => top2 + 3 + (hi - v) / (hi - lo) * (h - 6);
+  pane(top2, `CVD (estimated, resets 00:00 server)  ${cl ? cl[3] : "–"}`);
+  for (const [j, i] of vis) {
+    const c = OF.cvd[j]; if (!c) continue;
+    const x = G.xi(i), up = c[3] >= c[0];
+    if (c[0] === 0 && j > 0 && OF.cvd[j - 1]) { g.strokeStyle = "#3a4560"; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(x - G.cw / 2, top2); g.lineTo(x - G.cw / 2, top2 + h); g.stroke(); g.setLineDash([]); }
+    g.strokeStyle = g.fillStyle = up ? "#26a69a" : "#ef5350";
+    g.beginPath(); g.moveTo(x, yc(c[1])); g.lineTo(x, yc(c[2])); g.stroke();
+    g.fillRect(x - bw / 2, Math.min(yc(c[0]), yc(c[3])), bw, Math.max(1, Math.abs(yc(c[3]) - yc(c[0]))));
+  }
+  for (const v of OF.div) {
+    const a = OF.t.indexOf(v.t1), b = OF.t.indexOf(v.t2); if (a < 0 || b < 0) continue;
+    const ia = ofSlot(a), ib = ofSlot(b); if (ib < G.iA || ia > G.iB) continue;
+    g.strokeStyle = v.side === "bull" ? "#26a69a" : "#ef5350"; g.setLineDash([5, 3]); g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(G.xi(ia), yc(v.c1)); g.lineTo(G.xi(ib), yc(v.c2)); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+  }
+  HITS.push({x0, x1, y0: top, y1: top + h, area: 1e9 + 2, tip: `delta per bar = buy − sell quote ticks (column), wick = the bar's max / min running delta\nyellow dot = activity spike (≥ 1.5 × the 20 bars before: the next bars moved more, either way)\nestimated from FxPro's quote changes, not real orders`});
+  HITS.push({x0, x1, y0: top2, y1: top2 + h, area: 1e9 + 2, tip: `cumulative delta, one candle per bar, back to 0 at each FxPro server day (00:00 Cyprus)\ndashed lines = CVD divergences · estimated from quote changes`});
+}
+function sideOF(row) {
+  let h = `<h2 class="h-ta">ORDER FLOW (estimated)</h2>`;
+  if (!OF || OF.sym !== SYM || OF.tf !== TF) return h + `<div class="note">loading…</div>`;
+  if (OF.error) return h + `<div class="note">${OF.error}</div>`;
+  const n = OF.t.length, R = OF.row, bar = j => OF.bars[j], line = (j, label) => {
+    const f = bar(j); if (!f) return "";
+    return row(OF.t[j], [label, `<span class="${f.delta >= 0 ? "bull" : "bear"}">Δ ${f.delta > 0 ? "+" : ""}${f.delta}</span> · vol ${f.vol}`, `POC ${fx((f.r0 + f.poc) * R)}`]);
+  };
+  const live = OF.zones.filter(z => z.status !== "broken"), divs = OF.div.slice(-6).reverse();
+  h += `<table>` + (OF.forming ? line(n - 1, "forming bar") : "") + line(OF.forming ? n - 2 : n - 1, "last closed") +
+    row(OF.t[n - 1], ["CVD today", String(OF.cvd[n - 1] ? OF.cvd[n - 1][3] : "–"), ""]) +
+    row(0, ["row size", fx(R), `${(OF.n_ticks / 1e6).toFixed(1)} M ticks`]) + `</table>`;
+  h += `<h3>CVD divergences (newest first)</h3><table>${divs.map(v => row(v.t2, [ist(v.t2), `<span class="${v.side}">${v.side} · CVD ${v.c1} → ${v.c2}</span>`, v.t_invalid ? "invalid" : "holds"])).join("") || `<tr><td class="muted">none</td></tr>`}</table>`;
+  h += `<div class="note">Buy / sell = how often FxPro's bid ticked up / down at that price (unchanged quotes not counted) — estimated from quote changes, not real orders: FxPro has no trade tape. ` +
+    `Green / red right / left edge = a 3 : 1 diagonal imbalance (≥ 1 % of the bar); yellow box = POC, blue line = value area 70 %. ` +
+    `Stacked imbalances ${OF.zones.length} in the recorded days (${live.length} not broken) — not drawn, and no "unfinished auction": on quote changes they are artefacts. ` +
+    `Tested on 7 days of GOLD: the delta follows each bar's own move but does not predict the next bar. Zoom in (≥ 64 px a bar) for the numbers.</div>`;
+  return h;
+}
+
+// ── rows 2–8 of the concept table (D.ta) ──
+const RIGHT = () => D.bars[D.bars.length - 1][0] + TF_MS[TF] * 10;
+function seg(g, G, i0, p0, i1, p1, col, dash, w) {
+  g.strokeStyle = col; g.lineWidth = w || 1; g.setLineDash(dash || []);
+  g.beginPath(); g.moveTo(G.xi(i0), G.y(p0)); g.lineTo(G.xi(i1), G.y(p1)); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+}
+function hitLine(G, i0, p0, i1, p1, tip) {   // hover boxes along a slanted line
+  const x0 = G.xi(i0), y0 = G.y(p0), x1 = G.xi(i1), y1 = G.y(p1), k = Math.max(1, Math.ceil(Math.abs(x1 - x0) / 14));
+  for (let j = 0; j < k; j++) {
+    const xa = x0 + (x1 - x0) * j / k, xb = x0 + (x1 - x0) * (j + 1) / k, ya = y0 + (y1 - y0) * j / k, yb = y0 + (y1 - y0) * (j + 1) / k;
+    HITS.push({x0: Math.min(xa, xb), x1: Math.max(xa, xb), y0: Math.min(ya, yb) - 4, y1: Math.max(ya, yb) + 4, area: 0, tip});
+  }
+}
+function tag(g, x, y, txt, col, align) { g.fillStyle = col; g.textAlign = align || "left"; g.fillText(txt, x, y); g.textAlign = "left"; }
+const pct = x => x == null ? "–" : Math.round(x * 1000) / 10 + " %";
+const SESS = {asia: ["179,157,219", "Asia"], london: ["92,157,237", "London"], ny: ["240,160,75", "NY"]};
+const KZC = {london_kz: "92,157,237", ny_am_kz: "240,160,75", london_close_kz: "77,208,225", ny_pm_kz: "240,98,146"};
+const OPEN_TAG = {"daily open": "D open", "weekly open": "W open", "monthly open": "M open", "midnight open": "00:00 NY", "NY 08:30 open": "08:30 NY"};
+
+function drawSessions(g, G, vis) {
+  const L = D.ta.levels;
+  g.font = "10px system-ui,sans-serif";
+  for (const s of L.sessions) {
+    if (!vis(s.t0, s.t1)) continue;
+    const [c, nm] = SESS[s.key], x0 = G.xt(s.t0) - G.cw / 2, x1 = G.xt(s.t1) + G.cw / 2, y0 = G.y(s.high), y1 = G.y(s.low);
+    g.fillStyle = `rgba(${c},.06)`; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    g.strokeStyle = `rgba(${c},.5)`; g.strokeRect(x0 + .5, y0 + .5, x1 - x0 - 1, y1 - y0 - 1);
+    tag(g, x0 + 3, y0 + 8, nm + (s.final ? "" : " (open)"), `rgb(${c})`);
+    if (s.judas) tag(g, G.xt(s.judas.t), G.y(s.judas.extreme) + (s.judas.side === "high" ? -8 : 9), "Judas", "#ffb74d", "center");
+    HITS.push({x0, x1, y0, y1, area: (x1 - x0) * (y1 - y0), tip: `${s.label} ${s.date}${s.final ? "" : " — still open"}\nhigh ${fx(s.high)} (${ist(s.high_t)})${s.high_status ? " · " + s.high_status : ""}` +
+      `\nlow ${fx(s.low)} (${ist(s.low_t)})${s.low_status ? " · " + s.low_status : ""}` + (s.judas ? `\nJudas swing: its ${s.judas.side} swept in the London open killzone (${ist(s.judas.t)})` : "")});
+  }
+  for (const key of Object.keys(SESS)) {        // the latest finished session of each kind: its high / low stay levels until broken
+    const s = L.sessions.filter(x => x.key === key && x.final).pop();
+    if (!s) continue;
+    const [c, nm] = SESS[key];
+    for (const [p, st, tb, w] of [[s.high, s.high_status, s.t_high_broken, "H"], [s.low, s.low_status, s.t_low_broken, "L"]]) {
+      hline(g, G, s.t1, tb || RIGHT(), p, `rgba(${c},.85)`, st === "swept" ? [2, 3] : [6, 3], "", `${s.label} ${w === "H" ? "high" : "low"} ${fx(p)} (${s.date}): ${st}${tb ? " · broken " + ist(tb) : ""}`);
+      if (!tb) tag(g, G.W - G.PR - 4, G.y(p) + (w === "H" ? -7 : 8), `${nm} ${w}${st === "swept" ? " · swept" : ""}`, `rgb(${c})`, "right");
+    }
+  }
+  for (const k of L.killzones) if (vis(k.t0, k.t1)) {
+    const x0 = G.xt(k.t0) - G.cw / 2, x1 = G.xt(k.t1) + G.cw / 2, yb = G.yBot - 5;
+    g.fillStyle = `rgba(${KZC[k.key]},.6)`; g.fillRect(x0, yb, x1 - x0, 4);
+    HITS.push({x0, x1, y0: yb - 3, y1: yb + 7, area: 0, tip: `${k.label} ${k.date} (New York time)`});
+  }
+  for (const o of L.opens) {
+    const y = G.y(o.price);
+    if (y < G.PT || y > G.yBot) continue;
+    hline(g, G, o.t, RIGHT(), o.price, "rgba(200,200,200,.45)", [1, 4], "", `${o.label} ${fx(o.price)} (${ist(o.t)})`);
+    tag(g, G.W - G.PR - 4, y - 6, OPEN_TAG[o.label] || o.label, "#9e9e9e", "right");
+  }
+}
+
+const cdlShort = lb => { const w = lb.replace(/\(.*\)|\/.*$/g, "").split(/[\s-]+/).filter(Boolean); return w.length === 1 ? w[0].slice(0, 4) : w.map(x => x[0]).join("").slice(0, 4); };
+const cdlKey = c => c.at && c.turn && D.ta.candle_info[c.n].kind === "reversal";   // the default: a reversal that turns a move, at a level of its side
+const cdlSide = c => { const d = D.ta.candle_info[c.n].direction; return d === "bullish" ? 1 : d === "bearish" ? -1 : d === "neutral" ? 0 : Math.sign(c.v); };
+function drawCandles(g, G) {
+  const I = D.ta.candle_info, by = new Map();
+  for (const c of D.ta.candles) {
+    if (!LAYER.cdlall && !cdlKey(c)) continue;
+    const i = Math.round(idxOf(c.t));
+    if (i < G.iA || i > G.iB) continue;
+    if (!by.has(i)) by.set(i, []);
+    by.get(i).push(c);
+  }
+  g.font = "9px system-ui,sans-serif";
+  for (const [i, cs] of by) {
+    const b = D.bars[i], x = G.xi(i), up = cs.filter(c => cdlSide(c) > 0), dn = cs.filter(c => cdlSide(c) <= 0);
+    up.forEach((c, k) => tag(g, x, G.y(b[3]) + 9 + k * 10, cdlShort(I[c.n].label), "#26a69a", "center"));
+    dn.forEach((c, k) => tag(g, x, G.y(b[2]) - 7 - k * 10, cdlShort(I[c.n].label), cdlSide(c) ? "#ef5350" : "#9e9e9e", "center"));
+    HITS.push({x0: x - 10, x1: x + 10, y0: G.y(b[2]) - 10 * dn.length - 4, y1: G.y(b[3]) + 10 * up.length + 4, area: 1,
+      tip: cs.map(c => `${I[c.n].label} — ${cdlSide(c) > 0 ? "bullish" : cdlSide(c) < 0 ? "bearish" : "indecision"} ${I[c.n].kind}` +
+        (Math.abs(c.v) === 80 ? " (loose: one body end equal)" : Math.abs(c.v) === 200 ? " (confirmed)" : "") + (c.at ? `\n  at ${c.at.join(", ")}` : "") + (c.turn ? "\n  turns a move (the 10-bar extreme)" : "") + `\n  ${I[c.n].notes}`).join("\n") + `\n${ist(b[0])} · TA-Lib rule`});
+  }
+}
+
+function drawTrend(g, G) {
+  const T = D.ta.trend, N = D.bars.length;
+  g.font = "10px system-ui,sans-serif";
+  for (const ln of T.shown) {
+    const i1 = idxOf(ln.t1), live = ln.status === "live", iE = live ? N - 1 + 10 : idxOf(ln.t_end);
+    if (iE < G.iA - 5 || i1 > G.iB + 5) continue;
+    const at = i => ln.p1 + ln.slope * (i - i1), col = ln.side === "support" ? "#26a69a" : "#ef5350";
+    seg(g, G, i1, at(i1), iE, at(iE), live ? col : "rgba(136,146,176,.75)", ln.confirmed ? [] : [6, 4], live ? 1.6 : 1);
+    g.fillStyle = col;
+    for (const t of ln.touches) { const i = idxOf(t); g.beginPath(); g.arc(G.xi(i), G.y(at(i)), 2.5, 0, 7); g.fill(); }
+    const tip = `${ln.side === "support" ? "rising support" : "falling resistance"} trend line · ${ln.touches.length} touches${ln.confirmed ? " (confirmed)" : ""}\n` +
+      `${ist(ln.t1)} ${fx(ln.p1)} → ${ist(ln.t2)} ${fx(ln.p2)} · known ${ist(ln.t_known)}` +
+      (live ? `\nnow at ${fx(at(N - 1))}` : `\n${ln.status} ${ist(ln.t_break)}${ln.held ? " · held 3 closes" : ""}${ln.t_back ? " · closed back on its side " + ist(ln.t_back) : ""}`);
+    hitLine(G, i1, at(i1), iE, at(iE), tip);
+    if (live && ln.offset) {
+      seg(g, G, i1, at(i1) + ln.offset, iE, at(iE) + ln.offset, col, [2, 4]);
+      hitLine(G, i1, at(i1) + ln.offset, iE, at(iE) + ln.offset, `parallel channel of the ${ln.side} line (its far extreme between the anchors)\nnow at ${fx(at(N - 1) + ln.offset)}`);
+    }
+    if (!live && ln.t_break) { const i = idxOf(ln.t_break); tag(g, G.xi(i), G.y(at(i)) + (ln.side === "support" ? 12 : -10), ln.status === "false break" ? "TL sweep" : "TL break", col, "center"); }
+  }
+  const R = T.regression;
+  if (R) {
+    const a = idxOf(R.t_from), b = N - 1, s = (R.p_to - R.p_from) / Math.max(1, b - a), at = i => R.p_from + s * (i - a);
+    const col = R.trend_channel ? "rgba(255,213,79,.7)" : "rgba(136,146,176,.5)";
+    seg(g, G, a, at(a), b, at(b), col, [8, 4]);
+    for (const k of [1, -1]) seg(g, G, a, at(a) + k * R.k * R.sigma, b, at(b) + k * R.k * R.sigma, col, [2, 3]);
+    tag(g, G.xi(b) + 4, G.y(at(b)), `reg R ${R.r}`, col);
+    hitLine(G, a, at(a), b, at(b), `regression channel of the major leg (closes since ${ist(R.t_from)}): ±${R.k}σ = ±${fx(R.k * R.sigma)}\nPearson R ${R.r}${R.trend_channel ? " — a trend channel (|R| ≥ 0.7)" : " — no clean trend (|R| < 0.7)"}\nmid now ${fx(at(b))}`);
+  }
+}
+
+function drawPatterns(g, G, vis) {
+  const N = D.bars.length;
+  g.font = "10px system-ui,sans-serif";
+  for (const p of D.ta.patterns) {
+    const tEnd = p.t_end || D.bars[N - 1][0];
+    if (!vis(p.t_first, tEnd)) continue;
+    const col = p.side === "bull" ? "#66bb6a" : p.side === "bear" ? "#ff7043" : "#b0bec5", P = p.pole ? [{t: p.pole.t0, price: p.pole.p0, label: ""}, ...p.points.slice(1)] : p.points;
+    g.strokeStyle = col; g.globalAlpha = .75; g.beginPath();
+    P.forEach((q, k) => { const x = G.xt(q.t), y = G.y(q.price); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); g.globalAlpha = 1;
+    P.forEach((q, k) => { if (!q.label) return; const nb = P[k - 1] || P[k + 1], above = q.price >= nb.price; tag(g, G.xt(q.t), G.y(q.price) + (above ? -8 : 10), q.label, col, "center"); });
+    const iEnd = idxOf(p.t_confirm || p.t_end || D.bars[N - 1][0]) + 2;
+    for (const ln of p.lines) { const i1 = idxOf(ln.t1); seg(g, G, i1, ln.p1, iEnd, ln.p1 + ln.slope * (iEnd - i1), col, ln.kind === "neckline" || ln.kind === "trigger" ? [5, 3] : [], 1.2); }
+    if (p.target != null && p.t_confirm) {
+      const ic = idxOf(p.t_confirm);
+      seg(g, G, ic, p.target, ic + 12, p.target, col, [2, 2]); tag(g, G.xi(ic + 12) + 3, G.y(p.target), "target", col);
+    }
+    const first = P[0], name = p.pattern + (p.break ? ` (${p.break})` : "");
+    tag(g, G.xt(first.t), G.y(Math.max(...P.map(q => q.price))) - 18, `${name} · ${p.status}`, col);
+    const ys = P.map(q => G.y(q.price)), x0 = G.xt(first.t), x1 = G.xi(iEnd);
+    HITS.push({x0, x1, y0: Math.min(...ys) - 20, y1: Math.max(...ys) + 4, area: (x1 - x0) * (Math.max(...ys) - Math.min(...ys) + 24),
+      tip: `${name} — ${p.status}\nknown ${ist(p.t_known)}${p.t_confirm ? ` · confirmed ${ist(p.t_confirm)} (close ${fx(p.confirm_price)})` : ""}${p.t_end ? " · ended " + ist(p.t_end) : ""}` +
+        `\nheight ${fx(p.height)} (${(p.height / p.atr).toFixed(1)} ATR)${p.target != null ? ` · target ${fx(p.target)}` : ""}${p.target_realistic != null ? ` · realistic ${fx(p.target_realistic)}` : ""}${p.stop != null ? ` · stop ${fx(p.stop)}` : ""}` +
+        (p.fail_rate != null ? `\nBulkowski: ${p.fail_rate} % of these fail (daily stocks)` : "")});
+  }
+}
+
+function drawFib(g, G) {
+  const F = D.ta.ind.fib, E = D.ta.ind.fib_ext, xr = G.W - G.PR;
+  g.font = "10px ui-monospace,monospace";
+  const lev = (t0, l, col, dash, txt, tip) => {
+    const y = G.y(l.price), x0 = Math.max(G.PL, G.xt(t0));
+    if (y < G.PT || y > G.yBot) return;
+    g.strokeStyle = col; g.setLineDash(dash); g.beginPath(); g.moveTo(x0, y); g.lineTo(xr, y); g.stroke(); g.setLineDash([]);
+    tag(g, xr - 4, y - 6, txt, col, "right");
+    HITS.push({x0, x1: xr, y0: y - 4, y1: y + 4, area: 0, tip});
+  };
+  if (F) for (const l of [...F.retrace, ...F.targets]) {
+    const key = [0.618, 0.705, 0.786].includes(l.m), tgt = F.targets.includes(l);
+    lev(Math.min(F.t_one, F.t_zero), l, tgt ? "rgba(179,136,255,.8)" : key ? "rgba(255,213,79,.85)" : "rgba(128,203,196,.65)", tgt ? [6, 3] : [3, 3], `${l.m} ${fx(l.price)}`,
+      `Fibonacci of the major leg (${F.trend}): 1 = protected swing ${fx(F.one)} (${ist(F.t_one)}), 0 = the leg's extreme ${fx(F.zero)} (${ist(F.t_zero)})\n${l.m} → ${fx(l.price)}${tgt ? " (target)" : ""}`);
+  }
+  if (E) for (const l of E.levels)
+    lev(E.t_C, l, "rgba(244,143,177,.75)", [1, 3], `ext ${l.m} ${fx(l.price)}`, `Fibonacci extension of the latest BOS (${E.side}): A ${fx(E.A)} → B ${fx(E.B)}, from C ${fx(E.C)}\n${l.m} × (B − A) → ${fx(l.price)}`);
+}
+
+function series(g, G, arr, col, dash, starts, w) {
+  if (!arr) return;
+  g.strokeStyle = col; g.setLineDash(dash || []); g.lineWidth = w || 1; g.beginPath();
+  let pen = false;
+  for (let i = Math.max(0, G.iA - 1); i <= Math.min(G.iB + 1, arr.length - 1); i++) {
+    const v = arr[i];
+    if (v == null || (starts && starts.has(D.bars[i][0]))) pen = false;
+    if (v == null) continue;
+    const x = G.xi(i), y = G.y(v); pen ? g.lineTo(x, y) : g.moveTo(x, y); pen = true;
+  }
+  g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+}
+function drawVwap(g, G) {
+  const V = D.ta.ind.vwap, N = D.bars.length, xr = G.W - G.PR;
+  if (!V) { g.font = "11px system-ui,sans-serif"; tag(g, G.PL + 8, G.PT + 14, "VWAP: these bars carry no tick volume (history saved before 2026-10-29)", "#ff8a80"); return; }
+  const st = new Set(V.starts), band = k => V.session.map((v, i) => v == null || V.sd[i] == null ? null : v + k * V.sd[i]);
+  for (const [k, a] of [[2, ".18"], [1, ".32"]]) { series(g, G, band(k), `rgba(255,167,38,${a})`, [2, 3], st); series(g, G, band(-k), `rgba(255,167,38,${a})`, [2, 3], st); }
+  series(g, G, V.session, "#ffa726", [], st, 1.5);
+  series(g, G, V.week, "rgba(186,104,200,.9)", [6, 3]);
+  series(g, G, V.anchored, "rgba(77,208,225,.9)", [1, 3], null, 1.4);
+  g.font = "10px system-ui,sans-serif";
+  const last = (a, txt, col, tip) => { const v = a && a[N - 1]; if (v == null) return; const y = G.y(v); tag(g, xr - 4, y - 6, txt, col, "right"); HITS.push({x0: xr - 70, x1: xr, y0: y - 10, y1: y + 4, area: 0, tip}); };
+  last(V.session, "VWAP", "#ffa726", `session VWAP (FxPro server day = NY 17:00) ${fx(V.session[N - 1])}\n±1σ ${fx(V.sd[N - 1])} · bands at ±1 / ±2σ\ntick-volume weighted`);
+  last(V.week, "weekly VWAP", "#ba68c8", `weekly VWAP ${fx(V.week[N - 1])}`);
+  last(V.anchored, "AVWAP", "#4dd0e1", `VWAP anchored at the protected swing (${ist(V.t_anchor)}): ${fx(V.anchored && V.anchored[N - 1])}`);
+}
+
+function drawOsc(g, G) {
+  const I = D.ta.ind, top = G.yBot + 8, h = 62, x0 = G.PL, x1 = G.W - G.PR, N = D.bars.length;
+  const pane = (y0, label) => { g.fillStyle = "#0e121b"; g.fillRect(x0, y0, x1 - x0, h); g.strokeStyle = "#232a3a"; g.strokeRect(x0 + .5, y0 + .5, x1 - x0 - 1, h - 1); tag(g, x0 + 4, y0 + 9, label, "#8892b0"); };
+  g.font = "10px ui-monospace,monospace";
+  const yr = v => top + (100 - v) / 100 * h;
+  pane(top, `RSI 14  ${I.rsi[N - 1] != null ? I.rsi[N - 1].toFixed(1) : "–"}`);
+  for (const lv of [70, 30]) { g.strokeStyle = "#2c3550"; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x0, yr(lv)); g.lineTo(x1, yr(lv)); g.stroke(); g.setLineDash([]); }
+  const plot = (arr, yf, col) => { g.strokeStyle = col; g.beginPath(); let pen = false; for (let i = G.iA; i <= G.iB; i++) { const v = arr[i]; if (v == null) { pen = false; continue; } const x = G.xi(i), y = yf(v); pen ? g.lineTo(x, y) : g.moveTo(x, y); pen = true; } g.stroke(); };
+  plot(I.rsi, yr, "#b388ff");
+  const m = I.macd.macd, s = I.macd.signal, top2 = top + h + 6;
+  let mx = 1e-12; for (let i = G.iA; i <= G.iB; i++) for (const v of [m[i], s[i]]) if (v != null) mx = Math.max(mx, Math.abs(v));
+  const ym = v => top2 + h / 2 - v / mx * (h / 2 - 3);
+  pane(top2, `MACD 12/26/9  ${m[N - 1] != null ? fx(m[N - 1]) : "–"}`);
+  const bw = Math.max(1, G.cw * 0.6);
+  for (let i = G.iA; i <= G.iB; i++) if (m[i] != null && s[i] != null) { const hv = m[i] - s[i]; g.fillStyle = hv >= 0 ? "rgba(38,166,154,.55)" : "rgba(239,83,80,.55)"; g.fillRect(G.xi(i) - bw / 2, Math.min(ym(0), ym(hv)), bw, Math.abs(ym(hv) - ym(0)) || 1); }
+  plot(m, ym, "#5c9ded"); plot(s, ym, "#ffa726");
+  HITS.push({x0, x1, y0: top, y1: top + h, area: 1e9 + 1, tip: `RSI 14 (Wilder; = TradingView / MT5 / TA-Lib) now ${I.rsi[N - 1] != null ? I.rsi[N - 1].toFixed(1) : "–"}\nATR 14: Wilder ${fx(I.atr.wilder)} · MT5 (SMA) ${fx(I.atr.mt5)}`});
+  HITS.push({x0, x1, y0: top2, y1: top2 + h, area: 1e9 + 1, tip: `MACD 12/26/9 (TradingView: EMA signal) ${fx(m[N - 1])} · signal ${fx(s[N - 1])} · histogram ${fx(m[N - 1] - s[N - 1])}`});
+  g.font = "10px system-ui,sans-serif";
+  for (const d of I.divergences) {
+    const ia = idxOf(d.t_prev), ib = idxOf(d.t);
+    if (ib < G.iA || ia > G.iB) continue;
+    const col = d.side === "bull" ? "#26a69a" : "#ef5350", hid = d.kind.startsWith("hidden"), dash = hid ? [4, 3] : [];
+    seg(g, G, ia, d.prev_price, ib, d.price, col, dash, 1.5);
+    tag(g, G.xi(ib), G.y(d.price) + (d.side === "bull" ? 12 : -10), `${d.osc} ${hid ? "hid " : ""}div`, col, "center");
+    const yf = d.osc === "RSI" ? yr : ym;
+    g.strokeStyle = col; g.setLineDash(dash); g.beginPath(); g.moveTo(G.xi(ia), yf(d.prev_osc)); g.lineTo(G.xi(ib), yf(d.osc_val)); g.stroke(); g.setLineDash([]);
+    hitLine(G, ia, d.prev_price, ib, d.price, `${d.kind} divergence on ${d.osc}\nprice ${fx(d.prev_price)} → ${fx(d.price)} · ${d.osc} ${fx(d.prev_osc)} → ${fx(d.osc_val)}\npivot ${ist(d.t)}, known ${ist(d.t_known)}${d.t_invalid ? `\ninvalid: closed beyond the pivot ${ist(d.t_invalid)}` : ""}`);
+  }
+}
+
+function drawProfile(g, G, vis) {
+  const P = D.ta.profile;
+  const one = (p, wMax, xLeft, xRight, tip) => {
+    const mx = Math.max(...p.rows) || 1;
+    p.rows.forEach((v, r) => {
+      if (!v) return;
+      const pl = p.low + r * p.row, ph = pl + p.row, y0 = G.y(ph), y1 = G.y(pl), w = v / mx * wMax;
+      if (y1 < G.PT || y0 > G.yBot) return;
+      g.fillStyle = pl >= p.val - 1e-9 && ph <= p.vah + 1e-9 ? "rgba(92,157,237,.38)" : "rgba(136,146,176,.22)";
+      g.fillRect(xLeft != null ? xLeft : xRight - w, y0, w, Math.max(1, y1 - y0 - 0.5));
+    });
+    const xa = xLeft != null ? xLeft : xRight - wMax, xb = xLeft != null ? xLeft + wMax : xRight;
+    for (const [lv, col, dash] of [[p.poc, "#ffd54f", []], [p.vah, "rgba(92,157,237,.9)", [2, 2]], [p.val, "rgba(92,157,237,.9)", [2, 2]]]) {
+      const y = G.y(lv); g.strokeStyle = col; g.setLineDash(dash); g.beginPath(); g.moveTo(xa, y); g.lineTo(xb, y); g.stroke(); g.setLineDash([]);
+    }
+    HITS.push({x0: xa, x1: xb, y0: G.y(p.vah), y1: G.y(p.val), area: (xb - xa) * 10, tip: tip + `\nPOC ${fx(p.poc)} · value area ${fx(p.val)} – ${fx(p.vah)} (70 %)` +
+      (p.hvn.length ? `\nHVN ${p.hvn.map(fx).join(", ")}` : "") + (p.lvn.length ? `\nLVN ${p.lvn.map(fx).join(", ")}` : "") + `\nrows of ${fx(p.row)} · ${P.volume ? "tick volume" : "time at price (no tick volume in these bars)"}`});
+  };
+  for (const p of P.days) {
+    if (!vis(p.t0, p.t1)) continue;
+    const xa = G.xt(p.t0) - G.cw / 2, xb = G.xt(p.t1) + G.cw / 2;
+    one(p, (xb - xa) * 0.45, xa, null, `day profile ${p.day}${p.developing ? " (developing: its POC still moves)" : ""}`);
+    if (p.naked) { hline(g, G, p.t1, RIGHT(), p.poc, "rgba(255,213,79,.75)", [4, 3], "", `naked POC of ${p.day}: ${fx(p.poc)} — not traded through since`); tag(g, G.W - G.PR - 4, G.y(p.poc) - 6, "nPOC " + p.day.slice(5), "#ffd54f", "right"); }
+  }
+  if (P.leg) one(P.leg, 110, null, G.W - G.PR, `volume profile of the major leg (since ${ist(P.leg.t0)})`);
+  if (!P.volume) { g.font = "11px system-ui,sans-serif"; tag(g, G.PL + 8, G.PT + 28, "volume profile = time at price: these bars carry no tick volume", "#ff8a80"); }
+}
+
+function drawWyckoff(g, G, vis) {
+  g.font = "10px system-ui,sans-serif";
+  for (const r of D.ta.wyckoff.ranges) {
+    if (!vis(r.t0, r.t1)) continue;
+    const acc = r.kind === "accumulation", c = acc ? "38,166,154" : "239,83,80", live = r.status === "forming";
+    const name = `${acc ? "Accumulation" : "Distribution"} · phase ${r.phase}${r.provisional ? " (provisional)" : ""} · ${r.status}`;
+    box(g, G, r.t0, live ? null : r.t1, r.high, r.low, `rgba(${c},.05)`, `rgba(${c},.55)`, [4, 3],
+      `Wyckoff ${name}${r.why ? "\n" + r.why : ""}\nrange ${fx(r.low)} – ${fx(r.high)}${r.schematic ? ` · schematic #${r.schematic}${r.schematic === 2 ? " (no spring)" : ""}` : ""}\n` +
+      r.events.map(e => `${e.label} ${ist(e.t)} ${fx(e.price)}${e.climax ? " climactic" : ""}${e.grade ? " · " + e.grade : ""}${e.heavy ? " · heavy" : ""}${e.strong === false ? " · weak volume" : ""}`).join("\n") +
+      (D.ta.wyckoff.volume ? "" : "\n(no tick volume: volume grades not checked)"));
+    tag(g, G.xt(r.t0) + 3, G.y(r.high) - 6, name, `rgb(${c})`);
+    const mid = (r.high + r.low) / 2;
+    for (const e of r.events) {
+      const x = G.xt(e.t), y = G.y(e.price), above = e.price >= mid;
+      g.fillStyle = `rgb(${c})`; g.beginPath(); g.arc(x, y, 2.5, 0, 7); g.fill();
+      tag(g, x, y + (above ? -8 : 11), e.label + (e.climax ? "*" : ""), "#e6e9ef", "center");
+    }
+  }
+}
+
+function drawElliott(g, G) {
+  const E = D.ta.elliott;
+  g.font = "bold 10px system-ui,sans-serif";
+  const path = (c, col, lw) => {
+    const P = c.points;
+    g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); P.forEach((q, k) => { const x = G.xt(q.t), y = G.y(q.price); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); g.lineWidth = 1;
+    P.forEach((q, k) => {
+      const nb = P[k - 1] || P[k + 1], above = q.price >= nb.price, x = G.xt(q.t), y = G.y(q.price) + (above ? -11 : 12);
+      g.fillStyle = "rgba(14,18,27,.85)"; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); g.strokeStyle = col; g.stroke();
+      tag(g, x, y + .5, q.label, col, "center");
+    });
+    const last = P[P.length - 1];
+    if (c.invalidation != null && c.stage !== "complete") {
+      hline(g, G, last.t, RIGHT(), c.invalidation, col, [2, 3], "", `Elliott count invalid if price trades beyond ${fx(c.invalidation)} — ${c.rule}`);
+      g.font = "10px system-ui,sans-serif"; tag(g, G.W - G.PR - 4, G.y(c.invalidation) - 6, "EW invalid", col, "right"); g.font = "bold 10px system-ui,sans-serif";
+    }
+    const xs = P.map(q => G.xt(q.t)), ys = P.map(q => G.y(q.price));
+    HITS.push({x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys) - 18, y1: Math.max(...ys) + 18, area: 5e5,
+      tip: `Elliott ${c.pattern} ${c.side} — ${c.stage}${c.provisional ? " (provisional: the last pivot is still running)" : ""} · score ${c.score}` +
+        (c.ratios ? `\n${Object.entries(c.ratios).map(([k, v]) => `${k} ${v}`).join(" · ")}` : "") + (c.b_retrace != null ? `\nB = ${c.b_retrace} × A${c.c_vs_a != null ? ` · C = ${c.c_vs_a} × A` : ""}` : "") +
+        `\ninvalid beyond ${fx(c.invalidation)} (${c.rule})` + Object.entries(c.targets || {}).map(([k, v]) => `\n${k}: ${[].concat(v).map(fx).join(" – ")}`).join("") + ((c.notes || []).length ? "\n" + c.notes.join("\n") : "")});
+  };
+  E.counts.forEach((c, k) => path(c, k === 0 ? "#ffd54f" : "rgba(255,213,79,.45)", k === 0 ? 1.6 : 1));
+  if (E.abc) path(E.abc, "#90caf9", 1.4);
+}
+
+function sideTA(row) {
+  const T = D.ta, N = D.bars.length, price = D.summary.price;
+  let h = "";
+  if (LAYER.sess) {
+    const L = T.levels, pb = L.pullback;
+    h += `<h2 class="h-ta">SESSIONS · OPENS · PULLBACK</h2><table>`;
+    for (const key of Object.keys(SESS)) for (const s of L.sessions.filter(x => x.key === key).slice(-2).reverse())
+      h += row(s.t0, [`${s.label} ${s.date.slice(5)}${s.final ? "" : " (open)"}`, `${fx(s.low)} – ${fx(s.high)}`, s.final ? `H ${s.high_status} · L ${s.low_status}` : "running"]);
+    const j = L.sessions.filter(x => x.judas).pop();
+    if (j) h += row(j.judas.t, [`Judas swing (Asia ${j.date.slice(5)})`, `${j.judas.side} swept → ${fx(j.judas.extreme)}`, ist(j.judas.t)]);
+    h += L.opens.map(o => row(o.t, [o.label, fx(o.price), `${price >= o.price ? "price above" : "price below"}`])).join("") + `</table>`;
+    if (pb) h += `<h3>pullback of the major leg (${pb.trend})</h3><table>` + row(pb.t_origin, ["leg", `${fx(pb.origin)} → ${fx(pb.extreme)}`, ""]) +
+      row(pb.t_deepest, ["deepest since the extreme", `<b>${pct(pb.deepest)}</b>`, pb.class]) + row(D.summary.t_last, ["close now", pct(pb.now), ""]) + `</table>` +
+      `<div class="note">depths before each BOS (newest last): ${L.pullbacks.map(p => `${pct(p.depth)} ${p.class}`).join(" · ") || "–"}</div>`;
+  }
+  if (LAYER.cdl) {
+    const I = T.candle_info, cs = T.candles.filter(c => LAYER.cdlall || cdlKey(c)).slice(-14).reverse();
+    h += `<h2 class="h-ta">CANDLE PATTERNS${LAYER.cdlall ? "" : " — REVERSALS AT A LEVEL"}</h2><table>` + cs.map(c => row(c.t, [ist(c.t),
+      `<span class="${cdlSide(c) > 0 ? "bull" : cdlSide(c) < 0 ? "bear" : "muted"}">${I[c.n].label}</span>`, c.at ? c.at.join(", ") : I[c.n].kind])).join("") +
+      (cs.length ? "" : `<tr><td class="muted">none in the last 600 bars</td></tr>`) + `</table><div class="note">TA-Lib's own rules (port verified bar for bar); the forming candle is not read</div>`;
+  }
+  if (LAYER.tl) {
+    const R = T.trend.regression;
+    h += `<h2 class="h-ta">TREND LINES</h2><table>` + T.trend.shown.map(ln => {
+      const i1 = idxOf(ln.t1), now = ln.p1 + ln.slope * (N - 1 - i1);
+      return row(ln.t1, [`<span class="${ln.side === "support" ? "bull" : "bear"}">${ln.side}</span> · ${ln.touches.length} touches`, ln.status === "live" ? `now ${fx(now)}` : `${ln.status} ${ist(ln.t_break)}`, ist(ln.t1)]);
+    }).join("") + (R ? row(R.t_from, ["regression channel", `R ${R.r}${R.trend_channel ? " · trend" : ""}`, `±${fx(R.k * R.sigma)}`]) : "") + `</table>`;
+  }
+  if (LAYER.cp) h += `<h2 class="h-ta">CHART PATTERNS (newest first)</h2><table>` + T.patterns.slice().reverse().map(p => row(p.t_first, [
+    `<span class="${p.side === "bull" ? "bull" : p.side === "bear" ? "bear" : ""}">${p.pattern}${p.break ? " (" + p.break + ")" : ""}</span>`, p.status, p.target != null ? "tgt " + fx(p.target) : ist(p.t_known)])).join("") + `</table>`;
+  if (LAYER.fib && T.ind.fib) {
+    const F = T.ind.fib;
+    h += `<h2 class="h-ta">FIBONACCI (major leg ${F.trend})</h2><table>` + [...F.targets.filter(l => l.m < 0).reverse(), ...F.retrace, ...F.targets.filter(l => l.m > 1)]
+      .map(l => row(F.t_zero, [String(l.m), fx(l.price), l.m < 0 || l.m > 1 ? "target" : ""])).join("") + `</table>` +
+      (T.ind.fib_ext ? `<h3>extension of the latest BOS</h3><table>` + T.ind.fib_ext.levels.map(l => row(T.ind.fib_ext.t_C, [String(l.m), fx(l.price), ""])).join("") + `</table>` : "");
+  }
+  if (LAYER.osc) {
+    const I = T.ind, m = I.macd.macd[N - 1], s = I.macd.signal[N - 1];
+    h += `<h2 class="h-ta">ATR · RSI · MACD</h2><table>` + row(D.summary.t_last, ["ATR 14 Wilder / MT5", `${fx(I.atr.wilder)} / ${fx(I.atr.mt5)}`, ""]) +
+      row(D.summary.t_last, ["RSI 14", I.rsi[N - 1] != null ? I.rsi[N - 1].toFixed(1) : "–", I.rsi[N - 1] > 70 ? "overbought" : I.rsi[N - 1] < 30 ? "oversold" : ""]) +
+      row(D.summary.t_last, ["MACD / signal", `${fx(m)} / ${fx(s)}`, m > s ? "above" : "below"]) + `</table><h3>divergences (newest first)</h3><table>` +
+      I.divergences.slice(-8).reverse().map(d => row(d.t, [ist(d.t), `<span class="${d.side}">${d.osc} ${d.kind}</span>`, d.t_invalid ? "invalid" : "holds"])).join("") + `</table>`;
+  }
+  if (LAYER.vwap) {
+    const V = T.ind.vwap;
+    h += `<h2 class="h-ta">VWAP</h2>` + (V ? `<table>` + row(D.summary.t_last, ["session (server day)", fx(V.session[N - 1]), `σ ${fx(V.sd[N - 1])}`]) +
+      row(D.summary.t_last, ["weekly", fx(V.week[N - 1]), ""]) + (V.anchored ? row(V.t_anchor, ["anchored at the protected swing", fx(V.anchored[N - 1]), ist(V.t_anchor)]) : "") + `</table>`
+      : `<div class="note">no tick volume in these bars yet</div>`);
+  }
+  if (LAYER.vp) {
+    const P = T.profile;
+    h += `<h2 class="h-ta">VOLUME PROFILE</h2><table>` + (P.leg ? row(P.leg.t0, ["major leg", `POC ${fx(P.leg.poc)}`, `VA ${fx(P.leg.val)} – ${fx(P.leg.vah)}`]) : "") +
+      P.days.slice().reverse().map(p => row(p.t0, [p.day.slice(5) + (p.developing ? " (developing)" : p.naked ? " · naked" : ""), `POC ${fx(p.poc)}`, `VA ${fx(p.val)} – ${fx(p.vah)}`])).join("") +
+      `</table><div class="note">${P.volume ? "tick volume" : "time at price (no tick volume)"} · rows ${fx(P.row)}</div>`;
+  }
+  if (LAYER.of) h += sideOF(row);
+  if (LAYER.wy) h += `<h2 class="h-ta">WYCKOFF</h2><table>` + T.wyckoff.ranges.map(r => row(r.t0, [`<span class="${r.kind === "accumulation" ? "bull" : "bear"}">${r.kind}</span> · phase ${r.phase}`,
+    `${fx(r.low)} – ${fx(r.high)}`, r.status + (r.provisional ? " (prov.)" : "")]) + `<tr><td colspan="3" class="muted">${r.events.map(e => e.label).join(" → ")}</td></tr>`).join("") +
+    (T.wyckoff.ranges.length ? "" : `<tr><td class="muted">no trading range found</td></tr>`) + `</table>`;
+  if (LAYER.ew) {
+    const E = T.elliott, all = [...E.counts, ...(E.abc ? [E.abc] : [])];
+    h += `<h2 class="h-ta">ELLIOTT</h2><table>` + all.map(c => row(c.points[0].t, [`<span class="${c.side}">${c.pattern} ${c.side}</span>`, c.stage, `score ${c.score}`]) +
+      `<tr><td colspan="3" class="muted">invalid beyond ${fx(c.invalidation)} · ${Object.entries(c.targets || {}).map(([k, v]) => `${k} ${[].concat(v).map(fx).join("–")}`).join(" · ")}</td></tr>`).join("") +
+      (all.length ? "" : `<tr><td class="muted">no count passes the rules</td></tr>`) + `</table><div class="note">on the major structure zigzag — one degree; a count with the running pivot is provisional</div>`;
+  }
+  return h;
+}
+
+// ── interaction ──
+const OV = $("#ov"), TIP = $("#tip");
+OV.addEventListener("mousemove", e => {
+  const r = OV.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  if (DRAG) { const G = window._G; const sh = (DRAG.x - e.clientX) / G.cw; VP = {a: DRAG.a + sh, b: DRAG.b + sh}; draw(); TIP.style.display = "none"; return; }
+  const hit = HITS.filter(h => x >= h.x0 - 2 && x <= h.x1 + 2 && y >= Math.min(h.y0, h.y1) - 1 && y <= Math.max(h.y0, h.y1) + 1)
+    .sort((a, b) => a.area - b.area).slice(0, 3);
+  if (!hit.length) { TIP.style.display = "none"; return; }
+  TIP.textContent = hit.map(h => h.tip).join("\n────────\n"); TIP.style.display = "block";
+  TIP.style.left = Math.min(x + 14, r.width - TIP.offsetWidth - 6) + "px"; TIP.style.top = Math.min(y + 14, r.height - TIP.offsetHeight - 6) + "px";
+});
+OV.addEventListener("mouseleave", () => { TIP.style.display = "none"; DRAG = null; });
+OV.addEventListener("mousedown", e => { DRAG = {x: e.clientX, a: VP.a, b: VP.b}; });
+window.addEventListener("mouseup", () => { DRAG = null; });
+OV.addEventListener("wheel", e => {
+  e.preventDefault(); const G = window._G; if (!G) return;
+  const r = OV.getBoundingClientRect(), at = VP.a + (e.clientX - r.left - G.PL) / G.cw, k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+  const w = Math.max(20, Math.min(D.bars.length + 50, (VP.b - VP.a) * k));
+  VP = {a: at - (at - VP.a) * w / (VP.b - VP.a), b: at + (VP.b - at) * w / (VP.b - VP.a)}; draw();
+}, {passive: false});
+OV.addEventListener("dblclick", () => { VP = null; draw(); });
+let TOUCH = null;
+OV.addEventListener("touchstart", e => { TOUCH = {x: e.touches[0].clientX, a: VP.a, b: VP.b}; }, {passive: true});
+OV.addEventListener("touchmove", e => { if (!TOUCH) return; const sh = (TOUCH.x - e.touches[0].clientX) / window._G.cw; VP = {a: TOUCH.a + sh, b: TOUCH.b + sh}; draw(); }, {passive: true});
+document.querySelectorAll("button[data-layer]").forEach(b => b.onclick = () => {
+  LAYER[b.dataset.layer] = !LAYER[b.dataset.layer]; b.setAttribute("aria-pressed", LAYER[b.dataset.layer]); if (D) side(); draw();
+  if (b.dataset.layer === "of" && LAYER.of) loadOF(true);
+});
+$("#pick").onchange = () => { SYM = $("#pick").value; pick(); };
+$("#reload").onclick = () => load(true);
+window.addEventListener("resize", () => D && draw());
+(async () => { try { await loadList(); await load(false); pollLive(); } catch (e) { $("#status").textContent = "error: " + e.message; } })();
+setInterval(() => { if (LAYER.of && !document.hidden) loadOF(false); }, 15000);   // the forming bar's footprint
+setInterval(() => { if (!document.hidden) loadStatus(); }, 10000);   // the engine's own state
+setInterval(pollLive, 5000);                       // the live tick + forming bar (the engine reads them every loop, ≈ 15 s)
+setInterval(() => { if (D && !DRAG) load(true).catch(() => {}); }, 60000);   // new bars land while the V5 engine runs
+</script>
+</body>
+</html>

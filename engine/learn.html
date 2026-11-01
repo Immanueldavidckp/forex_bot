@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V5 Learn</title>
+<style>
+:root { --bg:#0b0e14; --panel:#121722; --line:#232a3a; --text:#e6e9ef; --muted:#667085; --buy:#64ffda; --sell:#ff8a80; }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui,sans-serif; height:100vh; display:flex; flex-direction:column }
+header { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line) }
+h1 { font-size:14px; margin:0 8px 0 0; letter-spacing:.08em } h1 a { color:var(--muted); text-decoration:none; font-weight:normal }
+button, input, select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font:inherit; cursor:pointer }
+input { cursor:text; width:120px } select { min-width:130px }
+button[aria-pressed="true"] { border-color:#5c6bc0; color:#aab6ff; background:#1a2030 }
+button.tool[aria-pressed="true"] { border-color:#f5c542; color:#f5c542 }
+.muted { color:var(--muted) } .grow { flex:1 }
+#score { padding:5px 12px; border-bottom:1px solid var(--line); color:var(--muted); min-height:27px }
+#score b { color:var(--text); font-weight:600 }
+main { flex:1; display:flex; min-height:0 }
+#wrap { flex:1; position:relative; min-width:0 } canvas { position:absolute; inset:0; width:100%; height:100% }
+aside { width:270px; border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0 }
+aside h2 { font-size:12px; margin:0; padding:8px 10px 4px; color:var(--muted); font-weight:600 }
+#rows { flex:1; overflow:auto; padding:0 6px 6px }
+.row { display:flex; gap:6px; align-items:center; padding:3px 4px; border-radius:5px; cursor:pointer }
+.row:hover, .row.sel { background:#1a2030 } .row i { width:10px; height:10px; border-radius:2px; flex:none }
+.row .x { margin-left:auto; color:var(--muted) } .row .x:hover { color:var(--sell) }
+#noteBox { display:flex; gap:6px; padding:8px; border-top:1px solid var(--line) } #note { flex:1; width:auto }
+footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line) }
+@media (max-width:700px){ aside{display:none} }
+</style>
+</head>
+<body>
+<header>
+  <h1>V5 LEARN <a href="/">← dashboard</a></h1>
+  <select id="sym"><option value="">symbol…</option></select>
+  <span id="tfs"></span>
+  <span class="muted">draw:</span><span id="tools"></span>
+  <button id="eng" aria-pressed="true" title="show what the engine finds on the same bars (faded)">engine's view</button>
+  <span class="grow"></span>
+  <button id="reload" title="bars, labels and the agreement again">⟳</button>
+</header>
+<div id="score" class="muted">pick a symbol…</div>
+<main>
+  <div id="wrap"><canvas id="cv"></canvas><canvas id="ov"></canvas></div>
+  <aside>
+    <h2>your labels on this chart</h2>
+    <div id="rows"></div>
+    <div id="noteBox"><input id="note" placeholder="note for the selected label…"><button id="saveNote">save</button></div>
+  </aside>
+</main>
+<footer>pick a tool, then drag on the chart: BOS / CHoCH = the broken level (start at the level, end at the break candle; its ↑/↓ direction is read from the candles) · FVG / supply / demand = the box ·
+swing ▲▼ = one click · support / resistance = drag along the level · trend ↗ ↘ / sideways → = drag over the span the trend covers ·
+✓ region = the span you marked COMPLETELY (teaches the engine what it finds too much of) · ✕ = click a label to remove it ·
+wheel = zoom, drag with ✋ = scroll, double-click = back to now</footer>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const IST_MS = 19800000, TFS = ["M5", "M15", "M30", "H1", "H4"];
+const TF_MS = {M5: 3e5, M15: 9e5, M30: 18e5, H1: 36e5, H4: 144e5};
+const TOOLS = [["pan", "✋"], ["BOS", "BOS"], ["CHoCH", "CHoCH"], ["FVG", "FVG"], ["supply", "supply"], ["demand", "demand"],
+  ["swing high", "swing ▲"], ["swing low", "swing ▼"], ["support", "support"], ["resistance", "resistance"],
+  ["up trend", "trend ↗"], ["down trend", "trend ↘"], ["sideways", "sideways →"], ["region", "✓ region"], ["erase", "✕"]];
+const COL = {BOS: "#64b5f6", CHoCH: "#ce93d8", FVG: "#f5c542", supply: "#ff8a80", demand: "#64ffda",
+  "swing high": "#ff8a80", "swing low": "#64ffda", support: "#aed581", resistance: "#ffb74d",
+  "up trend": "#66bb6a", "down trend": "#ef5350", sideways: "#90a4ae", region: "#9ccc65", line: "#e6e9ef"};
+const SIDED = k => k === "BOS" || k === "CHoCH";
+const LEVEL = k => k === "support" || k === "resistance";
+const TREND = k => k === "up trend" || k === "down trend" || k === "sideways";
+let SYM = "", TF = "M15", BARS = [], LABELS = [], DET = null, TOOL = "pan", ENG = true;
+let VP = null, DRAG = null, BAND = null, SEL = null;
+
+async function api(path, body) {
+  const r = await fetch(path, body ? {method: "POST", headers: {"Content-Type": "application/json", "X-V5": "1"}, body: JSON.stringify(body)} : undefined);
+  if (!r.ok) throw new Error(path + " " + r.status);
+  return r.json();
+}
+const KEY = new URLSearchParams(location.search).get("key") || undefined;   // the internet copy only draws with the secret link
+async function post(b) {
+  try { return await api("/api/learn/label", {...b, key: KEY}); }
+  catch (e) { $("#score").textContent = "NOT saved (" + e.message + ") — drawing on the internet copy needs the secret link from David"; throw e; }
+}
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const tlab = ms => { const d = new Date(ms + IST_MS); return (TF === "H4" ? d.toISOString().slice(5, 10) + " " : DOW[d.getUTCDay()] + " ") + d.toISOString().slice(11, 16); };
+
+// ── data ──
+async function loadBars() {
+  if (!SYM) return;
+  BARS = await api(`/api/learn/bars?sym=${encodeURIComponent(SYM)}&tf=${TF}`);
+  VP = null;
+  DET = null;
+  if (ENG) DET = await api(`/api/learn/detect?sym=${encodeURIComponent(SYM)}&tf=${TF}`);
+}
+async function loadLabels() { LABELS = SYM ? await api(`/api/learn/labels?sym=${encodeURIComponent(SYM)}&tf=${TF}`) : []; renderRows(); }
+async function loadScore() {
+  if (!SYM) return;
+  try {
+    const c = await api(`/api/learn/compare?sym=${encodeURIComponent(SYM)}&tf=${TF}`);
+    const parts = Object.entries(c.per_kind).filter(([, v]) => v.labels)
+      .map(([k, v]) => `<b>${k}</b> ${v.ok}/${v.labels}${v.mixed ? ` (${v.mixed} called otherwise)` : ""}`);
+    const ex = Object.entries(c.extras).filter(([k, v]) => k !== "checked_ms" && v).map(([k, v]) => `${k} ${v}`).join(", ");
+    $("#score").innerHTML = !c.total ? "no labels here yet — draw the structure as it should be; the engine learns from every line"
+      : `engine agrees: ${parts.join(" · ")}` + (c.extras.checked_ms ? ` · <b>engine extras in your ✓ regions:</b> ${ex || "none"}`
+      : ` · <span class="muted">draw a ✓ region over a span you marked completely, so the engine's extra finds count against it</span>`);
+  } catch (e) { $("#score").textContent = "agreement unavailable: " + e.message; }
+}
+async function loadAll() { await loadBars(); await loadLabels(); draw(); loadScore(); }
+
+// ── chart ──
+function geo() {
+  const cv = $("#cv"), W = cv.clientWidth, H = cv.clientHeight, PR = 64, PT = 8, PB = 20, PL = 4;
+  const N = BARS.length;
+  if (!VP) VP = {a: Math.max(0, N - 220), b: N + 8};
+  const cw = (W - PL - PR) / (VP.b - VP.a);
+  const iA = Math.max(0, Math.ceil(VP.a - 0.5)), iB = Math.min(N - 1, Math.floor(VP.b - 0.5));
+  let lo = Infinity, hi = -Infinity;
+  for (let i = iA; i <= iB; i++) { lo = Math.min(lo, BARS[i][3]); hi = Math.max(hi, BARS[i][2]); }
+  if (!isFinite(lo)) { lo = 0; hi = 1; }
+  const span = (hi - lo) || hi * 0.01 || 1; lo -= span * 0.05; hi += span * 0.05;
+  const t0 = N ? BARS[0][0] : 0, tN = N ? BARS[N - 1][0] : 1, step = TF_MS[TF];
+  const fidx = t => t <= t0 ? (t - t0) / step : t >= tN ? N - 1 + (t - tN) / step : BARS.findIndex(b => b[0] > t) - 1 + 0.0;
+  return {W, H, PR, PT, PB, PL, N, cw, lo, hi, iA, iB, step,
+    xi: i => PL + (i - VP.a + 0.5) * cw,
+    xt: t => PL + (fidx(t) - VP.a + 0.5) * cw,
+    y: p => PT + (hi - p) / (hi - lo) * (H - PT - PB),
+    py: yy => hi - (yy - PT) / (H - PT - PB) * (hi - lo),
+    it: x => { const i = Math.round(VP.a + (x - PL) / cw - 0.5); return BARS[Math.max(0, Math.min(N - 1, i))][0]; }};
+}
+function draw() {
+  const cv = $("#cv"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  if (!BARS.length) { g.fillStyle = "#667085"; g.fillText(SYM ? "no bars" : "pick a symbol above", 14, 24); return; }
+  const G = geo(); window._G = G;
+  g.font = "10px ui-monospace,monospace"; g.textBaseline = "middle";
+  const dec = Math.max(2, 5 - Math.floor(Math.log10(Math.abs(G.hi) || 1)));
+  for (let k = 0; k <= 6; k++) { const p = G.lo + (G.hi - G.lo) * k / 6, yy = G.y(p);
+    g.strokeStyle = "#171d2a"; g.beginPath(); g.moveTo(G.PL, yy); g.lineTo(W - G.PR, yy); g.stroke();
+    g.fillStyle = "#667085"; g.fillText(p.toFixed(dec), W - G.PR + 4, yy); }
+  const lblEvery = Math.ceil(70 / G.cw);
+  for (let i = G.iA; i <= G.iB; i++) { const b = BARS[i], x = G.xi(i), up = b[4] >= b[1];
+    if (i % lblEvery === 0) { g.fillStyle = "#4a5366"; g.fillText(tlab(b[0]), x - 18, H - G.PB / 2); }
+    g.strokeStyle = g.fillStyle = up ? "#4caf7d" : "#e35561";
+    g.beginPath(); g.moveTo(x, G.y(b[2])); g.lineTo(x, G.y(b[3])); g.stroke();
+    const bw = Math.max(1, G.cw * 0.7), top = G.y(Math.max(b[1], b[4]));
+    g.fillRect(x - bw / 2, top, bw, Math.max(1, Math.abs(G.y(b[1]) - G.y(b[4])))); }
+  if (ENG && DET) drawEngine(g, G);
+  LABELS.forEach(l => drawLabel(g, G, l));
+  g.fillStyle = "#9aa3b2"; g.font = "bold 11px sans-serif";
+  g.fillText(`${SYM} · ${TF} · ${BARS.length} bars · your labels are bright, the engine is faded`, 10, 16);
+}
+function drawEngine(g, G) {
+  g.save(); g.globalAlpha = 0.55; g.font = "9px sans-serif";
+  (DET.zones || []).forEach(z => { const x = G.xt(z.t);
+    g.strokeStyle = z.kind === "supply" ? "#8a4a4a" : z.kind === "demand" ? "#3f7d6d" : "#6a5a3a"; g.setLineDash([3, 3]);
+    g.strokeRect(x - G.cw / 2, G.y(z.top), Math.min(G.cw * 14, G.W - G.PR - x + G.cw / 2), G.y(z.bottom) - G.y(z.top)); });
+  (DET.fvgs || []).forEach(f => { const x = G.xt(f.t);
+    g.strokeStyle = "#7d6a35"; g.setLineDash([2, 3]);
+    g.strokeRect(x - G.cw / 2, G.y(f.top), Math.min(G.cw * 8, G.W - G.PR - x + G.cw / 2), G.y(f.bottom) - G.y(f.top)); });
+  g.setLineDash([4, 3]);
+  (DET.events || []).forEach(e => { const x0 = G.xt(e.level_t), x1 = G.xt(e.t), yy = G.y(e.level);
+    g.strokeStyle = g.fillStyle = e.kind === "BOS" ? "#8a93a6" : "#b0a6c9";
+    g.beginPath(); g.moveTo(x0, yy); g.lineTo(x1, yy); g.stroke();
+    if (G.cw > 2) g.fillText(`${e.kind} ${e.side === "buy" ? "↑" : "↓"}`, x1 + 3, yy); });
+  g.setLineDash([]);
+  (DET.swings || []).forEach(s => { const x = G.xt(s.t), hiS = s.kind === "high", yy = G.y(s.price) + (hiS ? -4 : 4);
+    g.fillStyle = hiS ? "#8a5a5a" : "#4a7d72";
+    g.beginPath(); g.moveTo(x, yy); g.lineTo(x - 3, yy + (hiS ? -5 : 5)); g.lineTo(x + 3, yy + (hiS ? -5 : 5)); g.fill(); });
+  g.restore();
+}
+function drawLabel(g, G, l, ghost) {
+  const col = COL[l.kind] || "#e6e9ef";
+  g.save(); if (ghost) g.globalAlpha = 0.6;
+  g.strokeStyle = g.fillStyle = col; g.lineWidth = 2; g.font = "bold 10px sans-serif";
+  const x0 = G.xt(l.t0), x1 = l.t1 != null ? G.xt(l.t1) : x0;
+  if (l.kind === "region" || TREND(l.kind)) {
+    g.globalAlpha = (ghost ? 0.6 : 1) * 0.12; g.fillRect(Math.min(x0, x1), G.PT, Math.abs(x1 - x0) || 2, G.H - G.PT - G.PB);
+    g.globalAlpha = ghost ? 0.6 : 1;
+    const w = l.kind === "region" ? "✓ checked" : `✎ ${l.kind} ${l.kind === "up trend" ? "↗" : l.kind === "down trend" ? "↘" : "→"}`;
+    g.fillText(w, Math.min(x0, x1) + 3, l.kind === "region" ? G.PT + 8 : G.H - G.PB - 10);
+  } else if (SIDED(l.kind) || l.kind === "line" || LEVEL(l.kind)) {
+    const yy = G.y(l.p0);
+    if (LEVEL(l.kind)) g.setLineDash([7, 4]);
+    g.beginPath(); g.moveTo(Math.min(x0, x1), yy); g.lineTo(Math.max(x0, x1), yy); g.stroke();
+    g.setLineDash([]);
+    g.fillText(`✎ ${l.kind}${l.side ? (l.side === "buy" ? " ↑" : " ↓") : ""}`, Math.max(x0, x1) + 4, yy - 7);
+  } else if (l.kind.startsWith("swing")) {
+    const hiS = l.kind === "swing high", yy = G.y(l.p0) + (hiS ? -5 : 5);
+    g.beginPath(); g.moveTo(x0, yy); g.lineTo(x0 - 5, yy + (hiS ? -7 : 7)); g.lineTo(x0 + 5, yy + (hiS ? -7 : 7)); g.closePath(); g.stroke();
+    g.fillText("✎", x0 + 7, yy);
+  } else {
+    const yA = G.y(Math.max(l.p0, l.p1 ?? l.p0)), yB = G.y(Math.min(l.p0, l.p1 ?? l.p0));
+    g.globalAlpha = (ghost ? 0.6 : 1) * 0.15; g.fillRect(Math.min(x0, x1), yA, Math.abs(x1 - x0) || 2, yB - yA);
+    g.globalAlpha = ghost ? 0.6 : 1; g.strokeRect(Math.min(x0, x1), yA, Math.abs(x1 - x0) || 2, yB - yA);
+    g.fillText(`✎ ${l.kind}`, Math.min(x0, x1) + 3, yA - 7);
+  }
+  if (SEL && SEL === l.id && !ghost) { g.strokeStyle = "#fff"; g.lineWidth = 1; g.setLineDash([3, 3]);
+    g.strokeRect(Math.min(x0, x1) - 4, G.y(Math.max(l.p0 ?? G.hi, l.p1 ?? l.p0 ?? G.hi)) - 4, Math.abs(x1 - x0) + 8, 8 + Math.abs(G.y(l.p0 ?? 0) - G.y(l.p1 ?? l.p0 ?? 0))); }
+  g.restore();
+}
+
+// ── the labels panel ──
+function renderRows() {
+  $("#rows").innerHTML = LABELS.map(l =>
+    `<div class="row ${SEL === l.id ? "sel" : ""}" data-id="${l.id}"><i style="background:${COL[l.kind] || "#888"}"></i>` +
+    `${l.kind}${l.side ? (l.side === "buy" ? " ↑" : " ↓") : ""} <span class="muted">${tlab(l.t0)}${l.note ? " · " + l.note.slice(0, 18) : ""}</span>` +
+    `<span class="x" data-del="${l.id}" title="remove">✕</span></div>`).join("")
+    || `<div class="muted" style="padding:8px">nothing drawn yet</div>`;
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async e => { e.stopPropagation(); await post({op: "del", id: b.dataset.del}); SEL = null; await loadLabels(); draw(); loadScore(); });
+  document.querySelectorAll(".row").forEach(r => r.onclick = () => { SEL = r.dataset.id;
+    const l = LABELS.find(x => x.id === SEL); $("#note").value = (l && l.note) || ""; renderRows(); draw();
+    if (l && window._G) { const i = Math.round((l.t0 - BARS[0][0]) / TF_MS[TF]); VP = null; draw(); } });
+}
+$("#saveNote").onclick = async () => { if (!SEL) return;
+  await post({op: "note", id: SEL, note: $("#note").value}); await loadLabels(); draw(); };
+
+// ── mouse ──
+const OV = $("#ov");
+function band(e) { const r = OV.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; }
+OV.addEventListener("mousedown", e => { if (!BARS.length) return; const p = band(e);
+  DRAG = {x: p.x, y: p.y, a: VP.a, b: VP.b}; if (TOOL !== "pan" && TOOL !== "erase") BAND = {x0: p.x, y0: p.y, x1: p.x, y1: p.y}; e.preventDefault(); });
+window.addEventListener("mousemove", e => { if (!DRAG) return; const p = band(e), G = window._G;
+  if (BAND) { BAND.x1 = p.x; BAND.y1 = p.y; drawBand(); return; }
+  if (TOOL === "pan" && G) { const sh = (DRAG.x - p.x) / G.cw; VP = {a: DRAG.a + sh, b: DRAG.b + sh}; draw(); } });
+window.addEventListener("mouseup", async e => { if (!DRAG) return;
+  const p = band(e), G = window._G, d = DRAG, bd = BAND; DRAG = BAND = null; drawBand();
+  if (!G) return;
+  if (TOOL === "erase") { const hitL = nearest(p); if (hitL) { await post({op: "del", id: hitL.id}); if (SEL === hitL.id) SEL = null; await loadLabels(); draw(); loadScore(); } return; }
+  if (TOOL === "pan" || !bd) return;
+  const click = Math.abs(p.x - d.x) < 4 && Math.abs(p.y - d.y) < 4;
+  const l = {sym: SYM, tf: TF, kind: TOOL, t0: G.it(bd.x0), p0: G.py(bd.y0)};
+  if (SIDED(TOOL) || LEVEL(TOOL)) { l.t1 = G.it(bd.x1); l.p0 = G.py(bd.y0); if (click) return; }   // the server reads a BOS/CHoCH side from the candles
+  else if (TOOL === "region" || TREND(TOOL)) { l.t1 = G.it(bd.x1); delete l.p0; if (click) return; }
+  else if (TOOL.startsWith("swing")) { if (!click) { l.t0 = G.it(bd.x1); l.p0 = G.py(bd.y1); } }
+  else { if (click) return; l.t1 = G.it(bd.x1); l.p1 = G.py(bd.y1); }
+  const r = await post(l); SEL = r.saved && r.saved.id;
+  await loadLabels(); draw(); loadScore(); });
+function nearest(p) { const G = window._G; let best = null, bd = 12;
+  LABELS.forEach(l => { const x0 = G.xt(l.t0), x1 = l.t1 != null ? G.xt(l.t1) : x0;
+    const ys = [l.p0, l.p1].filter(v => v != null).map(v => G.y(v));
+    const yy = ys.length ? Math.max(ys[0], Math.min(ys[ys.length - 1], p.y)) : p.y;
+    const xx = Math.max(Math.min(x0, x1), Math.min(Math.max(x0, x1), p.x));
+    const dd = Math.hypot(p.x - xx, ys.length ? p.y - (ys.length === 2 && p.y > Math.min(...ys) && p.y < Math.max(...ys) ? p.y : ys.reduce((a, c) => Math.abs(c - p.y) < Math.abs(a - p.y) ? c : a)) : 0);
+    if (dd < bd) { bd = dd; best = l; } });
+  return best; }
+function drawBand() {
+  const dpr = window.devicePixelRatio || 1, W = OV.clientWidth, H = OV.clientHeight;
+  OV.width = W * dpr; OV.height = H * dpr; const g = OV.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!BAND || !window._G) return;
+  const G = window._G, l = {kind: TOOL,
+    t0: G.it(BAND.x0), p0: G.py(BAND.y0), t1: G.it(BAND.x1), p1: G.py(BAND.y1)};
+  if (TOOL === "region" || TREND(TOOL)) delete l.p0;
+  drawLabel(g, G, l, true);
+}
+OV.addEventListener("wheel", e => { e.preventDefault(); const G = window._G; if (!G || !VP) return;
+  const r = OV.getBoundingClientRect(), mx = e.clientX - r.left;
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { const sh = e.deltaX / G.cw; VP = {a: VP.a + sh, b: VP.b + sh}; draw(); return; }
+  const f = Math.exp(Math.max(-400, Math.min(400, e.deltaY)) * 0.0015), at = VP.a + (mx - G.PL) / G.cw;
+  let a = at - (at - VP.a) * f, b = at + (VP.b - at) * f;
+  const w = Math.max(20, Math.min(G.N * 1.3, b - a)); if (w !== b - a) a = (a + b) / 2 - w / 2;
+  VP = {a, b: a + w}; draw(); }, {passive: false});
+OV.addEventListener("dblclick", () => { VP = null; draw(); });
+window.addEventListener("resize", () => draw());
+
+// ── header controls ──
+$("#tfs").innerHTML = TFS.map(t => `<button data-tf="${t}" aria-pressed="${t === TF}">${t}</button>`).join(" ");
+$("#tools").innerHTML = TOOLS.map(([k, w]) => `<button class="tool" data-tool="${k}" aria-pressed="${k === TOOL}">${w}</button>`).join(" ");
+document.querySelectorAll("[data-tf]").forEach(b => b.onclick = () => { TF = b.dataset.tf; syncHash(); refreshBtns(); loadAll(); });
+document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => { TOOL = b.dataset.tool; refreshBtns(); });
+function refreshBtns() {
+  document.querySelectorAll("[data-tf]").forEach(b => b.setAttribute("aria-pressed", b.dataset.tf === TF));
+  document.querySelectorAll("[data-tool]").forEach(b => b.setAttribute("aria-pressed", b.dataset.tool === TOOL));
+  OV.style.cursor = TOOL === "pan" ? "grab" : TOOL === "erase" ? "not-allowed" : "crosshair";
+}
+$("#eng").onclick = async () => { ENG = !ENG; $("#eng").setAttribute("aria-pressed", String(ENG));
+  if (ENG && !DET && SYM) DET = await api(`/api/learn/detect?sym=${encodeURIComponent(SYM)}&tf=${TF}`); draw(); };
+$("#reload").onclick = async () => { if ($("#sym").options.length <= 1) await fillSyms(); loadAll(); };
+$("#sym").addEventListener("change", () => { SYM = $("#sym").value.trim().toUpperCase(); SEL = null; syncHash(); loadAll(); });
+function syncHash() { if (SYM) location.hash = SYM + "-" + TF; }
+
+async function fillSyms() {       // the dropdown must never stay silently empty (David 2026-10-25, via the tunnel)
+  for (let i = 0; i < 3; i++) {
+    try {
+      const ov = await api("/api/overview");
+      const names = (ov.symbols || []).map(s => s.symbol || s);
+      if (!names.length) throw new Error("no symbols yet");
+      if (SYM && !names.includes(SYM)) names.unshift(SYM);
+      $("#sym").innerHTML = `<option value="">symbol…</option>` + names.map(s => `<option${s === SYM ? " selected" : ""}>${s}</option>`).join("");
+      return;
+    } catch (e) { await new Promise(r => setTimeout(r, 1200)); }
+  }
+  $("#score").textContent = "the symbol list did not load — press ⟳ to try again";
+}
+
+(async () => {
+  const m = (location.hash || "").slice(1).match(/^([A-Za-z0-9._#-]+)-(M5|M15|M30|H1|H4)$/);
+  if (m) { SYM = m[1].toUpperCase(); TF = m[2]; }
+  await fillSyms();
+  refreshBtns();
+  if (SYM) loadAll(); else draw();
+})();
+</script>
+</body>
+</html>

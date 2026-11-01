@@ -6,7 +6,8 @@ engine/feed.py — what the engine trades and the bars it reads, from the MT5 te
             indexes) and the forex majors (FxPro's "Forex\\Major" folder + AUDUSD / NZDUSD)
   bars      per symbol and timeframe, oldest first, {"t": epoch ms UTC of the bar's start, o h l c v};
             each timeframe is re-read when due (ENGINE["refresh_sec"]); completed() drops the bar still forming
-  clock     broker server time minus UTC, measured once from a 24/7 coin's live tick (FxPro: UTC+3)
+  clock     broker server time minus UTC, measured once from a 24/7 coin's live tick (FxPro: UTC+3 / UTC+2);
+            bar times are converted with the server's zone (ENGINE["server_tz"]) while it agrees with that
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import datetime as _dt
 import sys
 import time
 from typing import Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from .config import ENGINE, FOREX_DIR
 
@@ -91,6 +93,15 @@ class Feed:
         self.detect_clock()
         return self.offset != old
 
+    def clock(self):
+        """How bar times become UTC: the server's zone while it agrees with the measured offset, so the bars from
+        before a DST change keep their own offset (2026-10-25: one offset for every bar drew all the bars before
+        the switch an hour late); otherwise the measured offset for every bar."""
+        tz = ZoneInfo(self.cfg["server_tz"]) if self.cfg.get("server_tz") else None
+        if tz is not None and self.offset is not None and _dt.datetime.now(tz).utcoffset() == self.offset:
+            return tz
+        return self.offset
+
     # ── bars ──
     def due(self, force: bool = False) -> List[str]:
         now = time.time()
@@ -102,7 +113,7 @@ class Feed:
         if not tfs:
             return []
         wants = [(s, tf, self.cfg["bars"][tf]) for tf in tfs for s in self.symbols]
-        got = mt5c.bars_many(wants, timeout=300, offset=self.offset)
+        got = mt5c.bars_many(wants, timeout=300, offset=self.clock())
         for k, v in got.items():
             self.bars[k] = v
         for tf in tfs:

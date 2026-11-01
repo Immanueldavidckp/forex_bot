@@ -1,0 +1,57 @@
+criterion | cells p<0.05 (+/-) | cells lift>0 of 24 | IS&OOS same sign of 24 | pooled FX+GOLD lift M15 v5/base, H1 v5/base
+BOS gate (David's major structure, break within 10 bars) | 0+/1- | 13 | 13 | -0.1 / -3.1 / -1.2 / +1.1
+major BOS before the return (any delay) | 0+/0- | 13 | 9 | -0.6 / -1.9 / -0.3 / +0.9
+zone inside any major break's move | 0+/0- | 13 | 8 | -0.4 / -1.9 / -0.3 / +1.0
+the break is a CHoCH | 0+/0- | 14 | 10 | +1.3 / +0.3 / +1.6 / +4.5
+BOS gate (3-bar fractal swing) | 0+/1- | 8 | 12 | -1.0 / -1.7 / +0.6 / +0.8
+displacement >= 2 x avg body | 0+/0- | 12 | 9 | -0.6 / -1.8 / +1.6 / +1.9
+displacement >= 3 x avg body | 0+/1- | 10 | 8 | -1.2 / -1.7 / +0.2 / +2.6
+FVG in the leg-out | 3+/0- | 17 | 10 | +1.3 / +2.3 / +0.0 / +1.4
+FVG >= 0.3 ATR | 0+/0- | 14 | 8 | +0.7 / +0.7 / +0.3 / +1.5
+FVG kept (David: untouched 2 candles, 0.5 ATR run) | 3+/0- | 13 | 13 | +0.3 / +1.3 / -0.1 / +0.5
+base <= 2 candles (V5: opposite candle <= 2 bars before) | 1+/2- | 11 | 11 | +0.8 / -2.4 / +5.0 / -3.7
+base >= 3 candles | 2+/1- | 13 | 11 | -0.8 / +2.4 / -5.0 / +3.7
+departure >= 3 zone heights before the return | 1+/3- | 9 | 11 | -0.2 / -1.6 / -0.7 / -2.2
+departure >= 2 ATR before the return | 2+/0- | 12 | 14 | +1.1 / +0.3 / -1.0 / +0.2
+leg-out candle range >= 2 zone heights | 0+/2- | 5 | 13 | -1.6 / -2.6 / +1.4 / -2.0
+zone height <= 0.5 ATR | 0+/6- | 5 | 12 | -3.8 / -3.9 / -1.8 / -3.5
+zone height > 1 ATR | 1+/0- | 15 | 7 | +1.7 / +1.1 / -3.7 / +1.3
+with the major trend | 0+/0- | 14 | 8 | -0.1 / -1.3 / -0.3 / +0.2
+against the major trend | 0+/0- | 10 | 7 | +0.1 / +1.4 / +0.6 / -0.1
+demand in discount / supply in premium (major range) | 0+/0- | 14 | 10 | +1.2 / +1.6 / -0.6 / -0.5
+... of the last 100 bars' range | 1+/0- | 17 | 8 | +1.8 / +1.4 / +0.5 / -1.1
+liquidity sweep just before the leg-out | 1+/0- | 11 | 12 | +2.4 / +1.5 / -2.5 / -1.3
+round-number level in / at the zone | 0+/0- | 13 | 9 | +1.6 / +0.1 / -3.7 / -0.1
+RR >= 2 to the nearest live opposing zone | 0+/1- | 14 | 10 | +0.7 / +0.4 / +0.4 / -0.3
+no live opposing zone above / below | 0+/2- | 10 | 4 | -1.4 / -2.7 / -1.8 / -2.3
+returned within 50 bars | 0+/0- | 14 | 9 | +1.4 / +0.2 / -1.7 / +1.7
+returned after > 200 bars | 0+/0- | 9 | 13 | -1.9 / -3.7 / -0.1 / -3.8
+formed in Asia (00-07 UTC) | 1+/0- | 11 | 11 | +0.4 / +0.3 / +2.0 / -1.9
+formed in London (07-12 UTC) | 2+/1- | 14 | 9 | +1.7 / +1.5 / -1.7 / +3.4
+formed in London/NY overlap (12-16 UTC) | 2+/0- | 16 | 11 | +0.6 / +0.3 / +3.1 / -0.6
+BOS gate + FVG | 0+/0- | 11 | 10 | -0.0 / -3.6 / -1.4 / -1.0
+BOS gate + FVG kept | 0+/0- | 11 | 16 | -0.1 / -3.6 / +0.7 / +0.5
+BOS gate + with trend | 0+/1- | 13 | 12 | -0.7 / -4.6 / -2.3 / -0.9
+BOS gate + discount/premium | 0+/0- | 9 | 4 | -0.2 / -0.7 / -4.0 / -0.9
+BOS gate + sweep | 0+/0- | 10 | 8 | +3.3 / +0.1 / +3.5 / +4.5
+BOS gate + FVG + with trend | 0+/0- | 7 | 14 | -1.2 / -6.2 / -1.9 / -1.5
+BOS gate + FVG + discount/premium | 0+/0- | 8 | 5 | -0.6 / +0.4 / -3.0 / +0.4
+BOS gate + departure >= 3 h | 1+/0- | 9 | 14 | -0.0 / -3.8 / -3.1 / -1.8
+fractal BOS + FVG | 1+/0- | 10 | 7 | -0.7 / -0.3 / +0.9 / +1.7
+FVG + departure >= 3 h | 1+/1- | 11 | 13 | -0.0 / +0.3 / -0.4 / -2.1
+sweep + FVG | 1+/0- | 13 | 13 | +1.8 / +1.8 / -2.2 / +1.1
+sweep + major BOS before return | 0+/0- | 9 | 10 | -0.1 / -1.3 / -4.6 / +1.4
+with trend + discount/premium | 0+/0- | 13 | 8 | +1.2 / +0.4 / -1.2 / +0.5
+NO major BOS (David: invalid) | 1+/0- | 11 | 13 | +0.1 / +3.1 / +1.2 / -1.1
+
+v5 M15: hard-stop win RR1 zones 30.5% ctrl 30.7% (breakeven 50) | RR2 zones 30.5% ctrl 30.7% (breakeven 33.3) | median MAE h zones 1.43 ctrl 1.41 | mean MFE h zones 1.66 ctrl 1.65
+v5 H1: hard-stop win RR1 zones 32.1% ctrl 30.6% (breakeven 50) | RR2 zones 32.1% ctrl 30.5% (breakeven 33.3) | median MAE h zones 1.44 ctrl 1.44 | mean MFE h zones 1.75 ctrl 1.66
+base M15: hard-stop win RR1 zones 28.8% ctrl 28.7% (breakeven 50) | RR2 zones 28.8% ctrl 28.6% (breakeven 33.3) | median MAE h zones 1.55 ctrl 1.53 | mean MFE h zones 1.95 ctrl 1.98
+base H1: hard-stop win RR1 zones 30.2% ctrl 28.9% (breakeven 50) | RR2 zones 30.2% ctrl 28.9% (breakeven 33.3) | median MAE h zones 1.54 ctrl 1.55 | mean MFE h zones 2.09 ctrl 1.98
+
+v5 M15: BOS-gated zones n=1611 hold 57.7% vs all controls 57.9%  CI (-0.026505858580897906, 0.021961893793591692); gated+FVG kept n=960 hold 57.6%
+v5 H1: BOS-gated zones n=466 hold 58.8% vs all controls 58.1%  CI (-0.03818761792548254, 0.05488806952093102); gated+FVG kept n=279 hold 60.6%
+base M15: BOS-gated zones n=1432 hold 54.2% vs all controls 57.2%  CI (-0.056966389463402545, -0.003718311715668686); gated+FVG kept n=735 hold 53.6%
+base H1: BOS-gated zones n=413 hold 60.5% vs all controls 57.8%  CI (-0.022051334552056025, 0.07574130211926255); gated+FVG kept n=223 hold 60.1%
+GOLD M15 v5: 6.3 zones/day, with major BOS gate 0.78/day, fractal gate 3.0/day, gate+fvg_ok 0.46/day
+GOLD M15 base: 5.9 zones/day, with major BOS gate 0.66/day, fractal gate 2.5/day, gate+fvg_ok 0.33/day

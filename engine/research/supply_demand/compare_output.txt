@@ -1,0 +1,164 @@
+
+=== GOLD M15: 3000 bars, major events 47 (BOS 26, CHoCH 21)
+shved      n=  87 /100b= 2.90 h/ATR mean= 1.10 med= 1.09 touch50= 82.9% broken50= 60.0% touch200= 90.0% broken200= 78.6% fresh@end=  8.0% gate= 34.5% (30) strict= 16.1% (14)
+cmike      n=  55 /100b= 1.83 h/ATR mean= 1.10 med= 0.99 touch50= 84.0% broken50= 68.0% touch200= 88.0% broken200= 78.0% fresh@end=  9.1% gate= 47.3% (26) strict= 14.5% (8)
+svopex     n=  41 /100b= 1.37 h/ATR mean= 1.27 med= 1.19 touch50= 92.3% broken50= 64.1% touch200= 97.4% broken200= 87.2% fresh@end=  2.4% gate= 58.5% (24) strict= 19.5% (8)
+flux       n=  49 /100b= 1.63 h/ATR mean= 0.31 med= 0.27 touch50= 44.4% broken50= 31.1% touch200= 71.1% broken200= 64.4% fresh@end= 20.4% gate= 67.3% (33) strict= 51.0% (25)
+bigbeluga  n= 177 /100b= 5.90 h/ATR mean= 2.14 med= 2.12 touch50= 89.3% broken50= 45.2% touch200= 93.5% broken200= 75.0% fresh@end=  2.3% gate= 42.9% (76) strict= 12.4% (22)
+sdzpro     n=  79 /100b= 2.63 h/ATR mean= 1.16 med= 1.04 touch50= 76.7% broken50= 50.7% touch200= 90.4% broken200= 82.2% fresh@end=  3.8% gate= 40.5% (32) strict= 24.1% (19)
+   shved: {'weak': 3, 'untested': 2, 'verified': 4, 'proven': 0, 'turncoat': 0, 'busted': 78}
+   shved_drawn: 6
+   shved_gate_by_strength: {'weak': 100.0, 'untested': 100.0, 'verified': 50.0, 'proven': nan, 'turncoat': nan, 'busted': 29.487179487179485}
+   shved_broken200_by_strength: {'weak': 0.0, 'untested': 0.0, 'verified': 50.0, 'proven': nan, 'turncoat': nan}
+   cmike_types: {'RBD': 15, 'DBD': 19, 'DBR': 12, 'RBR': 9}
+   cmike_fresh: 9.090909090909092
+   cmike_stale: 58.18181818181818
+   cmike_conf_mean: 0.7180812341083507
+   cmike_gate_by_conf: {'<0.6': 60.0, '>=0.6': 46.0}
+   cmike_broken200_by_conf: {'<0.6': 80.0, '>=0.6': 77.77777777777777}
+   svopex_removed_first_touch: 97.5609756097561
+   svopex_base_n: {1: 22, 2: 14, 3: 5}
+   flux_retests_mean: 13.142857142857142
+   flux_flipped: 69.38775510204081
+   flux_held_pct: 57.38993710691824
+   flux_gate_by_quality: {'q<0.5': 62.5, 'q>=0.5': 68.29268292682927}
+   bigbeluga_deleted_close: 46.32768361581921
+   bigbeluga_mitigated: 84.7457627118644
+   bigbeluga_overlap_removed: 46.89265536723164
+   sdzpro_broken: 89.87341772151899
+   sdzpro_retests_mean: 2.3544303797468356
+   sdzpro_strength_hist: {0: 5, 1: 1, 2: 5, 3: 15, 4: 12, 5: 29, 6: 9, 7: 3, 8: 0, 9: 0, 10: 0}
+   sdzpro_gate_by_strength: {'<=5': 37.3134328358209, '>5': 58.333333333333336}
+   sdzpro_broken200_by_strength: {'<=5': 85.07462686567165, '>5': 50.0}
+   agreement (% of row tool's zones matched by column tool, same side, overlapping, |idx diff| <= 40):
+                  shved     cmike    svopex      flux bigbeluga    sdzpro
+   shved              -      27.6      16.1      23.0      81.6      58.6
+   cmike           25.5         -      34.5       3.6      80.0      41.8
+   svopex          19.5      46.3         -       7.3      82.9      41.5
+   flux            26.5       4.1       6.1         -      65.3      28.6
+   bigbeluga       27.1      31.6      28.8      23.2         -      56.5
+   sdzpro          32.9      25.3      21.5      17.7      81.0         -
+   % of major BOS/CHoCH whose leg start (origin..origin+10) carries a zone of the tool: {'shved': 29.8, 'cmike': 14.9, 'svopex': 17.0, 'flux': 53.2, 'bigbeluga': 46.8, 'sdzpro': 40.4}
+
+=== GOLD H1: 3000 bars, major events 25 (BOS 13, CHoCH 12)
+shved      n=  73 /100b= 2.43 h/ATR mean= 1.13 med= 1.10 touch50= 85.5% broken50= 64.5% touch200= 95.2% broken200= 82.3% fresh@end=  6.8% gate= 27.4% (20) strict=  4.1% (3)
+cmike      n=  44 /100b= 1.47 h/ATR mean= 0.98 med= 0.74 touch50= 79.5% broken50= 61.5% touch200= 89.7% broken200= 82.1% fresh@end=  4.5% gate= 50.0% (22) strict=  4.5% (2)
+svopex     n=  27 /100b= 0.90 h/ATR mean= 1.00 med= 0.94 touch50= 60.0% broken50= 52.0% touch200= 84.0% broken200= 84.0% fresh@end= 14.8% gate= 81.5% (22) strict= 18.5% (5)
+flux       n=  49 /100b= 1.63 h/ATR mean= 0.32 med= 0.29 touch50= 41.7% broken50= 31.2% touch200= 70.8% broken200= 58.3% fresh@end= 18.4% gate= 51.0% (25) strict= 34.7% (17)
+bigbeluga  n= 181 /100b= 6.03 h/ATR mean= 2.13 med= 2.09 touch50= 86.0% broken50= 49.7% touch200= 94.2% broken200= 74.9% fresh@end=  2.8% gate= 38.7% (70) strict=  5.0% (9)
+sdzpro     n=  79 /100b= 2.63 h/ATR mean= 0.99 med= 0.92 touch50= 75.3% broken50= 53.4% touch200= 90.4% broken200= 72.6% fresh@end=  3.8% gate= 39.2% (31) strict= 13.9% (11)
+   shved: {'weak': 0, 'untested': 2, 'verified': 8, 'proven': 1, 'turncoat': 1, 'busted': 61}
+   shved_drawn: 12
+   shved_gate_by_strength: {'weak': nan, 'untested': 100.0, 'verified': 75.0, 'proven': 0.0, 'turncoat': 100.0, 'busted': 18.0327868852459}
+   shved_broken200_by_strength: {'weak': nan, 'untested': 0.0, 'verified': 16.666666666666668, 'proven': nan, 'turncoat': nan}
+   cmike_types: {'RBD': 8, 'DBD': 13, 'DBR': 13, 'RBR': 10}
+   cmike_fresh: 4.545454545454546
+   cmike_stale: 72.72727272727273
+   cmike_conf_mean: 0.7194201621268735
+   cmike_gate_by_conf: {'<0.6': 33.333333333333336, '>=0.6': 51.21951219512195}
+   cmike_broken200_by_conf: {'<0.6': 100.0, '>=0.6': 81.08108108108108}
+   svopex_removed_first_touch: 88.88888888888889
+   svopex_base_n: {1: 15, 2: 10, 3: 2}
+   flux_retests_mean: 13.183673469387756
+   flux_flipped: 75.51020408163265
+   flux_held_pct: 56.434108527131784
+   flux_gate_by_quality: {'q<0.5': 40.0, 'q>=0.5': 53.84615384615385}
+   bigbeluga_deleted_close: 51.93370165745856
+   bigbeluga_mitigated: 83.42541436464089
+   bigbeluga_overlap_removed: 40.88397790055249
+   sdzpro_broken: 83.54430379746836
+   sdzpro_retests_mean: 2.2278481012658227
+   sdzpro_strength_hist: {0: 1, 1: 2, 2: 6, 3: 15, 4: 16, 5: 29, 6: 9, 7: 1, 8: 0, 9: 0, 10: 0}
+   sdzpro_gate_by_strength: {'<=5': 36.231884057971016, '>5': 60.0}
+   sdzpro_broken200_by_strength: {'<=5': 74.24242424242425, '>5': 57.142857142857146}
+   agreement (% of row tool's zones matched by column tool, same side, overlapping, |idx diff| <= 40):
+                  shved     cmike    svopex      flux bigbeluga    sdzpro
+   shved              -      24.7      12.3      17.8      83.6      52.1
+   cmike           34.1         -      34.1       2.3      68.2      43.2
+   svopex          22.2      51.9         -       0.0      51.9      29.6
+   flux            22.4       2.0       0.0         -      63.3      34.7
+   bigbeluga       30.9      23.8      13.3      21.5         -      54.1
+   sdzpro          30.4      19.0      10.1      21.5      81.0         -
+   % of major BOS/CHoCH whose leg start (origin..origin+10) carries a zone of the tool: {'shved': 12.0, 'cmike': 8.0, 'svopex': 16.0, 'flux': 68.0, 'bigbeluga': 36.0, 'sdzpro': 44.0}
+
+=== EURUSD M15: 3000 bars, major events 29 (BOS 20, CHoCH 9)
+shved      n=  79 /100b= 2.63 h/ATR mean= 1.07 med= 1.00 touch50= 70.6% broken50= 47.1% touch200= 89.7% broken200= 86.8% fresh@end=  6.3% gate= 36.7% (29) strict=  8.9% (7)
+cmike      n=  58 /100b= 1.93 h/ATR mean= 1.25 med= 1.00 touch50= 73.2% broken50= 50.0% touch200= 89.3% broken200= 82.1% fresh@end=  6.9% gate= 44.8% (26) strict=  5.2% (3)
+svopex     n=  46 /100b= 1.53 h/ATR mean= 1.17 med= 1.10 touch50= 87.8% broken50= 68.3% touch200=100.0% broken200= 92.7% fresh@end=  4.3% gate= 37.0% (17) strict=  6.5% (3)
+flux       n=  43 /100b= 1.43 h/ATR mean= 0.27 med= 0.26 touch50= 26.2% broken50= 23.8% touch200= 61.9% broken200= 50.0% fresh@end= 30.2% gate= 58.1% (25) strict= 39.5% (17)
+bigbeluga  n= 140 /100b= 4.67 h/ATR mean= 1.96 med= 1.70 touch50= 82.1% broken50= 46.3% touch200= 95.5% broken200= 76.9% fresh@end=  4.3% gate= 35.7% (50) strict=  8.6% (12)
+sdzpro     n=  73 /100b= 2.43 h/ATR mean= 1.12 med= 1.03 touch50= 72.5% broken50= 53.6% touch200= 88.4% broken200= 72.5% fresh@end=  8.2% gate= 42.5% (31) strict= 21.9% (16)
+   shved: {'weak': 1, 'untested': 2, 'verified': 5, 'proven': 0, 'turncoat': 0, 'busted': 71}
+   shved_drawn: 7
+   shved_gate_by_strength: {'weak': 100.0, 'untested': 100.0, 'verified': 100.0, 'proven': nan, 'turncoat': nan, 'busted': 29.577464788732396}
+   shved_broken200_by_strength: {'weak': 0.0, 'untested': 0.0, 'verified': 25.0, 'proven': nan, 'turncoat': nan}
+   cmike_types: {'RBD': 11, 'DBD': 19, 'DBR': 13, 'RBR': 15}
+   cmike_fresh: 6.896551724137931
+   cmike_stale: 67.24137931034483
+   cmike_conf_mean: 0.729674248748761
+   cmike_gate_by_conf: {'<0.6': nan, '>=0.6': 44.827586206896555}
+   cmike_broken200_by_conf: {'<0.6': nan, '>=0.6': 82.14285714285714}
+   svopex_removed_first_touch: 95.65217391304348
+   svopex_base_n: {1: 25, 2: 9, 3: 12}
+   flux_retests_mean: 9.86046511627907
+   flux_flipped: 60.46511627906977
+   flux_held_pct: 52.87081339712919
+   flux_gate_by_quality: {'q<0.5': 50.0, 'q>=0.5': 58.97435897435897}
+   bigbeluga_deleted_close: 57.857142857142854
+   bigbeluga_mitigated: 85.0
+   bigbeluga_overlap_removed: 31.428571428571427
+   sdzpro_broken: 79.45205479452055
+   sdzpro_retests_mean: 2.0821917808219177
+   sdzpro_strength_hist: {0: 1, 1: 3, 2: 6, 3: 8, 4: 17, 5: 26, 6: 12, 7: 0, 8: 0, 9: 0, 10: 0}
+   sdzpro_gate_by_strength: {'<=5': 36.0655737704918, '>5': 75.0}
+   sdzpro_broken200_by_strength: {'<=5': 78.33333333333333, '>5': 33.333333333333336}
+   agreement (% of row tool's zones matched by column tool, same side, overlapping, |idx diff| <= 40):
+                  shved     cmike    svopex      flux bigbeluga    sdzpro
+   shved              -      17.7      16.5      17.7      73.4      40.5
+   cmike           17.2         -      56.9       6.9      67.2      29.3
+   svopex          19.6      73.9         -       0.0      69.6      28.3
+   flux            20.9       9.3       0.0         -      46.5      34.9
+   bigbeluga       27.9      27.9      26.4      15.7         -      50.7
+   sdzpro          24.7      20.5      16.4      20.5      72.6         -
+   % of major BOS/CHoCH whose leg start (origin..origin+10) carries a zone of the tool: {'shved': 20.7, 'cmike': 10.3, 'svopex': 6.9, 'flux': 58.6, 'bigbeluga': 41.4, 'sdzpro': 55.2}
+
+=== EURUSD H1: 3000 bars, major events 28 (BOS 19, CHoCH 9)
+shved      n=  71 /100b= 2.37 h/ATR mean= 1.19 med= 1.15 touch50= 80.0% broken50= 56.7% touch200= 86.7% broken200= 78.3% fresh@end= 11.3% gate= 43.7% (31) strict=  8.5% (6)
+cmike      n=  48 /100b= 1.60 h/ATR mean= 1.15 med= 1.08 touch50= 78.0% broken50= 61.0% touch200= 85.4% broken200= 75.6% fresh@end=  6.2% gate= 52.1% (25) strict=  8.3% (4)
+svopex     n=  40 /100b= 1.33 h/ATR mean= 1.42 med= 1.40 touch50= 81.1% broken50= 59.5% touch200= 86.5% broken200= 73.0% fresh@end=  7.5% gate= 55.0% (22) strict=  5.0% (2)
+flux       n=  48 /100b= 1.60 h/ATR mean= 0.31 med= 0.29 touch50= 45.5% broken50= 38.6% touch200= 68.2% broken200= 63.6% fresh@end= 16.7% gate= 54.2% (26) strict= 25.0% (12)
+bigbeluga  n= 150 /100b= 5.00 h/ATR mean= 2.33 med= 2.19 touch50= 84.9% broken50= 52.5% touch200= 89.9% broken200= 71.2% fresh@end=  6.0% gate= 42.0% (63) strict=  7.3% (11)
+sdzpro     n=  81 /100b= 2.70 h/ATR mean= 1.06 med= 0.95 touch50= 80.3% broken50= 51.3% touch200= 89.5% broken200= 73.7% fresh@end=  6.2% gate= 44.4% (36) strict= 16.0% (13)
+   shved: {'weak': 1, 'untested': 4, 'verified': 6, 'proven': 0, 'turncoat': 2, 'busted': 58}
+   shved_drawn: 12
+   shved_gate_by_strength: {'weak': 100.0, 'untested': 100.0, 'verified': 100.0, 'proven': nan, 'turncoat': 50.0, 'busted': 32.758620689655174}
+   shved_broken200_by_strength: {'weak': 0.0, 'untested': 0.0, 'verified': 20.0, 'proven': nan, 'turncoat': 100.0}
+   cmike_types: {'RBD': 8, 'DBD': 16, 'DBR': 11, 'RBR': 13}
+   cmike_fresh: 6.25
+   cmike_stale: 77.08333333333333
+   cmike_conf_mean: 0.7257729432642677
+   cmike_gate_by_conf: {'<0.6': nan, '>=0.6': 52.083333333333336}
+   cmike_broken200_by_conf: {'<0.6': nan, '>=0.6': 75.60975609756098}
+   svopex_removed_first_touch: 92.5
+   svopex_base_n: {1: 20, 2: 10, 3: 10}
+   flux_retests_mean: 10.979166666666666
+   flux_flipped: 79.16666666666667
+   flux_held_pct: 53.43511450381679
+   flux_gate_by_quality: {'q<0.5': 46.15384615384615, 'q>=0.5': 57.142857142857146}
+   bigbeluga_deleted_close: 48.666666666666664
+   bigbeluga_mitigated: 77.33333333333333
+   bigbeluga_overlap_removed: 40.0
+   sdzpro_broken: 85.18518518518519
+   sdzpro_retests_mean: 2.197530864197531
+   sdzpro_strength_hist: {0: 0, 1: 3, 2: 9, 3: 11, 4: 20, 5: 28, 6: 7, 7: 3, 8: 0, 9: 0, 10: 0}
+   sdzpro_gate_by_strength: {'<=5': 42.25352112676056, '>5': 60.0}
+   sdzpro_broken200_by_strength: {'<=5': 75.71428571428571, '>5': 50.0}
+   agreement (% of row tool's zones matched by column tool, same side, overlapping, |idx diff| <= 40):
+                  shved     cmike    svopex      flux bigbeluga    sdzpro
+   shved              -      22.5      16.9      23.9      81.7      56.3
+   cmike           31.2         -      43.8      10.4      66.7      41.7
+   svopex          25.0      55.0         -      10.0      62.5      37.5
+   flux            25.0      10.4       8.3         -      58.3      43.8
+   bigbeluga       32.7      25.3      25.3      23.3         -      60.0
+   sdzpro          25.9      25.9      18.5      25.9      79.0         -
+   % of major BOS/CHoCH whose leg start (origin..origin+10) carries a zone of the tool: {'shved': 21.4, 'cmike': 14.3, 'svopex': 7.1, 'flux': 42.9, 'bigbeluga': 39.3, 'sdzpro': 46.4}

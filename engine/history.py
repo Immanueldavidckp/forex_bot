@@ -6,7 +6,8 @@ engine/history.py — FxPro's bar history for the backtest, saved once per symbo
 Per timeframe as many bars as the terminal gives (M5 99,000 ≈ 11 months of a coin, 16 of a forex pair; the
 higher timeframes reach further back, so their windows are full from the first M5 bar). Bar times are the
 server's wall clock, which follows EU summer time (UTC+3 / UTC+2, Cyprus); they are stored as epoch ms UTC
-with the spread in price units: {"info", "market", "bars": {tf: [[t, o, h, l, c, spread], ...]}}.
+with the spread in price units and the tick volume: {"info", "market", "bars": {tf: [[t, o, h, l, c, spread, tick_volume], ...]}}
+(files saved before 2026-10-29 have no tick volume).
 """
 from __future__ import annotations
 
@@ -18,12 +19,12 @@ import time
 from typing import Dict, List
 from zoneinfo import ZoneInfo
 
-from .config import DATA_DIR
+from .config import DATA_DIR, ENGINE
 from .feed import Feed, mt5c
 
 HIST_DIR = os.path.join(DATA_DIR, "history")
 COUNTS = {"M5": 99000, "M15": 33000, "M30": 16500, "H1": 8500, "H4": 2200}
-SERVER_TZ = ZoneInfo("Asia/Nicosia")          # FxPro: UTC+2 in winter, UTC+3 in EU summer time
+SERVER_TZ = ZoneInfo(ENGINE["server_tz"])      # FxPro: UTC+2 in winter, UTC+3 in EU summer time
 
 
 def server_to_utc_ms(t: int) -> int:
@@ -38,7 +39,8 @@ def fetch(sym: str, info: Dict, market: str) -> Dict:
     for tf, r in zip(COUNTS, res):
         if "result" not in r:
             raise RuntimeError(f"{sym} {tf}: {r.get('error')}")
-        bars[tf] = [[server_to_utc_ms(x[0]), x[1], x[2], x[3], x[4], round((x[7] if len(x) > 7 else 0) * pt, 10)] for x in r["result"]]
+        bars[tf] = [[server_to_utc_ms(x[0]), x[1], x[2], x[3], x[4], round((x[7] if len(x) > 7 else 0) * pt, 10),
+                    int(x[5])] for x in r["result"]]
     return {"symbol": sym, "market": market, "info": info, "fetched": int(time.time()), "bars": bars}
 
 

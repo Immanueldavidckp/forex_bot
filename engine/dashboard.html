@@ -54,6 +54,9 @@ main{padding:4px 16px 40px;display:flex;flex-direction:column;gap:12px}
 <header>
   <h1><b>V5</b> ENGINE</h1>
   <a href="/backtest">Backtest →</a>
+  <a href="/learn" title="draw the structure as it should be (BOS, CHoCH, FVG, supply/demand); the engine is trained from it">Learn →</a>
+  <a href="/kronos" title="Kronos-base (the candle forecasting model) trades GOLD / EURUSD / BITCOIN on its own magic">Kronos →</a>
+  <a href="/smc" title="free SMC indicators (SMC Zones, LuxAlgo) next to the V5 engine on the same bars: zones and confirmations">SMC →</a>
   <div class="kv num" id="acct">loading…</div>
   <button id="trading" class="toggle off" title="Watch mode records signals only; trading sends orders">trading …</button>
   <span class="kv num" id="mt5">MT5 …</span>
@@ -62,6 +65,7 @@ main{padding:4px 16px 40px;display:flex;flex-direction:column;gap:12px}
   <button id="mt5-start" title="Start MT5; the engine keeps it running again">start MT5</button>
   <div class="filters" id="filters"></div>
   <input type="search" id="find" placeholder="symbol…" aria-label="find a symbol">
+  <div class="kv num" id="pnl" title="Net of commission and swap, since the 24/7 run began. The interval is what the result could really be: while it spans zero, the total is noise."></div>
 </header>
 
 <section>
@@ -82,9 +86,9 @@ main{padding:4px 16px 40px;display:flex;flex-direction:column;gap:12px}
   <span><i style="background:rgba(245,197,66,.45)"></i>FVG 1 2 3 with its timeframe, e.g. "M30 FVG 2" (left to right; the bright one is used)</span><span><i style="background:var(--disp)"></i>displacement</span>
   <span><i style="background:var(--entry)"></i>entry (10 % into the FVG)</span><span><i style="background:var(--sl)"></i>SL</span><span><i style="background:var(--tp)"></i>TP</span>
   <span><i style="background:var(--tp1)"></i>Target 1</span><span><i style="background:var(--layer)"></i>layer</span>
-  <span class="muted">▲▼ swings HH/HL/LH/LL · faded = used / missed / against the bias (H4 + H1 must agree)</span>
+  <span class="muted">▲▼ swings HH/HL/LH/LL · faded = used / missed / failed · the H4+H1 bias is informational: M15/M30 entries do not need it (David 2026-10-25)</span>
   <span><b>S&amp;D H4</b> the M15 chart with the H4 zones + the M15 BOS / CHoCH inside them → the M15 FVG entry (click it: H4 too)</span>
-  <span><b>S&amp;D M30 / S&amp;D M15</b> that chart with every mark (click it: H4 for the bias too) · a setup superseded by a newer BOS setup is not shown</span>
+  <span><b>S&amp;D M30 / S&amp;D M15</b> that chart with every mark (click it: H4 for the bias too) · a superseded or refused setup is not shown</span>
 </div>
 <p class="note" id="note"></p>
 <main id="grid"></main>
@@ -121,10 +125,29 @@ function renderFilters() {
 }
 $("#find").oninput = e => { FIND = e.target.value.trim().toUpperCase(); renderGrid(); };
 
-function stageRank(s) { return s.open ? 0 : s.stage === "waiting pullback" ? 1 : s.stage ? 2 : 3; }
+// a setup that can still trade: waiting for the pullback, or retraced and waiting for the M5 entry BOS (new rules §18, 2026-10-25)
+const LIVE = ["waiting pullback", "waiting M5 BOS"];
+function stageRank(s) { return s.open ? 0 : LIVE.includes(s.stage) ? 1 : s.stage ? 2 : 3; }
 function shown(s) {
   if (FIND && !s.symbol.includes(FIND)) return false;
   return FILTER === "all" ? true : FILTER === "active" ? !!s.stage || s.open : FILTER === "trade" ? s.open > 0 : s.market === FILTER;
+}
+
+async function renderPnl() {
+  let p = null;
+  try { p = await (await fetch("/api/pnl", {cache: "no-store"})).json(); } catch (e) { return; }
+  const el = $("#pnl");
+  if (!el || !p || !p.all) return;
+  const a = p.all, v = p.all_verdict || "";
+  if (!a.n) { el.innerHTML = `<span class="muted">24/7 run: no closed trades yet</span>`; return; }
+  // while the 95 % interval spans zero the total is noise, and the panel says so rather than cheering
+  const solid = a.lo > 0 || a.hi < 0;
+  const cls = !solid ? "muted" : (a.mean > 0 ? "good" : "bad");
+  el.innerHTML = `<span>24/7 run: <b>${a.n}</b> trades</span>`
+    + `<span>net <b class="${a.total > 0 ? "good" : "bad"}">${money(a.total)}</b></span>`
+    + `<span>per trade <b class="${cls}">${(a.mean >= 0 ? "+" : "") + a.mean.toFixed(4)}</b>`
+    + ` <span class="muted">(95% ${(a.lo >= 0 ? "+" : "") + a.lo.toFixed(4)} … ${(a.hi >= 0 ? "+" : "") + a.hi.toFixed(4)})</span></span>`
+    + `<span class="${solid ? cls : "warn"}">${esc(v)}</span>`;
 }
 
 function renderHeader() {
@@ -199,12 +222,12 @@ function cardHead(s, v) {
   const c = s.checks || {}, f = v && v.setups.find(x => x.id === v.focus);
   const bias = s.bias ? `<span class="badge b-${s.bias}" title="${esc(s.bias_why)}">H4+H1 ${s.bias.toUpperCase()}</span>` : `<span class="badge b-none" title="${esc(s.bias_why)}">H4/H1 no trade</span>`;
   const trend = Object.entries(s.trend || {}).map(([tf, t]) => `${tf} ${ARROW[t] || "–"}`).join(" · ");
-  const chips = [chip("H4+H1 bias", s.bias ? "ok" : "", s.bias_why), chip(`BOS ${c.bos || ""}`, c.bos ? "ok" : "", "a candle closed beyond the last HH (buy) / LL (sell)"),
+  const chips = [chip("H4+H1 bias", s.bias ? "ok" : "", (s.bias_why ? s.bias_why + " · " : "") + "informational only: M15/M30 entries do not need H4/H1 agreement"), chip(`BOS ${c.bos || ""}`, c.bos ? "ok" : "", "a candle closed beyond the last HH (buy) / LL (sell)"),
     chip(c.poi === "MB" ? "mitigation block" : c.poi || "supply/demand", c.poi ? "ok" : "", "the supply / demand zone of the BOS move, or the mitigation block when it has none"),
-    chip(c.fvg ? `FVG ${c.fvg}` : "FVG", c.fvg ? "ok" : "", "the FVG used: the 2nd of two or more, counted left to right"),
-    chip("price at entry", f && ["signal","entered"].includes(f.status) ? "ok" : f ? "wait" : ""), chip(c.sl_atr != null ? `SL ${c.sl_atr}× ATR` : "SL ≤ 3 ATR", c.sl_atr == null ? "" : c.sl_atr <= 3 ? "ok" : "no", "the stop (this setup's zone + 20 points) must be within 3 × the M15 ATR, else no trade"),
+    chip(c.fvg ? `FVG ${c.fvg}` : "FVG", c.fvg ? "ok" : "", "the FVG used: the nearest of the BOS move's FVGs (counted left to right)"),
+    chip("price at entry", f && ["signal","entered","waiting M5 BOS"].includes(f.status) ? "ok" : f ? "wait" : ""), chip(c.sl_atr != null ? `SL ${c.sl_atr}× ATR` : "SL ≤ 3 ATR", c.sl_atr == null ? "" : c.sl_atr <= 3 ? "ok" : "no", "the stop (this setup's zone + 20 points) must be within 3 × the M15 ATR, else no trade"),
     chip(c.rr ? `TP ${c.rr}R` : "TP ≥ 3R", c.rr >= 3 ? "ok" : c.bos ? "no" : "", (c.tp_label ? c.tp_label + " · " : "") + "the target: the first untouched structure level at ≥ 1:3, else no trade")].join("");
-  const btn = f && f.status === "waiting pullback" ? `<button class="danger" data-cancel="${esc(f.id)}">cancel setup</button>` : "";
+  const btn = f && LIVE.includes(f.status) ? `<button class="danger" data-cancel="${esc(f.id)}">cancel setup</button>` : "";
   const t = v && v.trades && v.trades[0];
   const tbtn = t ? `<button class="danger" data-closeset="${esc(t.id)}">close trade</button>` : "";
   const chartOnly = f && v.trade_tfs && !v.trade_tfs.includes(f.tf) ? ` <span class="muted">(${f.tf} is chart only)</span>` : "";
@@ -230,7 +253,7 @@ function renderGrid() {
       io.observe(el);
     }
     if (grid.children[i] !== el) grid.insertBefore(el, grid.children[i] || null);
-    el.classList.toggle("trade", s.open > 0); el.classList.toggle("bos", s.stage === "waiting pullback");
+    el.classList.toggle("trade", s.open > 0); el.classList.toggle("bos", LIVE.includes(s.stage));
     el.querySelector(".ch").innerHTML = cardHead(s, VIEWS[s.symbol]);
     el.querySelectorAll("[data-cancel]").forEach(b => armed(b, "confirm cancel", () => cmd({action:"cancel_setup", id: b.dataset.cancel})));
     el.querySelectorAll("[data-closeset]").forEach(b => armed(b, "confirm close", () => cmd({action:"close_setup", id: b.dataset.closeset})));
@@ -281,7 +304,7 @@ function renderLayers() {
 }
 
 // which setups a chart draws: own = its timeframe's, the rest projected from a slower one
-const HIDE = ["superseded", "stale"];                 // David 2026-10-25: a setup a newer BOS setup replaced is not shown
+const HIDE = ["superseded", "stale", "refused"];      // David 2026-10-25: superseded / refused setups are not drawn at all
 const H4_ZONES = ["waiting pullback", "zone reached", "used", "zone broken"];
 function chartSetups(v, tf, role) {
   const S = v.setups, keep = s => !HIDE.includes(s.status);
@@ -314,10 +337,32 @@ function viewport(v, tf, big) {
   return vp;
 }
 
+// David 2026-10-25: every setup says how it went — waiting (with the SL / TP it would trade with now), entry taken
+// (its trade open, or closed with the P&L), or failed and why
+const TAKEN = ["signal", "entered", "closed", "used"];
+const FAILED = {"against bias": "against bias", missed: "missed", refused: "refused", touched: "chart only", "zone broken": "zone broken", stale: "too old",
+  invalid: "FVG traded into too soon", failed: "no M5 entry BOS", cancelled: "cancelled"};          // David 2026-10-25: the FVG was traded into too soon, or price did not run away from it first
+const usd = x => (x < 0 ? "−$" : "+$") + Math.abs(x).toFixed(2);
+function outcome(s, big) {
+  if (s.status === "zone reached") return big ? "price in the zone · waiting for an M15 BOS / CHoCH" : "in zone";
+  if (s.status === "waiting pullback") return s.expired ? "failed · expired" : "waiting pullback";
+  if (s.status === "waiting M5 BOS") return big ? "in the zone · waiting for the M5 entry BOS" : "waiting M5 BOS";
+  if (TAKEN.includes(s.status)) return "entry taken" + (s.result ? (s.result.closed ? " · closed " + usd(+s.result.pnl_usd || 0) : " · open") : "");
+  const w = s.why || "";                       // the same status can have two reasons: name the one the engine gave
+  if (s.status === "invalid" && w.includes("after running only")) return "failed · no run before the retrace";
+  if (s.status === "failed" && w.startsWith("the zone was lost")) return "failed · zone lost before the M5 BOS";
+  return "failed · " + (FAILED[s.status] || s.status);
+}
+function planTip(s) {
+  const pv = s.preview, tp = pv.target || {};
+  return `now: SL ${fmt(pv.stop)} · TP ${tp.price != null ? `${fmt(tp.price)} (${tp.rr}R, ${tp.label})` : "none (" + (tp.label || "no target") + ")"}`
+    + (pv.why ? `\n✗ would not trade: ${pv.why}` : "") + (s.aligned ? "" : "\nnote: against the H4/H1 bias (informational — not required for M15/M30 entries)");
+}
 function setupTip(s, KIND) {
   const e = s.bos || {}, up = s.side === "buy", fv = s.fvg;
   return [`${KIND} — ${s.tf} ${up ? "BUY" : "SELL"} setup ${fmt(s.poi.bottom)} – ${fmt(s.poi.top)}`,
-    `status: ${s.status}${s.why ? " — " + s.why : ""}${s.aligned === false && s.status === "waiting pullback" ? " (against the H1 bias)" : ""}`,
+    `${outcome(s, true)}${s.why ? " — " + s.why : ""}`,
+    s.preview && LIVE.includes(s.status) && !s.expired ? planTip(s) : "",
     typeOf(s) ? `entry: ${typeOf(s)}${s.parent && typeOf(s) !== "S&D H4" ? " (and S&D H4: inside an H4 zone)" : ""}` : s.tf === "H4" ? "S&D H4 zone: the entry comes from an M15 BOS / CHoCH inside it" : "",
     e.t ? `made by ${e.kind || "BOS"} ${up ? "↑" : "↓"} ${tfull(e.t / 1000)}: close ${fmt(e.close)} ${up ? "above" : "below"} the ${e.level_label || "swing"} ${fmt(e.level)}` : "",
     s.kind === "MB" ? "no supply/demand in the BOS move → mitigation block used"
@@ -356,6 +401,7 @@ function drawChart(cv, v, ch, big) {
   if (focus) levels.push(focus.poi.top, focus.poi.bottom, focus.entry);
   (focus?.plan ? [focus.plan.stop, focus.plan.target?.price, focus.plan.layer?.price] : []).forEach(x => x != null && levels.push(x));
   trades.forEach(t => levels.push(t.stop, t.tp, t.entry));
+  pick.forEach(({s, own}) => own && s.preview && LIVE.includes(s.status) && levels.push(s.preview.stop, s.preview.target?.price));
   levels.forEach(x => { if (x >= lo - span0 * 0.6 && x <= hi + span0 * 0.6) { lo = Math.min(lo, x); hi = Math.max(hi, x); } });
   const pad = (hi - lo) * 0.03; lo -= pad; hi += pad;
   const y = p => PT + LR + (hi - p) / (hi - lo) * (H - PT - PB - 2 * LR);
@@ -383,7 +429,10 @@ function drawChart(cv, v, ch, big) {
   const tags = [], tagQ = [], tagH = big ? 16 : 12;
   const tagAt = yy => { for (const dy of [0, tagH, -tagH, 2 * tagH, -2 * tagH, 3 * tagH, -3 * tagH]) { const c = yy + dy;
       if (c - tagH / 2 >= PT && c + tagH / 2 <= H - PB && !tags.some(t => Math.abs(t - c) < tagH)) { tags.push(c); return c; } } return yy; };
-  const hline = (p, x0, col, txt, dash, tip) => { if (p == null || p < lo || p > hi) return; const yy = Math.round(y(p)) + .5; g.setLineDash(dash || []); g.strokeStyle = col; g.lineWidth = big ? 1.5 : 1;
+  // pin: a trade / plan level off the chart still gets its tag, at the top or bottom edge with an arrow
+  const hline = (p, x0, col, txt, dash, tip, pin) => { if (p == null) return;
+    if (p < lo || p > hi) { if (pin) tagQ.push({yy: p > hi ? PT + tagH / 2 : H - PB - tagH / 2, col, txt: (p > hi ? "↑" : "↓") + txt}); return; }
+    const yy = Math.round(y(p)) + .5; g.setLineDash(dash || []); g.strokeStyle = col; g.lineWidth = big ? 1.5 : 1;
     g.beginPath(); g.moveTo(Math.max(PL, x0), yy); g.lineTo(W - PR, yy); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
     tagQ.push({yy, col, txt}); hit(Math.max(PL, x0), yy - 4, W - PR, yy + 4, tip, 1); };
   // last price first, so its tag keeps its place
@@ -408,7 +457,7 @@ function drawChart(cv, v, ch, big) {
   // setups after each BOS: supply / demand (or mitigation block) → the FVGs of the BOS move → entry 10 % into the chosen FVG.
   // Each chart shows its own timeframe's; the focus setup also on the faster charts. Big chart: every setup named;
   // small charts: the 6 newest / live ones, only the focus setup named
-    const waiting = s => s.status === "waiting pullback", inTrade = s => ["signal", "entered", "refused", "touched"].includes(s.status);
+    const waiting = s => LIVE.includes(s.status), inTrade = s => ["signal", "entered", "refused", "touched"].includes(s.status);
   const open = s => waiting(s) || s.status === "zone reached";      // an H4 zone price reached stays open for S&D H4
   let ownN = 0;
   pick.forEach(({s, own}) => {
@@ -439,31 +488,33 @@ function drawChart(cv, v, ch, big) {
       // David 2026-10-24: every FVG label names its timeframe (an H1 FVG on the M5 chart says "H1 FVG 2")
       if (own ? (big || (isF && s.fvgs.length > 1)) : tell)
         label(xf - 2, y((f.top + f.bottom) / 2), big ? `${s.tf} FVG ${k + 1}` : own ? String(k + 1) : `${s.tf} ${k + 1}`, used ? (strong ? "#ffd54f" : "#b39b4f") : "#8c7a3e", "right"); });
-    if (L.entry && strong && waiting(s)) { const ye = y(s.entry), xe = Math.max(PL, xt(s.fvg.t) - cw);   // David's SL/TP fix: an entered setup shows only the trade's ENTRY
-      g.strokeStyle = "#e6e9ef"; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(xe, ye); g.lineTo(x1, ye); g.stroke(); g.setLineDash([]);
-      hit(xe, ye - 4, x1, ye + 4, `entry ${fmt(s.entry)}: 10 % inside FVG ${s.fvg_pick} — taken when price comes back here (seen live)`, 2);
-      if (tell) label(Math.min(x1, W - PR) - 3, ye + (sell ? 8 : -7), `${own ? "" : s.tf + " "}entry ${fmt(s.entry)}`, "#e6e9ef", "right"); }
+    if (L.entry && waiting(s) && !s.expired && (strong || own)) { const ye = y(s.entry), xe = Math.max(PL, xt(s.fvg.t) - cw), ec = strong ? "#e6e9ef" : "#8a93a6";   // David's SL/TP fix: an entered setup shows only the trade's ENTRY
+      g.strokeStyle = ec; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(xe, ye); g.lineTo(x1, ye); g.stroke(); g.setLineDash([]);
+      hit(xe, ye - 4, x1, ye + 4, `entry ${fmt(s.entry)}: 10 % inside FVG ${s.fvg_pick} — taken when price comes back here (seen live)${s.preview ? "\n" + planTip(s) : ""}`, 2);
+      if (tell) label(Math.min(x1, W - PR) - 3, ye + (sell ? 8 : -7), `${own ? "" : s.tf + " "}entry ${fmt(s.entry)}`, ec, "right"); }
     if (L.entry && s.touch_t && own && s.touch_t / 1000 >= t0) { const xh = xt(s.touch_t) + cw / 2, yy = y(s.entry); g.strokeStyle = "#e6e9ef"; g.beginPath(); g.arc(xh, yy, big ? 5 : 3.5, 0, 7); g.stroke();
       hit(xh - 6, yy - 6, xh + 6, yy + 6, `price came back to the entry ${tfull(s.touch_t / 1000)} → ${s.status}`, 3); }
     if (tell && showBox) { const nameCol = strong ? (s.kind === "MB" ? "#cdb8ff" : sell ? "#ff8a80" : "#64ffda") : (s.kind === "MB" ? "#8d7fb3" : sell ? "#a86662" : "#4f9e94");
-      const st8 = s.status === "touched" ? `entry reached · ${s.tf} is chart only, not traded`            // say why it did not enter
-        : s.status === "zone reached" ? (big ? "price in the zone · waiting for an M15 BOS / CHoCH" : "in zone") : s.status;
-      label(Math.max(PL + 2, x0 + 2), y(sell ? s.poi.top : s.poi.bottom) + (sell ? -7 : 8), `${s.tf === tf ? "" : s.tf + " "}${KIND} · ${st8}`, nameCol); }
+      const ok = TAKEN.includes(s.status), bad = outcome(s, big).startsWith("failed");
+      label(Math.max(PL + 2, x0 + 2), y(sell ? s.poi.top : s.poi.bottom) + (sell ? -7 : 8), `${s.tf === tf ? "" : s.tf + " "}${KIND} · ${outcome(s, big)}`,
+        ok ? "#9ccc65" : bad ? (big ? "#c98a8a" : nameCol) : nameCol); }
   });
-  // trades and plans
+  // trades and plans: an open trade's entry / SL / TP as they are now (solid); each live setup's SL / TP if price came
+  // back to its entry now (dashed, the engine's own stop / target / checks, worked out again on every analysis)
   const plans = [];
   trades.forEach(t => plans.push({x0: xt(t.opened_ms), entry: t.entry, stop: t.stop, tp: t.tp,
     tp1: t.layer && t.layer.state === "filled" ? t.tp1 : null, layer: t.layer && ["pending", "filled"].includes(t.layer.state) ? t.layer.price : null}));
   if (!trades.length && focus?.plan) plans.push({x0: xt(focus.touch_t || 0), entry: focus.plan.entry, stop: focus.plan.stop, tp: focus.plan.target?.price, layer: focus.plan.layer?.price});
-  else if (!trades.length && focus && focus.status === "waiting pullback" && focus.preview && TFR[focus.tf] >= TFR[tf]) {   // what the trade would be: the engine's own stop / target / checks
-    const pv = focus.preview;
-    plans.push({x0: xt(focus.fvg.t), stop: pv.stop, tp: pv.target?.price, planned: true, why: pv.why, label: pv.target?.label}); }
-  if (L.trade) plans.forEach(p => { const dash = p.planned ? [2, 4] : [];
-    hline(p.entry, p.x0, "#e6e9ef", "ENTRY " + pf(p.entry), [], `normal entry ${pf(p.entry)}: the price it was filled at`);
-    hline(p.stop, p.x0, "#ef5350", (p.planned ? "SL~" : "SL ") + pf(p.stop), dash, p.planned ? `planned stop loss ${pf(p.stop)}: this setup's zone + 20 points${p.why ? "\n✗ no trade: " + p.why : ""}` : `stop loss ${pf(p.stop)}`);
-    hline(p.tp, p.x0, "#66bb6a", (p.planned ? "TP~" : "TP ") + pf(p.tp), dash, p.planned ? `planned target ${pf(p.tp)}: ${p.label} (the first untouched structure at ≥ 1:3)` : `target ${pf(p.tp)}`);
-    if (p.tp1) hline(p.tp1, p.x0, "#26c6da", "T1 " + pf(p.tp1), [5, 3], `Target 1 ${pf(p.tp1)}: halfway to the final target (layer management)`);
-    if (p.layer) hline(p.layer, p.x0, "#ffa726", "LY " + pf(p.layer), [5, 3], `dynamic layer ${pf(p.layer)} (1.5 % risk)`); });
+  pick.forEach(({s, own}) => { const pv = s.preview;
+    if (own && pv && waiting(s) && !s.expired) plans.push({x0: xt(s.fvg.t), stop: pv.stop, tp: pv.target?.price, planned: true, rule: pv.stop_rule,
+      label: pv.target?.label, rr: pv.target?.rr, why: pv.why || ""}); });   // the H4/H1 bias no longer blocks M15/M30 entries (David 2026-10-25)
+  plans.forEach(p => { if (!(p.planned ? L.entry : L.trade)) return;      // a live setup's SL / TP go with its entry mark, a trade's with "trade lines"
+    const dash = p.planned ? [2, 4] : [], no = p.why ? "\n✗ would not trade now: " + p.why : "";
+    hline(p.entry, p.x0, "#e6e9ef", "ENTRY " + pf(p.entry), [], `normal entry ${pf(p.entry)}: the price it was filled at`, true);
+    hline(p.stop, p.x0, "#ef5350", (p.planned ? "SL~" : "SL ") + pf(p.stop), dash, p.planned ? `planned stop loss ${pf(p.stop)} if price comes back now: ${p.rule || "this setup's zone + 20 points"}${no}` : `stop loss ${pf(p.stop)} (as it is now)`, true);
+    hline(p.tp, p.x0, "#66bb6a", (p.planned ? "TP~" : "TP ") + pf(p.tp), dash, p.planned ? `planned target ${pf(p.tp)} (${p.rr}R): ${p.label}${no}` : `target ${pf(p.tp)} (as it is now)`, true);
+    if (p.tp1) hline(p.tp1, p.x0, "#26c6da", "T1 " + pf(p.tp1), [5, 3], `Target 1 ${pf(p.tp1)}: halfway to the final target (layer management)`, true);
+    if (p.layer) hline(p.layer, p.x0, "#ffa726", "LY " + pf(p.layer), [5, 3], `dynamic layer ${pf(p.layer)} (1.5 % risk)`, true); });
   // candles on screen
   for (let i = Math.max(0, iA - 1); i <= Math.min(N - 1, iB + 1); i++) { const b = bars[i], x = xi(i), up = b[4] >= b[1], col = up ? "#26a69a" : "#ef5350";
     g.strokeStyle = col; g.beginPath(); g.moveTo(Math.round(x) + .5, y(b[2])); g.lineTo(Math.round(x) + .5, y(b[3])); g.stroke();
@@ -476,7 +527,9 @@ function drawChart(cv, v, ch, big) {
     hit(x - 6, yy - 8, x + 6, yy + 8, `${s.label || ""} swing ${s.kind} ${pf(s.price)} · ${tfull(s.t / 1000)} (2 bars each side)`, 3); });
   g.restore();
   tagQ.forEach(t => { const ty = tagAt(t.yy); g.fillStyle = t.col; g.fillRect(W - PR + 1, ty - tagH / 2, PR - 2, tagH); g.fillStyle = "#0b0e14";
-    g.font = (big ? "bold 11px" : "bold 9px") + " ui-monospace,monospace"; g.textBaseline = "middle"; g.fillText(t.txt, W - PR + 3, ty); });
+    g.font = (big ? "bold 11px" : "bold 9px") + " ui-monospace,monospace"; g.textBaseline = "middle";
+    if (g.measureText(t.txt).width > PR - 5) g.font = (big ? "bold 9px" : "bold 7px") + " ui-monospace,monospace";   // a long tag (pinned arrow) still fits
+    g.fillText(t.txt, W - PR + 3, ty); });
   [...sw].reverse().forEach(s => { if (!s.label || s.label.length !== 2) return; const hiS = s.kind === "high";
     label(xt(s.t) + cw / 2, y(s.price) + (hiS ? -1 : 1) * (big ? 17 : 15), s.label, hiS ? "#ff8a80" : "#64ffda", "center"); });
   // place the labels
@@ -509,7 +562,22 @@ function drawChart(cv, v, ch, big) {
   put(tr, trCol, bold);
   if (big && bwhy) put(bwhy, "#9aa3b2", thin);
   if (closed) put(closed, "#f5c542", thin);
-  if (big && !ALL_BREAKS && role !== "bias") put("BOS with a setup only · CHoCH all · superseded setups hidden", "#667085", thin);
+  // David 2026-10-25: in place of the old grey note, the current setup's rule check in order — structure first, then the FVG, then what it waits for
+  if (big && role !== "bias") {
+    const own = role === "zone" ? [] : pick.filter(p => p.own).map(p => p.s);
+    const cur = own.filter(s => LIVE.includes(s.status) && !s.expired && s.fvg).sort((a, b) => ((b.bos || {}).t || 0) - ((a.bos || {}).t || 0))[0];
+    const zone = pick.map(p => p.s).find(s => s.tf === "H4" && s.status === "zone reached");
+    if (cur) {
+      const up = cur.side === "buy", e = cur.bos || {};
+      put("now:", "#667085", thin);
+      if (cur.parent) put("H4 zone ✓", "#64ffda", thin);
+      put(`structure ✓ (${e.kind || "BOS"} ${up ? "↑" : "↓"})`, "#64ffda", thin);
+      put(`FVG ✓ (${cur.fvg_pick} of ${(cur.fvgs || []).length})`, "#64ffda", thin);
+      put(cur.status === "waiting pullback" ? "waiting: pullback into the FVG" : "price in the zone · waiting: the M5 entry BOS", "#f5c542", thin);
+    } else if (zone) {
+      put("now:", "#667085", thin); put("H4 zone ✓ price inside", "#64ffda", thin); put("waiting: an M15 BOS / CHoCH in the zone", "#f5c542", thin);
+    }
+  }
   cv._geo = {A, B, N, W, H, PL, PR, PT, PB, LR, cw, lo, hi, bars, pf, hits};
 }
 
@@ -588,7 +656,7 @@ window.addEventListener("resize", () => { VISIBLE.forEach(s => drawCard(s)); if 
 
 async function load() {
   try { OV = await api("/api/overview"); } catch (e) { $("#acct").textContent = "engine has not written its files yet…"; return; }
-  renderHeader(); renderBook(); renderSignals(); renderGrid();
+  renderHeader(); renderBook(); renderSignals(); renderGrid(); renderPnl();
   VISIBLE.forEach(s => fetchView(s));
 }
 renderFilters(); load(); setInterval(load, 10000);

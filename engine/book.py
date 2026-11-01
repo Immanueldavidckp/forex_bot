@@ -32,8 +32,9 @@ from typing import Dict, List, Optional
 
 from . import filters as FL
 from . import strategy as V
-from .config import (COMMANDS_FILE, ENGINE, JOURNAL_FILE, OVERVIEW_FILE, STATE_FILE, STRATEGY as S, VIEW_DIR,
-                     load_control, save_control)
+from . import profit as PR
+from .config import (COMMANDS_FILE, ENGINE, JOURNAL_FILE, OVERVIEW_FILE, PNL_FILE, STATE_FILE, STRATEGY as S,
+                     VIEW_DIR, load_control, save_control)
 from .feed import TF_MIN, Feed, mt5c, now_ms
 
 WAIT_M5 = "waiting M5 BOS"                     # new rules §18: retraced; the M5 entry BOS is the missing proof
@@ -77,6 +78,12 @@ def floor_step(x: float, step: float) -> float:
 def stops_gap(info: Dict) -> float:
     """The broker's minimum distance from the market for a stop, a target or a pending order (+ margin)."""
     return float(info.get("trade_stops_level") or 0) * float(info["point"]) * float(ENGINE["stops_level_margin"])
+
+
+
+def _side_of(p: Dict) -> str:
+    """MT5 position type 0 = buy, 1 = sell."""
+    return "buy" if int(p.get("type", 0)) == 0 else "sell"
 
 
 class Book:
@@ -129,7 +136,12 @@ class Book:
     def max_slots(self) -> int:
         """§35-37 max_running_trades; the structure filter layer caps it at FILTERS["MAX_POSITIONS"] (David 2026-10-25)."""
         m = int(S["max_running_trades"])
-        return min(m, int(FL.F["MAX_POSITIONS"])) if FL.enabled() else m
+        if FL.enabled():
+            cap = int(FL.F["MAX_POSITIONS"])
+            # David 2026-10-30 "no limit for trade and position": 0 = unlimited. The account is protected by
+            # the free-margin floor in profit.P, not by counting orders.
+            return 10 ** 9 if cap == 0 else min(m, cap)
+        return m
 
     def free_slots(self) -> int:
         """§35-37: open positions + pending layers (a pending layer would become a position) < max."""
@@ -389,7 +401,19 @@ class Book:
             return f"spread {ask - bid:g} is over {ENGINE['max_spread_frac']:g} of the stop distance {dist:g}"
         if self.free_slots() < 1:
             return f"all {self.max_slots()} position slots are in use"
+        # David 2026-10-30 lifted every position cap, so the account is guarded by margin instead of by a
+        # count: with 0.01 lots on 15 correlated symbols the real risk is a stop-out, not a long book.
+        if self.margin_low():
+            return f"free margin under {PR.P['MIN_FREE_MARGIN_PCT']:g} % of equity"
+        if PR.P["NO_OPPOSING_SAME_SYMBOL"]:
+            other = "buy" if side == "sell" else "sell"
+            if any(p.get("symbol") == sym and _side_of(p) == other for p in self.positions):
+                return f"a {other} is already open on {sym} (both sides pay the spread for no net exposure)"
         return None
+
+    def margin_low(self) -> bool:
+        eq, free = self.account.get("equity"), self.account.get("margin_free")
+        return bool(eq and free is not None and float(free) < float(eq) * PR.P["MIN_FREE_MARGIN_PCT"] / 100)
 
     # ── the structure filter layer (engine/filters.py, David 2026-10-25) ──
     def gates(self, rec: Dict, plan: Dict, entry: float, bid: float, ask: float, bars: List[Dict], h1: List[Dict],
@@ -539,6 +563,15 @@ class Book:
                 inv = t["stop0"] - float(S["sl_buffer_points"]) * float(info.get("point") or 0) * (1 if side == "sell" else -1)
                 if any((side == "sell" and b["c"] > inv) or (side == "buy" and b["c"] < inv) for b in tfb if b["t"] > t["opened_ms"] - 900_000):
                     self.cancel_layer(t, "setup invalidated")
+            # David 2026-10-30: a 0.01-lot overnight hold costs more than the trade can win on the dear side
+            # (gold long -$0.58..0.96 a night, USDJPY short -$0.28, crypto 20 %/yr), so the book goes flat
+            # before the swap is charged rather than paying it.
+            if PR.P["NO_OVERNIGHT"] and PR.minutes_to_swap(now_ms()) <= 1 and not PR.in_rollover(now_ms()):
+                for p_ in mine:
+                    r = mt5c.close(int(p_["ticket"]), "V5 flat before swap")
+                    journal("flat_before_swap", id=sid, symbol=sym, ticket=p_["ticket"], ok=bool(r))
+                log(f"{sym}: closed before the {PR.P['FLAT_BEFORE_SWAP_UTC']} UTC swap cut-off")
+                continue
             self.trail(t, mine)
 
     def trail(self, t: Dict, mine: List[Dict]) -> None:
@@ -651,6 +684,10 @@ class Book:
             save_control(trading=bool(c.get("on")))
             journal("trading", on=bool(c.get("on")))
             log(f"dashboard: trading {'ON' if c.get('on') else 'OFF'}")
+        elif a == "kronos":
+            save_control(kronos=bool(c.get("on")))
+            journal("kronos", on=bool(c.get("on")), by="dashboard")
+            log(f"dashboard: kronos trading {'ON' if c.get('on') else 'OFF'}")
         elif a == "mt5":
             self.mt5_ops.append(str(c.get("op")))
             journal("mt5_command", op=c.get("op"), by="dashboard")
@@ -663,6 +700,13 @@ class Book:
                 self.cancel_layer(t, "cancelled from the dashboard")
             journal("cancel_setup", id=c.get("id"))
             log(f"dashboard: cancel setup {c.get('id')}")
+        elif a == "kronos_close":                    # a Kronos position (its own magic: not in self.positions)
+            from .config import KRONOS
+            tk = c.get("ticket")
+            if any(p["ticket"] == tk for p in mt5c.positions(magic=KRONOS["MAGIC"])):
+                r = mt5c.close(int(tk), "KRN closed (dashboard)")
+                journal("close", ticket=tk, ok=r.get("ok"), by="dashboard", kronos=True)
+                log(f"dashboard: close Kronos #{tk} ok={r.get('ok')} {r.get('comment')}")
         elif a in ("close_setup", "close_ticket"):
             t = self.trades.get(c.get("id")) if a == "close_setup" else None
             tickets = [c.get("ticket")] if a == "close_ticket" else \
@@ -683,7 +727,7 @@ class Book:
         used = {(r["tf"], r["side"], r["bos"]["t"]) for r in rows}      # BOS that made a setup (zone or MB + FVG)
         for tf in ENGINE["chart_tfs"]:
             bs = f.get(sym, tf)                    # every bar the engine has: the big chart scrolls back through them
-            bars[tf] = [[x["t"] // 1000, x["o"], x["h"], x["l"], x["c"]] for x in bs]
+            bars[tf] = [[x["t"] // 1000, x["o"], x["h"], x["l"], x["c"], x.get("v", 0)] for x in bs]
             st = structs.get(tf) or V.structure(f.completed(sym, tf))
             t_from = bs[0]["t"] if bs else 0
             marks[tf] = [{k: s[k] for k in ("t", "price", "kind", "label")} for s in st["swings"] if s["t"] >= t_from]
@@ -728,7 +772,27 @@ class Book:
                             "result": result(self.trades.get(r.get("trade_id") or ""))} for v in per_tf.values() for r in v],
                 "trades": open_t}
 
+    def refresh_pnl(self, every_sec: int = 300) -> None:
+        """David 2026-10-30 (24/7 run): the engine writes the profit report, since it is MT5's only user."""
+        now = now_ms()
+        if now - getattr(self, "_pnl_at", 0) < every_sec * 1000:
+            return
+        self._pnl_at = now
+        try:
+            from . import pnl as PN
+            r0 = PN.run_start()
+            since = r0["started_ms"] if r0 else None
+            days = max(1.0, (now - since) / 86_400_000 + 0.5) if since else 7.0
+            rep = PN.report(min(days, 30.0), since)
+            rep["verdicts"] = {str(m): PN.verdict(v) for m, v in rep["by_magic"].items()}
+            rep["all_verdict"] = PN.verdict(rep["all"])
+            rep["run"] = r0
+            _write(PNL_FILE, rep)
+        except Exception as e:                      # a report must never stop the engine trading
+            log(f"pnl report failed: {e}")
+
     def overview(self, trading: bool, mt5: Optional[Dict] = None) -> None:
+        self.refresh_pnl()
         syms = []
         for s in self.feed.symbols:
             v = self.views.get(s)

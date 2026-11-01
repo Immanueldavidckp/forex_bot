@@ -16,6 +16,9 @@ Requests ({"op": ...}):
   login     login [server] [password]       log in (no password: the terminal's saved one)
   rates     symbol tf count [start]         bars, newest last: [time, o, h, l, c, tick_volume, real_volume, spread]
                                             (server clock; start = bar offset, 0 = from the newest)
+  ticks     symbol from_s [to_s] path       every tick from from_s to to_s (server clock, seconds; to_s default: now),
+                                            saved with numpy at path (a Windows path): time_msc, bid, ask, flags
+                                            → {n, first_msc, last_msc} (millions of ticks do not go through JSON)
   positions [symbol] [magic]                open positions
   order     symbol side volume [sl tp magic comment deviation check_only]
                                             market order (buy | sell); SL/TP ride on the order, or are set
@@ -139,6 +142,20 @@ def op_rates(q):
         raise ValueError(f"no {q.get('tf')} bars for {q['symbol']}: {mt5.last_error()}")
     return [[int(b["time"]), float(b["open"]), float(b["high"]), float(b["low"]), float(b["close"]),
              int(b["tick_volume"]), int(b["real_volume"]), int(b["spread"])] for b in r]
+
+
+def op_ticks(q):
+    import numpy as np
+    _symbol(q["symbol"])
+    to_s = int(q["to_s"]) if q.get("to_s") else int(time.time()) + 3 * 86400    # past any server clock offset = up to now
+    t = mt5.copy_ticks_range(q["symbol"], int(q["from_s"]), to_s, mt5.COPY_TICKS_ALL)
+    if t is None:
+        raise ValueError(f"no ticks for {q['symbol']}: {mt5.last_error()}")
+    out = np.empty(len(t), dtype=[("time_msc", "<i8"), ("bid", "<f8"), ("ask", "<f8"), ("flags", "<u4")])
+    for k in out.dtype.names:
+        out[k] = t[k]
+    np.save(q["path"], out)
+    return {"n": int(len(t)), "first_msc": int(t["time_msc"][0]) if len(t) else None, "last_msc": int(t["time_msc"][-1]) if len(t) else None}
 
 
 def op_positions(q):

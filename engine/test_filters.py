@@ -179,6 +179,7 @@ def test_signal_with_the_layer_refuses_at_the_first_gate_and_logs(env, monkeypat
     from engine.test_book import _bos_setup
     bk, fake, feed = env
     monkeypatch.setattr(FL, "FORCE", True)
+    monkeypatch.setattr(FL.PR, "cost_gate", lambda *a, **k: (True, "", {}))
     got = []
     monkeypatch.setattr(FL, "SINK", got.append)
     rec, b = _bos_setup(bk, feed, fake)
@@ -201,7 +202,13 @@ def test_position_cap_and_switch(env, monkeypatch):  # noqa: F811
     assert FL.enabled() == FL.STRUCTURE_FILTERS_ENABLED
 
 
+def _no_cost_gate(monkeypatch):
+    """G9 is about the spread and the clock, not the structure: hold it open for the structure tests."""
+    monkeypatch.setattr(FL.PR, "cost_gate", lambda *a, **k: (True, "", {}))
+
+
 def test_the_test_profile_takes_2r_to_the_nearest_structure(monkeypatch):
+    _no_cost_gate(monkeypatch)
     b, rec, touch = trend([(21.0, 2), (14.0, 5), (13.0, 2)])          # the move ends at 21.05: RR 2.18 to it
     r = FL.evaluate(rec, ctx_for(b, rec, touch))
     assert r["fails"] == ["G5", "G6"] and r["profile"] == "strict" and r["values"]["rr"] == pytest.approx(2.18)

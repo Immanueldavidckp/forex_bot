@@ -1,0 +1,56 @@
+== GOLD M15: 3000 bars  2026-09-14 12:30 .. 2026-10-29 02:15 IST, 47 major events (26 BOS / 21 CHoCH)
+   displacement candidates 720 (24.0 per 100 bars); VALID 71 (2.37 per 100 bars): origin (primary box) 35, last (= OB) 35, nested 14
+   kinds of valid: DBD 12, DBR 10, RBD 8, RBR 22, xBD 12, xBR 7
+   single-candle (no base) among valid: 23, refined: 15
+   status now: dead 52, flipped 4, fresh 9, spent 1, tested 5
+   live (fresh/tested, not superseded by a CHoCH): 0; fresh but superseded: 9  with FVG in the leg-out: 65
+   score of valid: mean 7.2, >=7: 51, <=4: 1
+   filtered: no major BOS / CHoCH from this leg-out: 333; price came back to the box: 151; box taller than 1.5 ATR after refinement: 126; overlaps an earlier box of the same break: 24; no base candle and no opposite candle before the leg-out: 11; base before the move's origin: 4
+   timing: structure 9 ms, zones 54 ms
+   supply RBD                              base 2026-10-22 18:45 IST x1  box 4074.6-4081.5 (entry 4076.7, 0.67 ATR)  leg-out x2.45 body 82%  run 4.36 boxes  FVG yes  major BOS supply @ 2026-10-22 19:30  status tested (touches 1, depth 100%)  score 8 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 1, 'trend': 1, 'curve': 0, 'margin': 1}
+   demand xBR                              base 2026-10-27 15:45 IST x1  box 3993.3-3997.4 (entry 3996.2, 0.66 ATR)  leg-out x5.26 body 89%  run 7.55 boxes  FVG yes  major CHoCH demand @ 2026-10-27 19:45  status fresh (touches 0, depth 0%)  score 10 {'departure': 3, 'fvg': 1, 'time_at_base': 2, 'freshness': 2, 'trend': 0, 'curve': 1, 'margin': 1}
+   demand DBR (single-candle)              base 2026-10-28 00:00 IST x1  box 4054.4-4056.6 (entry 4055.5, 0.5 ATR)  leg-out x2.49 body 98%  run 3.51 boxes  FVG yes  major BOS demand @ 2026-10-28 05:30  status dead (touches 1, depth 39%)  score 8 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 1, 'trend': 1, 'curve': 0, 'margin': 1}
+   supply DBD (refined to the opposite candle) base 2026-10-28 06:45 IST x1  box 4056.8-4062.8 (entry 4058.4, 1.26 ATR)  leg-out x2.45 body 64%  run 2.35 boxes  FVG yes  major CHoCH supply @ 2026-10-28 07:15  status flipped (touches 3, depth 100%)  score 6 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 0, 'trend': 0, 'curve': 1, 'margin': 0}
+
+== GOLD H1: 3000 bars  2026-04-29 03:30 .. 2026-10-29 01:30 IST, 25 major events (13 BOS / 12 CHoCH)
+   displacement candidates 700 (23.3 per 100 bars); VALID 57 (1.90 per 100 bars): origin (primary box) 21, last (= OB) 21, nested 21
+   kinds of valid: DBD 19, DBR 6, RBD 9, RBR 13, xBD 6, xBR 4
+   single-candle (no base) among valid: 23, refined: 4
+   status now: dead 42, flipped 1, fresh 11, spent 1, tested 2
+   live (fresh/tested, not superseded by a CHoCH): 10; fresh but superseded: 2  with FVG in the leg-out: 50
+   score of valid: mean 7.6, >=7: 42, <=4: 0
+   filtered: no major BOS / CHoCH from this leg-out: 311; price came back to the box: 200; box taller than 1.5 ATR after refinement: 101; overlaps an earlier box of the same break: 16; base before the move's origin: 9; no base candle and no opposite candle before the leg-out: 6
+   timing: structure 6 ms, zones 35 ms
+   supply DBD (single-candle)              base 2026-09-04 15:30 IST x1  box 4465.4-4476.4 (entry 4465.6, 0.84 ATR)  leg-out x9.03 body 76%  run 9.09 boxes  FVG yes  major CHoCH supply @ 2026-09-14 17:30  status fresh (touches 0, depth 0%)  score 9 {'departure': 3, 'fvg': 1, 'time_at_base': 2, 'freshness': 2, 'trend': 0, 'curve': 1, 'margin': 0}
+   supply RBD                              base 2026-09-23 03:30 IST x3  box 4355.1-4369.3 (entry 4357.5, 0.91 ATR)  leg-out x2.7 body 80%  run 3.3 boxes  FVG yes  major BOS supply @ 2026-09-28 05:30  status fresh (touches 0, depth 0%)  score 9 {'departure': 3, 'fvg': 1, 'time_at_base': 1, 'freshness': 2, 'trend': 1, 'curve': 1, 'margin': 0}
+   supply DBD                              base 2026-10-07 11:30 IST x2  box 4126.9-4139.5 (entry 4128.9, 1.23 ATR)  leg-out x1.85 body 63%  run 4.81 boxes  FVG yes  major BOS supply @ 2026-10-07 17:30  status dead (touches 2, depth 100%)  score 5 {'departure': 2, 'fvg': 1, 'time_at_base': 1, 'freshness': 0, 'trend': 1, 'curve': 0, 'margin': 0}
+   supply RBD                              base 2026-10-12 08:30 IST x1  box 4201.6-4208.2 (entry 4203.2, 0.56 ATR)  leg-out x1.55 body 78%  run 7.0 boxes  FVG yes  major BOS supply @ 2026-10-22 16:30  status fresh (touches 0, depth 0%)  score 10 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 2, 'trend': 1, 'curve': 1, 'margin': 1}
+
+== EURUSD M15: 3000 bars  2026-09-15 19:30 .. 2026-10-29 02:15 IST, 29 major events (20 BOS / 9 CHoCH)
+   displacement candidates 755 (25.2 per 100 bars); VALID 57 (1.90 per 100 bars): origin (primary box) 24, last (= OB) 24, nested 18
+   kinds of valid: DBD 19, DBR 5, RBD 8, RBR 11, xBD 10, xBR 4
+   single-candle (no base) among valid: 13, refined: 10
+   status now: dead 37, flipped 4, fresh 11, spent 1, tested 4
+   live (fresh/tested, not superseded by a CHoCH): 2; fresh but superseded: 10  with FVG in the leg-out: 51
+   score of valid: mean 7.8, >=7: 43, <=4: 1
+   filtered: no major BOS / CHoCH from this leg-out: 372; price came back to the box: 151; box taller than 1.5 ATR after refinement: 132; overlaps an earlier box of the same break: 22; no base candle and no opposite candle before the leg-out: 17; base before the move's origin: 4
+   timing: structure 6 ms, zones 36 ms
+   supply RBD (single-candle)              base 2026-10-26 22:45 IST x1  box 1.119-1.1195 (entry 1.119, 1.18 ATR)  leg-out x1.67 body 98%  run 2.93 boxes  FVG yes  major BOS supply @ 2026-10-27 04:30  status fresh (touches 0, depth 0%)  score 8 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 2, 'trend': 1, 'curve': 0, 'margin': 0}
+   supply DBD (single-candle)              base 2026-10-27 11:30 IST x1  box 1.1165-1.1169 (entry 1.1167, 1.35 ATR)  leg-out x1.82 body 93%  run 4.11 boxes  FVG yes  major BOS supply @ 2026-10-27 12:15  status tested (touches 2, depth 100%)  score 6 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 0, 'trend': 1, 'curve': 0, 'margin': 0}
+   supply xBD (single-candle)              base 2026-10-27 23:00 IST x1  box 1.1137-1.1141 (entry 1.1138, 0.72 ATR)  leg-out x4.07 body 87%  run 1.4 boxes  FVG yes  major BOS supply @ 2026-10-27 23:15  status dead (touches 3, depth 77%)  score 7 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 0, 'trend': 1, 'curve': 0, 'margin': 1}
+   demand DBR                              base 2026-10-28 12:30 IST x1  box 1.1113-1.1116 (entry 1.1115, 1.1 ATR)  leg-out x4.4 body 86%  run 4.86 boxes  FVG yes  major CHoCH demand @ 2026-10-28 17:30  status fresh (touches 0, depth 0%)  score 10 {'departure': 3, 'fvg': 1, 'time_at_base': 2, 'freshness': 2, 'trend': 0, 'curve': 1, 'margin': 1}
+
+== EURUSD H1: 3000 bars  2026-05-07 01:30 .. 2026-10-29 01:30 IST, 28 major events (19 BOS / 9 CHoCH)
+   displacement candidates 741 (24.7 per 100 bars); VALID 51 (1.70 per 100 bars): origin (primary box) 26, last (= OB) 26, nested 10
+   kinds of valid: DBD 15, DBR 3, RBD 8, RBR 13, xBD 9, xBR 3
+   single-candle (no base) among valid: 14, refined: 12
+   status now: dead 29, flipped 3, fresh 14, spent 1, tested 4
+   live (fresh/tested, not superseded by a CHoCH): 2; fresh but superseded: 13  with FVG in the leg-out: 49
+   score of valid: mean 7.8, >=7: 45, <=4: 0
+   filtered: no major BOS / CHoCH from this leg-out: 312; price came back to the box: 188; box taller than 1.5 ATR after refinement: 167; overlaps an earlier box of the same break: 15; no base candle and no opposite candle before the leg-out: 8
+   timing: structure 6 ms, zones 33 ms
+   supply DBD                              base 2026-10-14 16:30 IST x1  box 1.1188-1.1197 (entry 1.1189, 1.43 ATR)  leg-out x17.94 body 89%  run 8.08 boxes  FVG yes  major BOS supply @ 2026-10-14 17:30  status dead (touches 1, depth 100%)  score 9 {'departure': 3, 'fvg': 1, 'time_at_base': 2, 'freshness': 1, 'trend': 1, 'curve': 0, 'margin': 1}
+   demand RBR                              base 2026-10-15 02:30 IST x1  box 1.1149-1.1156 (entry 1.1156, 0.41 ATR)  leg-out x1.57 body 91%  run 12.91 boxes  FVG yes  major CHoCH demand @ 2026-10-15 07:30  status dead (touches 1, depth 87%)  score 7 {'departure': 2, 'fvg': 1, 'time_at_base': 2, 'freshness': 1, 'trend': 0, 'curve': 1, 'margin': 0}
+   demand xBR (single-candle)              base 2026-10-16 05:30 IST x1  box 1.1209-1.1213 (entry 1.1212, 0.42 ATR)  leg-out x5.42 body 64%  run 12.77 boxes  FVG yes  major BOS demand @ 2026-10-16 13:30  status dead (touches 1, depth 18%)  score 9 {'departure': 3, 'fvg': 1, 'time_at_base': 2, 'freshness': 1, 'trend': 1, 'curve': 0, 'margin': 1}
+   supply DBD                              base 2026-10-26 13:30 IST x2  box 1.1203-1.1216 (entry 1.1204, 1.49 ATR)  leg-out x2.23 body 62%  run 2.19 boxes  FVG yes  major CHoCH supply @ 2026-10-26 18:30  status fresh (touches 0, depth 0%)  score 8 {'departure': 2, 'fvg': 1, 'time_at_base': 1, 'freshness': 2, 'trend': 0, 'curve': 1, 'margin': 1}
+

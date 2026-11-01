@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kronos Trades</title>
+<style>
+:root{--bg:#0b0e14;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
+--up:#26a69a;--down:#ef5350;--good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.num{font-variant-numeric:tabular-nums}a{color:var(--accent)}
+header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.96);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+h1{font-size:15px;margin:0;letter-spacing:.04em}h1 b{color:var(--accent)}
+.kv{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink2)}.kv b{color:var(--ink)}
+button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}button.arm{background:#5a2a2e;color:#fff}button[aria-pressed=true]{background:#1f2a44;border-color:var(--accent)}
+.toggle.on{background:#123a2c;border-color:var(--good);color:var(--good)}.toggle.off{color:var(--warn)}
+section{padding:12px 16px}section h2{font-size:12px;letter-spacing:.08em;color:var(--ink2);margin:0 0 8px;text-transform:uppercase}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--ink3);font-weight:500}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+#board tr{cursor:pointer}#board tr:hover td{background:#161c29}
+.empty{color:var(--ink3);padding:8px}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.muted{color:var(--ink3)}
+.note{color:var(--ink3);font-size:12px;padding:0 16px;margin:10px 0 0}.note b{color:var(--ink2)}
+.meter{display:inline-block;position:relative;width:90px;height:8px;border-radius:4px;background:#1b2130;vertical-align:middle;margin-right:6px}
+.meter i{position:absolute;top:0;bottom:0;border-radius:4px}.meter b{position:absolute;top:-2px;bottom:-2px;width:1px;background:#4a5470}
+.dec{max-width:420px;overflow:hidden;text-overflow:ellipsis}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.card.trade{border-color:#2d4b8a}
+.ch{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line)}
+.sym{font-weight:700;font-size:14px}.mk{font-size:11px;color:var(--ink3);text-transform:uppercase;margin-left:4px}
+.badge{border-radius:999px;padding:2px 8px;font-size:12px;border:1px solid var(--line)}
+.b-buy{background:rgba(38,166,154,.15);border-color:rgba(38,166,154,.6);color:#7ee0d3}.b-sell{background:rgba(239,83,80,.15);border-color:rgba(239,83,80,.6);color:#ffaaa8}.b-none{color:var(--ink3)}
+.why{font-size:12px;color:var(--ink2);padding:6px 10px 0}.rec{font-size:12px;color:var(--ink3);padding:2px 10px 8px}
+.card canvas{display:block;width:100%;height:190px;background:#0e121b;cursor:zoom-in}
+pre{margin:0;padding:10px 12px;color:var(--ink2);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
+#modal{position:fixed;inset:0;background:rgba(5,7,11,.9);display:none;z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+#modal.show{display:flex}#modal .mh{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:min(1500px,96vw)}#modal .mh b{font-size:15px}
+#modal .grow{flex:1}#modal .mc{position:relative;width:min(1500px,96vw);height:min(780px,76vh)}
+#mcv{position:absolute;inset:0;width:100%;height:100%;background:#0e121b;border:1px solid var(--line);border-radius:8px;cursor:crosshair;touch-action:none}
+#mread{font-size:12px;color:var(--ink2);white-space:pre-wrap;min-height:18px}#modal .mhint{width:min(1500px,96vw);color:var(--ink3);font-size:12px}
+@media (max-width:700px){header{padding:8px}section{padding-left:8px;padding-right:8px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1><b>KRONOS</b> ON V5</h1>
+  <a href="/">← V5 engine</a>
+  <div class="kv num" id="state">loading…</div>
+  <button id="kronos-toggle" class="toggle off" title="Kronos sends orders only when this is on AND the engine's trading is on">Kronos …</button>
+</header>
+<p class="note" id="rule"></p>
+<section><h2>All symbols — strongest agreement first (click a row or a chart for the big chart)</h2>
+<div class="tw"><table><thead><tr><th>Symbol</th><th title="bid now, and its move since the close the forecast was made from">Now</th><th>P up</th><th>Median move (2 h)</th><th>Decision</th><th>Live record</th><th>Trade</th></tr></thead><tbody id="board"></tbody></table></div></section>
+<section><h2>Forecasts — last 24 h of M15 and the next 2 h (blue: Kronos median, band: 10–90 % of the paths)</h2><div class="grid" id="cards"></div></section>
+<section><h2>Claude's MT5 trades — taken where the chart trend and Kronos agree</h2>
+<p class="note" id="c-note" style="padding:0;margin:0 0 8px"></p>
+<div class="tw"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>SL</th><th>TP</th><th>Now</th><th>P&amp;L</th><th>Opened</th><th>Planned exit</th><th>Why</th></tr></thead><tbody id="c-open"></tbody></table></div>
+<div class="tw" style="margin-top:8px"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>Exit</th><th>How</th><th>P&amp;L</th><th>Opened</th><th>Closed</th><th>Why</th></tr></thead><tbody id="c-closed"></tbody></table></div></section>
+<section><h2>Open Kronos trades</h2><div class="tw"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>SL</th><th>TP</th><th>Now</th><th>P&amp;L</th><th>Opened</th><th>Time exit</th><th>P up</th><th></th></tr></thead><tbody id="open"></tbody></table></div></section>
+<section><h2>Closed Kronos trades</h2><div class="tw"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>Exit</th><th>Why</th><th>P&amp;L</th><th>Opened</th><th>Closed</th></tr></thead><tbody id="closed"></tbody></table></div></section>
+<section><h2>Out-of-sample test before going live (kronos/evaluate.py)</h2><div class="tw"><pre id="report">…</pre></div></section>
+
+<div id="modal" role="dialog" aria-modal="true">
+  <div class="mh"><b id="mtitle"></b><span id="msub" class="muted num"></span><span class="grow"></span>
+    <button id="m-paths" aria-pressed="true" title="every one of the 16 forecast paths">paths</button>
+    <button id="m-band" aria-pressed="true" title="the 10–90 % range of the paths at each future bar">10–90 % band</button>
+    <button id="m-past" aria-pressed="true" title="Kronos' earlier forecasts on these candles: tradeable ones (≥ 75 % agree) → all → off">past: tradeable</button>
+    <button id="mclose">close</button></div>
+  <div class="mh"><span id="mread" class="num"></span></div>
+  <div class="mc"><canvas id="mcv"></canvas></div>
+  <div class="mhint">mouse wheel = zoom · drag = scroll back (512 bars) · double-click or 0 = back to now · ← → scroll · Esc = close · past forecasts: <span class="good">green</span> = the direction came true 2 h later, <span class="bad">red</span> = wrong, grey = not known yet · ▲▼ = trades (Kronos' and Claude's)</div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const IST_MS = 5.5 * 3600e3, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ist = ms => { if (!ms) return "–"; const d = new Date(ms + IST_MS); return d.toISOString().slice(5, 16).replace("T", " ") + " IST"; };
+const ago = ms => { if (!ms) return "never"; const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "just now" : m < 120 ? m + " min ago" : Math.round(m / 60) + " h ago"; };
+const fmt = (x, dg) => x == null ? "–" : Number(x).toFixed(dg ?? 5);
+const usd = x => x == null ? "–" : `<span class="${x > 0 ? "good" : x < 0 ? "bad" : ""}">${x > 0 ? "+" : ""}$${Number(x).toFixed(2)}</span>`;
+let V = null, CH = null;
+async function api(path, opts) { const r = await fetch(path, opts); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+async function cmd(body) { return api("/api/cmd", {method:"POST", headers:{"Content-Type":"application/json","X-V5":"1"}, body: JSON.stringify(body)}); }
+function armed(btn, label, action) {        // two clicks: the first arms for 3 s (no browser dialogs)
+  if (btn.classList.contains("arm")) { btn.classList.remove("arm"); action(); return; }
+  const old = btn.textContent; btn.classList.add("arm"); btn.textContent = label;
+  setTimeout(() => { btn.classList.remove("arm"); btn.textContent = old; }, 3000);
+}
+function atr(b, n = 14) {                   // bars [t, o, h, l, c]
+  let s = 0, k = 0;
+  for (let i = Math.max(1, b.length - n); i < b.length; i++) { s += Math.max(b[i][2], b[i - 1][4]) - Math.min(b[i][3], b[i - 1][4]); k++; }
+  return k ? s / k : 0;
+}
+const agree = s => s.signal ? Math.max(s.signal.p_up, 1 - s.signal.p_up) : 0;
+const NO_CLAUDE = {open: [], closed: [], totals: {n: 0, won: 0, pnl_usd: 0}};
+// Kronos' open trades + Claude's (who: "Claude") on one symbol; closed = the finished ones instead
+const tradesOf = (sym, closed) => [...(closed ? V.closed : V.open).filter(x => x.symbol === sym),
+  ...((V.claude || NO_CLAUDE)[closed ? "closed" : "open"]).filter(x => x.symbol === sym).map(x => ({...x, who: "Claude"}))];
+const levels = tr => [tr.sl, tr.tp].filter(p => p != null);
+// the live quote + forming candle (engine, every loop ≈ 15 s); stale = no new tick for 5 min (market closed)
+const liveOf = s => s && s.live && s.live.bar && s.live.bid != null ? s.live : null;
+const staleQ = lv => !lv.t_ms || Date.now() - lv.t_ms > 5 * 60e3;
+function liveIndex(bars, lv) {             // slot of the forming candle after the closed bars, or -1
+  if (!lv || !bars.length) return -1;
+  const k = Math.round((lv.bar[0] - bars[bars.length - 1][0]) / 900);
+  return k >= 1 ? bars.length - 1 + k : -1;
+}
+function sigIndex(bars, sg) {              // the closed bar the forecast was made from (the last one, unless a newer bar is in)
+  if (!sg) return bars.length - 1;
+  for (let i = bars.length - 1; i >= 0; i--) if (bars[i][0] === sg.bar_t / 1000) return i;
+  return bars.length - 1;
+}
+function priceTag(g, x, w, y, text, col) { g.fillStyle = col; g.fillRect(x, y - 9, w, 18); g.fillStyle = "#0b0e14"; g.font = "bold 11px ui-sans-serif,system-ui"; g.fillText(text, x + 4, y + 4); g.font = "11px ui-sans-serif,system-ui"; }
+
+// ── the page ──
+function render() {
+  const v = V, c = v.config, t = v.totals, cl = v.claude || NO_CLAUDE;
+  const fresh = v.service_ms && Date.now() - v.service_ms < 40 * 60e3;
+  $("#state").innerHTML = `<span>forecaster <b class="${fresh ? "good" : "warn"}">${fresh ? "running" : "no fresh forecast"}</b> (last ${ago(v.service_ms)})</span>`
+    + `<span>engine trading <b class="${v.trading ? "good" : "warn"}">${v.trading ? "ON" : "off"}</b></span>`
+    + `<span>${v.symbols.length} symbols</span><span>Kronos open <b>${v.open.length}</b>${c.MAX_POSITIONS ? "/" + c.MAX_POSITIONS : " (no limit)"}</span>`
+    + `<span>closed <b>${t.n}</b> (won ${t.won}) P&amp;L <b>${usd(t.pnl_usd)}</b></span>`
+    + `<span>Claude open <b>${cl.open.length}</b> · closed ${cl.totals.n} (won ${cl.totals.won}) P&amp;L <b>${usd(cl.totals.pnl_usd)}</b></span>`;
+  const b = $("#kronos-toggle");
+  b.className = "toggle " + (v.kronos_on ? "on" : "off");
+  b.textContent = v.kronos_on ? "Kronos trading ON" : "Kronos trading off";
+  $("#rule").innerHTML = `<b>Rule:</b> Kronos-base reads the last ${c.CONTEXT} ${c.TF} bars and draws ${c.PATHS} paths for the next ${c.HORIZON} bars. `
+    + `≥ ${Math.round(c.P_MIN * 100)} % of the paths on one side and a median move ≥ ${c.MIN_MOVE_SPREAD_X} × spread → market order at the minimum lot, `
+    + `SL ${c.SL_ATR} × ATR, TP ${c.TP_ATR} × ATR, closed after ${c.HOLD_BARS} bars. `
+    + `${c.MAX_POSITIONS ? "At most " + c.MAX_POSITIONS + " open" : "No limit on open trades"}${c.MAX_PER_SYMBOL ? ", " + c.MAX_PER_SYMBOL + " per symbol" : " — every passing forecast is its own trade, also on a symbol already in a trade"}. Magic ${c.MAGIC}, demo only. `
+    + `<b class="warn">The out-of-sample test found no edge so far (bottom of the page)</b> — this is a live test, not a proven strategy.`;
+  const syms = [...v.symbols].sort((a, b) => (!!tradesOf(b.symbol).length - !!tradesOf(a.symbol).length) || agree(b) - agree(a));
+  $("#board").innerHTML = syms.map(s => {
+    const sg = s.signal, d = s.decision, r = s.record, trs = tradesOf(s.symbol), a = atr(s.bars);
+    const lv = liveOf(s), nowTd = `<td title="${lv ? "bid / ask " + fmt(lv.bid, s.digits) + " / " + fmt(lv.ask, s.digits) + " · " + ist(lv.t_ms) : ""}">`
+      + (lv ? `<b class="${staleQ(lv) ? "muted" : ""}">${fmt(lv.bid, s.digits)}</b>` + (sg ? ` <span class="${lv.bid > sg.last ? "good" : lv.bid < sg.last ? "bad" : "muted"}">${(lv.bid >= sg.last ? "+" : "") + ((lv.bid / sg.last - 1) * 1e4).toFixed(1)} bps</span>` : "") : "–") + `</td>`;
+    if (!sg) return `<tr data-sym="${esc(s.symbol)}"><td><b>${esc(s.symbol)}</b><span class="mk">${esc(s.market)}</span></td>${nowTd}<td colspan="5" class="muted">no forecast yet</td></tr>`;
+    const p = sg.p_up, mv = sg.median[sg.median.length - 1] - sg.last, ok = agree(s) >= c.P_MIN;
+    const meter = `<span class="meter"><b style="left:${c.P_MIN * 100}%"></b><b style="left:${(1 - c.P_MIN) * 100}%"></b>`
+      + `<i style="left:${Math.min(p, .5) * 100}%;width:${Math.abs(p - .5) * 100}%;background:${p >= .5 ? "#26a69a" : "#ef5350"}"></i></span>`;
+    const dtext = d ? (d.side ? `${d.side} — ${d.action || d.why}` : `no trade — ${d.why}`) : "";
+    return `<tr data-sym="${esc(s.symbol)}" class="num"><td><b>${esc(s.symbol)}</b><span class="mk">${esc(s.market)}</span></td>${nowTd}`
+      + `<td>${meter}<span class="${ok ? (p >= .5 ? "good" : "bad") : "muted"}">${Math.round(p * 100)} %</span></td>`
+      + `<td>${(mv >= 0 ? "+" : "") + (mv / sg.last * 1e4).toFixed(1)} bps · ${a ? (mv / a).toFixed(2) + " ATR" : ""}</td>`
+      + `<td class="dec" title="${esc(dtext)}">${esc(dtext)}</td>`
+      + `<td>${r && r.n ? Math.round(100 * r.hit / r.n) + " % of " + r.n : "–"}</td>`
+      + `<td>${trs.length ? trs.map(t => `<span class="${t.side === "buy" ? "good" : "bad"}">${t.side}</span>${t.who ? `<span class="mk">${t.who}</span>` : ""}`).join(" ") + " " + usd(trs.reduce((x, t) => x + (t.pnl_now || 0), 0)) : ""}</td></tr>`;
+  }).join("");
+  document.querySelectorAll("#board tr[data-sym]").forEach(tr => tr.onclick = () => openModal(tr.dataset.sym));
+  $("#cards").innerHTML = syms.map(s => {
+    const sg = s.signal, d = s.decision, r = s.record, tr = tradesOf(s.symbol).length > 0;
+    const p = sg ? sg.p_up : null;
+    const badge = p == null ? `<span class="badge b-none">no forecast yet</span>`
+      : `<span class="badge ${p >= .5 ? "b-buy" : "b-sell"}">P up ${Math.round(p * 100)} %</span>`;
+    const rec = r && r.n ? `live record: direction right ${Math.round(100 * r.hit / r.n)} % of ${r.n}`
+      + (r.n_conf ? ` · when ≥ ${Math.round(c.P_MIN * 100)} % agree: ${Math.round(100 * r.hit_conf / r.n_conf)} % of ${r.n_conf}` : "") : "live record: none scored yet (each is scored 2 h later)";
+    const act = d ? (d.side ? `<b class="${d.action && /^(buy|sell) /.test(d.action) ? "good" : "warn"}">${esc(d.side)}</b> — ${esc(d.why)}${d.action ? " → " + esc(d.action) : ""}` : `no trade — ${esc(d.why)}`) : "waiting for the first forecast";
+    const lv = liveOf(s);
+    return `<div class="card${tr ? " trade" : ""}"><div class="ch"><span class="sym">${esc(s.symbol)}<span class="mk">${esc(s.market)}</span></span>${badge}`
+      + `<span class="muted num">${sg ? "bar " + ist(sg.bar_t + 15 * 60e3).slice(6) : ""}</span>`
+      + (lv ? `<span class="num">now <b>${fmt(lv.bid, s.digits)}</b></span>` : "") + `</div>`
+      + `<canvas data-sym="${esc(s.symbol)}" title="click: the big chart"></canvas><div class="why">${act}</div><div class="rec">${rec}</div></div>`;
+  }).join("");
+  document.querySelectorAll("#cards canvas[data-sym]").forEach(cv => {
+    const s = v.symbols.find(x => x.symbol === cv.dataset.sym);
+    drawSmall(cv, s, tradesOf(s.symbol));
+    cv.onclick = () => openModal(s.symbol);
+  });
+  const dgOf = sym => (v.symbols.find(s => s.symbol === sym) || {}).digits;
+  $("#c-note").innerHTML = `Placed by Claude with the MT5 tools (magic ${cl.magic ?? "–"}), demo only: a trade only where the D1 / H4 / H1 / M15 trend `
+    + `and ≥ ${Math.round(c.P_MIN * 100)} % of Kronos' paths point the same way. SL / TP sit at the broker; the engine only shows these, it never closes or changes them.`;
+  $("#c-open").innerHTML = cl.open.length ? cl.open.map(x => {
+    const dg = dgOf(x.symbol);
+    return `<tr class="num"><td><a href="#${esc(x.symbol)}" data-csym="${esc(x.symbol)}">${esc(x.symbol)}</a></td><td class="${x.side === "buy" ? "good" : "bad"}">${x.side}</td><td>${x.lots}</td>`
+      + `<td>${fmt(x.entry, dg)}</td><td>${fmt(x.sl, dg)}</td><td>${fmt(x.tp, dg)}</td><td>${fmt(x.price_now, dg)}</td><td>${usd(x.pnl_now)}</td>`
+      + `<td>${ist(x.opened_ms)}</td><td>${ist(x.close_by_ms)}</td><td class="dec" title="${esc(x.plan)}">${esc(x.plan || x.comment)}</td></tr>`;
+  }).join("") : `<tr><td colspan="11" class="empty">no open Claude trade</td></tr>`;
+  $("#c-closed").innerHTML = cl.closed.length ? cl.closed.map(x => {
+    const dg = dgOf(x.symbol);
+    return `<tr class="num"><td>${esc(x.symbol)}</td><td class="${x.side === "buy" ? "good" : "bad"}">${x.side}</td><td>${x.lots}</td><td>${fmt(x.entry, dg)}</td>`
+      + `<td>${fmt(x.exit, dg)}</td><td>${esc(x.reason)}</td><td>${usd(x.pnl_usd)}</td><td>${ist(x.opened_ms)}</td><td>${ist(x.closed_ms)}</td>`
+      + `<td class="dec" title="${esc(x.plan)}">${esc(x.plan || x.comment)}</td></tr>`;
+  }).join("") : `<tr><td colspan="10" class="empty">no closed Claude trade yet</td></tr>`;
+  document.querySelectorAll("[data-csym]").forEach(a => a.onclick = e => { e.preventDefault(); openModal(a.dataset.csym); });
+  $("#open").innerHTML = v.open.length ? v.open.map(x => {
+    const dg = (v.symbols.find(s => s.symbol === x.symbol) || {}).digits;
+    return `<tr class="num"><td>${esc(x.symbol)}</td><td class="${x.side === "buy" ? "good" : "bad"}">${x.side}</td><td>${x.lots}</td><td>${fmt(x.entry, dg)}</td>`
+      + `<td>${fmt(x.sl, dg)}</td><td>${fmt(x.tp, dg)}</td><td>${fmt(x.price_now, dg)}</td><td>${usd(x.pnl_now)}</td><td>${ist(x.opened_ms)}</td>`
+      + `<td>${ist(x.close_by_ms)}</td><td>${Math.round(x.p_up * 100)} %</td><td><button data-kclose="${x.ticket}">close</button></td></tr>`;
+  }).join("") : `<tr><td colspan="12" class="empty">no open Kronos trade</td></tr>`;
+  document.querySelectorAll("[data-kclose]").forEach(btn => btn.onclick = () => armed(btn, "sure? close", () => cmd({action: "kronos_close", ticket: +btn.dataset.kclose}).then(load)));
+  $("#closed").innerHTML = v.closed.length ? v.closed.map(x => {
+    const dg = (v.symbols.find(s => s.symbol === x.symbol) || {}).digits;
+    return `<tr class="num"><td>${esc(x.symbol)}</td><td class="${x.side === "buy" ? "good" : "bad"}">${x.side}</td><td>${x.lots}</td><td>${fmt(x.entry, dg)}</td>`
+      + `<td>${fmt(x.exit, dg)}</td><td>${esc(x.reason)}</td><td>${usd(x.pnl_usd)}</td><td>${ist(x.opened_ms)}</td><td>${ist(x.closed_ms)}</td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="empty">no closed Kronos trade yet</td></tr>`;
+  $("#report").textContent = v.test_report || "the test is still running";
+}
+
+function drawSmall(cv, s, trs) {
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const bars = s.bars || [], sg = s.signal, lv = liveOf(s);
+  if (!bars.length) { g.fillStyle = "#667085"; g.fillText("no bars yet", 12, 20); return; }
+  const n = bars.length, fut = sg ? sg.median.length : 0, iS = sigIndex(bars, sg), iL = liveIndex(bars, lv);
+  const slots = Math.max(iS + 1 + fut + 2, iL + 2);
+  const xs = (W - 58) / slots, X = i => 4 + (i + 0.5) * xs;
+  let lo = Math.min(...bars.map(b => b[3])), hi = Math.max(...bars.map(b => b[2]));
+  if (sg) { lo = Math.min(lo, ...sg.q10); hi = Math.max(hi, ...sg.q90); }
+  if (iL >= 0) { lo = Math.min(lo, lv.bar[3], lv.bid); hi = Math.max(hi, lv.bar[2], lv.bid); }
+  for (const tr of trs) { lo = Math.min(lo, ...levels(tr)); hi = Math.max(hi, ...levels(tr)); }
+  const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
+  const Y = p => 6 + (hi - p) / (hi - lo) * (H - 22);
+  g.strokeStyle = "#1b2130"; g.fillStyle = "#667085"; g.font = "10px ui-sans-serif,system-ui"; g.lineWidth = 1;
+  for (let k = 0; k <= 3; k++) { const p = lo + (hi - lo) * k / 3, y = Y(p); g.beginPath(); g.moveTo(0, y); g.lineTo(W - 54, y); g.stroke(); g.fillText(p.toFixed(s.digits ?? 2), W - 52, y + 3); }
+  for (let i = 0; i < n; i += 24) { const d = new Date(bars[i][0] * 1000 + IST_MS); g.fillText(d.toISOString().slice(11, 16), X(i) - 12, H - 3); }
+  const cw = Math.max(1, xs * 0.65);
+  bars.forEach((b, i) => {
+    g.strokeStyle = g.fillStyle = b[4] >= b[1] ? "#26a69a" : "#ef5350";
+    g.beginPath(); g.moveTo(X(i), Y(b[2])); g.lineTo(X(i), Y(b[3])); g.stroke();
+    const y1 = Y(Math.max(b[1], b[4])), y2 = Y(Math.min(b[1], b[4])); g.fillRect(X(i) - cw / 2, y1, cw, Math.max(1, y2 - y1));
+  });
+  if (sg) {
+    const x0 = X(iS), xi = k => X(iS + 1 + k);
+    g.fillStyle = "rgba(122,162,255,.18)"; g.beginPath(); g.moveTo(x0, Y(sg.last));
+    sg.q90.forEach((q, k) => g.lineTo(xi(k), Y(q))); for (let k = fut - 1; k >= 0; k--) g.lineTo(xi(k), Y(sg.q10[k])); g.closePath(); g.fill();
+    g.strokeStyle = "#7aa2ff"; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, Y(sg.last)); sg.median.forEach((m, k) => g.lineTo(xi(k), Y(m))); g.stroke(); g.lineWidth = 1;
+  }
+  if (iL >= 0) {                               // the forming candle + the live price
+    const b = lv.bar, col = lv.bid >= b[1] ? "#26a69a" : "#ef5350";
+    g.strokeStyle = g.fillStyle = col; g.beginPath(); g.moveTo(X(iL), Y(b[2])); g.lineTo(X(iL), Y(b[3])); g.stroke();
+    const y1 = Y(Math.max(b[1], lv.bid)), y2 = Y(Math.min(b[1], lv.bid)); g.fillRect(X(iL) - cw / 2, y1, cw, Math.max(1, y2 - y1));
+  }
+  if (lv) {
+    const y = Y(lv.bid), col = staleQ(lv) ? "#667085" : lv.bid >= lv.bar[1] ? "#26a69a" : "#ef5350";
+    g.strokeStyle = col; g.setLineDash([2, 2]); g.beginPath(); g.moveTo(0, y); g.lineTo(W - 54, y); g.stroke(); g.setLineDash([]);
+    priceTag(g, W - 54, 54, y, fmt(lv.bid, s.digits), col);
+  }
+  for (const tr of trs) [[tr.entry, "#e6e9ef"], [tr.sl, "#ef5350"], [tr.tp, "#66bb6a"]].filter(([p]) => p != null).forEach(([p, col]) => {
+    g.strokeStyle = col; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(n - 24), Y(p)); g.lineTo(W - 54, Y(p)); g.stroke(); g.setLineDash([]);
+  });
+}
+
+// ── the big chart ──
+const L = 8, R = 74, T = 10, B = 24;
+function slotsOf(d) { return d.bars.length + (d.signal ? d.signal.median.length : 8) + 3; }
+function resetVp() { const n = CH.d.bars.length, N = slotsOf(CH.d); CH.a = Math.max(-2, n - 150); CH.b = N; }
+async function openModal(sym) {
+  $("#modal").classList.add("show");
+  history.replaceState(null, "", "#" + sym);          // /kronos#GBPUSD opens that chart (a link to keep)
+  $("#mtitle").textContent = sym; $("#msub").textContent = "loading…"; $("#mread").textContent = "";
+  try {
+    const d = await api("/api/kronos/chart?sym=" + encodeURIComponent(sym));
+    CH = {sym, d, paths: $("#m-paths").getAttribute("aria-pressed") === "true", band: $("#m-band").getAttribute("aria-pressed") === "true",
+          past: CH ? CH.past : "tradeable", mx: null, my: null};
+    $("#m-past").textContent = "past: " + CH.past; $("#m-past").setAttribute("aria-pressed", CH.past !== "off");
+    resetVp(); index(); redraw();
+  } catch (e) { $("#msub").textContent = "no chart data: " + e.message; }
+}
+function closeModal() { $("#modal").classList.remove("show"); history.replaceState(null, "", location.pathname); }
+function index() {                            // bar time → index, and each past forecast's outcome
+  const d = CH.d, at = new Map(d.bars.map((b, i) => [b[0], i])), H = d.signal ? d.signal.median.length : 8;
+  CH.at = at;
+  CH.past = CH.past || "tradeable";
+  CH.hist = d.history.filter(h => !d.signal || h.bar_t !== d.signal.bar_t).map(h => {
+    const i0 = at.get(h.bar_t / 1000);
+    if (i0 == null) return null;
+    const iT = i0 + h.median.length, end = h.median[h.median.length - 1];
+    const real = iT < d.bars.length ? d.bars[iT][4] : null;
+    return {...h, i0, hit: real == null ? null : (end > h.last) === (real > h.last), agree: Math.max(h.p_up, 1 - h.p_up)};
+  }).filter(Boolean);
+  const scored = CH.hist.filter(h => h.hit != null), conf = scored.filter(h => h.agree >= V.config.P_MIN);
+  const s = V.symbols.find(x => x.symbol === CH.sym) || {}, sg = d.signal;
+  $("#msub").textContent = (sg ? `P up ${Math.round(sg.p_up * 100)} % · median ${(sg.median[H - 1] - sg.last >= 0 ? "+" : "")}${((sg.median[H - 1] / sg.last - 1) * 1e4).toFixed(1)} bps in ${H} bars · ` : "")
+    + `on this chart: direction right ${scored.length ? Math.round(100 * scored.filter(h => h.hit).length / scored.length) : "–"} % of ${scored.length} forecasts`
+    + (conf.length ? `, ${Math.round(100 * conf.filter(h => h.hit).length / conf.length)} % of ${conf.length} tradeable` : "")
+    + (s.decision ? ` · last decision: ${s.decision.side ? s.decision.side + " — " + (s.decision.action || s.decision.why) : "no trade — " + s.decision.why}` : "");
+}
+function redraw() { if (!CH || !$("#modal").classList.contains("show")) return; if (!CH.raf) CH.raf = requestAnimationFrame(() => { CH.raf = 0; drawBig(); }); }
+function niceStep(range, n) { const r = range / n, p = Math.pow(10, Math.floor(Math.log10(r))), m = r / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; }
+function drawBig() {
+  const cv = $("#mcv"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, Hh = cv.clientHeight;
+  cv.width = W * dpr; cv.height = Hh * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const d = CH.d, bars = d.bars, n = bars.length, sg = d.signal, H = sg ? sg.median.length : 0;
+  const s = V.symbols.find(x => x.symbol === CH.sym) || {}, dg = s.digits ?? 5;
+  const lv = liveOf(s), iL = liveIndex(bars, lv), iS = sigIndex(bars, sg);
+  const sw = (W - L - R) / (CH.b - CH.a), X = i => L + (i - CH.a + 0.5) * sw;
+  const i0 = Math.max(0, Math.floor(CH.a)), i1 = Math.min(n - 1, Math.ceil(CH.b));
+  const trs = tradesOf(CH.sym), done = tradesOf(CH.sym, true);
+  const barAt = ms => { let i = n - 1; while (i > 0 && bars[i][0] * 1000 > ms) i--; return i; };
+  // y range: visible candles + whatever forecast is on screen
+  let lo = Infinity, hi = -Infinity;
+  for (let i = i0; i <= i1; i++) { lo = Math.min(lo, bars[i][3]); hi = Math.max(hi, bars[i][2]); }
+  const futVis = sg && CH.b > n - 1;
+  if (futVis) {
+    const xs = [...sg.median, ...(CH.band ? [...sg.q10, ...sg.q90] : []), ...(CH.paths && sg.each ? sg.each.flat() : [])];
+    lo = Math.min(lo, ...xs); hi = Math.max(hi, ...xs);
+  }
+  if (futVis) for (const tr of trs) { lo = Math.min(lo, ...levels(tr)); hi = Math.max(hi, ...levels(tr)); }
+  if (iL >= 0 && iL >= CH.a && iL <= CH.b) { lo = Math.min(lo, lv.bar[3], lv.bid); hi = Math.max(hi, lv.bar[2], lv.bid); }
+  if (!isFinite(lo)) { lo = sg ? sg.last * 0.99 : 0; hi = sg ? sg.last * 1.01 : 1; }
+  const pad = (hi - lo) * 0.05 || Math.abs(hi) * 1e-4 || 1; lo -= pad; hi += pad;
+  const Y = p => T + (hi - p) / (hi - lo) * (Hh - T - B), P = y => hi - (y - T) / (Hh - T - B) * (hi - lo);
+  g.font = "11px ui-sans-serif,system-ui"; g.lineWidth = 1;
+  const st = niceStep(hi - lo, 8);
+  for (let p = Math.ceil(lo / st) * st; p <= hi; p += st) {
+    const y = Y(p); g.strokeStyle = "#1b2130"; g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke();
+    g.fillStyle = "#667085"; g.fillText(p.toFixed(dg), W - R + 6, y + 4);
+  }
+  // time axis (IST): a label every ~110 px, the date when the day changes
+  const every = Math.max(1, Math.round(110 / sw)); let lastDay = "";
+  for (let i = i0; i <= i1 + H; i++) {
+    if (i % every) continue;
+    const t = i < n ? bars[i][0] : bars[n - 1][0] + (i - n + 1) * 900;
+    const dt = new Date(t * 1000 + IST_MS), day = dt.toISOString().slice(0, 10);
+    const lab = day !== lastDay ? `${DAYS[dt.getUTCDay()]} ${dt.toISOString().slice(8, 10)} ${dt.toISOString().slice(11, 16)}` : dt.toISOString().slice(11, 16);
+    lastDay = day; g.fillStyle = "#667085"; g.fillText(lab, X(i) - 14, Hh - 7);
+    g.strokeStyle = "#151a26"; g.beginPath(); g.moveTo(X(i), T); g.lineTo(X(i), Hh - B); g.stroke();
+  }
+  g.save(); g.beginPath(); g.rect(L, T, W - L - R, Hh - T - B); g.clip();
+  // candles
+  const cw = Math.max(1, sw * 0.68);
+  for (let i = i0; i <= i1; i++) {
+    const b = bars[i]; g.strokeStyle = g.fillStyle = b[4] >= b[1] ? "#26a69a" : "#ef5350";
+    g.beginPath(); g.moveTo(X(i), Y(b[2])); g.lineTo(X(i), Y(b[3])); g.stroke();
+    const y1 = Y(Math.max(b[1], b[4])), y2 = Y(Math.min(b[1], b[4])); g.fillRect(X(i) - cw / 2, y1, cw, Math.max(1, y2 - y1));
+  }
+  // Kronos' earlier forecasts on these candles
+  if (CH.past !== "off") for (const h of CH.hist) {
+    if (CH.past === "tradeable" && h.agree < V.config.P_MIN) continue;
+    if (h.i0 + h.median.length < CH.a || h.i0 > CH.b) continue;
+    g.strokeStyle = h.hit == null ? "rgba(154,163,178,.55)" : h.hit ? "rgba(61,220,151,.75)" : "rgba(255,107,107,.75)";
+    g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(h.i0), Y(h.last)); h.median.forEach((m, k) => g.lineTo(X(h.i0 + k + 1), Y(m))); g.stroke();
+    g.fillStyle = g.strokeStyle; g.beginPath(); g.arc(X(h.i0), Y(h.last), 2.2, 0, 7); g.fill();
+  }
+  g.lineWidth = 1;
+  // the latest forecast
+  if (sg) {
+    const x0 = X(iS), xi = k => X(iS + 1 + k);
+    if (CH.band) {
+      g.fillStyle = "rgba(122,162,255,.16)"; g.beginPath(); g.moveTo(x0, Y(sg.last));
+      sg.q90.forEach((q, k) => g.lineTo(xi(k), Y(q))); for (let k = H - 1; k >= 0; k--) g.lineTo(xi(k), Y(sg.q10[k])); g.closePath(); g.fill();
+    }
+    if (CH.paths && sg.each) for (const p of sg.each) {
+      g.strokeStyle = p[H - 1] > sg.last ? "rgba(38,166,154,.45)" : "rgba(239,83,80,.45)";
+      g.beginPath(); g.moveTo(x0, Y(sg.last)); p.forEach((c, k) => g.lineTo(xi(k), Y(c))); g.stroke();
+    }
+    g.strokeStyle = "#7aa2ff"; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x0, Y(sg.last)); sg.median.forEach((m, k) => g.lineTo(xi(k), Y(m))); g.stroke(); g.lineWidth = 1;
+    g.setLineDash([3, 3]); g.strokeStyle = "#4a5470"; g.beginPath(); g.moveTo(x0 + sw / 2, T); g.lineTo(x0 + sw / 2, Hh - B); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#9aa3b2"; g.fillText("forecast", x0 + sw / 2 + 3, T + 12);
+  }
+  if (iL >= 0) {                               // the forming candle (live), outlined so it reads as unfinished
+    const b = lv.bar, col = lv.bid >= b[1] ? "#26a69a" : "#ef5350";
+    g.strokeStyle = g.fillStyle = col; g.beginPath(); g.moveTo(X(iL), Y(b[2])); g.lineTo(X(iL), Y(b[3])); g.stroke();
+    const y1 = Y(Math.max(b[1], lv.bid)), y2 = Y(Math.min(b[1], lv.bid));
+    g.globalAlpha = 0.55; g.fillRect(X(iL) - cw / 2, y1, cw, Math.max(1, y2 - y1)); g.globalAlpha = 1; g.strokeRect(X(iL) - cw / 2, y1, cw, Math.max(1, y2 - y1));
+  }
+  if (lv) {                                    // the live price across the chart
+    const y = Y(lv.bid); g.strokeStyle = staleQ(lv) ? "#667085" : lv.bid >= lv.bar[1] ? "#26a69a" : "#ef5350";
+    g.setLineDash([2, 3]); g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke(); g.setLineDash([]);
+  }
+  // Kronos trades: closed ▲▼ entry → exit, the open one with its lines
+  for (const x of done) {
+    const a = barAt(x.opened_ms), e = barAt(x.closed_ms), up = x.side === "buy";
+    g.strokeStyle = (x.pnl_usd || 0) >= 0 ? "#3ddc97" : "#ff6b6b"; g.setLineDash([2, 3]);
+    g.beginPath(); g.moveTo(X(a), Y(x.entry)); g.lineTo(X(e), Y(x.exit ?? x.entry)); g.stroke(); g.setLineDash([]);
+    tri(g, X(a), Y(x.entry), up, up ? "#26a69a" : "#ef5350"); g.fillStyle = g.strokeStyle; g.beginPath(); g.arc(X(e), Y(x.exit ?? x.entry), 3, 0, 7); g.fill();
+  }
+  for (const tr of trs) {
+    const a = barAt(tr.opened_ms);
+    tri(g, X(a), Y(tr.entry), tr.side === "buy", tr.side === "buy" ? "#26a69a" : "#ef5350");
+    [["entry", tr.entry, "#e6e9ef"], ["SL", tr.sl, "#ef5350"], ["TP", tr.tp, "#66bb6a"]].filter(([, p]) => p != null).forEach(([lab, p, col]) => {
+      g.strokeStyle = g.fillStyle = col; g.setLineDash(lab === "entry" ? [] : [6, 4]);
+      g.beginPath(); g.moveTo(X(a), Y(p)); g.lineTo(W - R, Y(p)); g.stroke(); g.setLineDash([]);
+      g.fillText(`${tr.who ? tr.who + " " : ""}${lab} ${p.toFixed(dg)}`, X(a) + 4, Y(p) - 4);
+    });
+  }
+  g.restore();
+  if (lv) {                                    // price tag on the axis: bid now (grey = no new tick for 5 min)
+    const y = Math.min(Hh - B - 9, Math.max(T + 9, Y(lv.bid)));
+    priceTag(g, W - R + 1, R - 2, y, (staleQ(lv) ? "last " : "") + lv.bid.toFixed(dg), staleQ(lv) ? "#667085" : lv.bid >= lv.bar[1] ? "#26a69a" : "#ef5350");
+  }
+  // crosshair + readout
+  if (CH.mx != null && CH.mx > L && CH.mx < W - R && CH.my > T && CH.my < Hh - B) {
+    const i = Math.floor(CH.a + (CH.mx - L) / sw);
+    g.strokeStyle = "rgba(230,233,239,.35)"; g.setLineDash([4, 4]);
+    g.beginPath(); g.moveTo(X(i), T); g.lineTo(X(i), Hh - B); g.moveTo(L, CH.my); g.lineTo(W - R, CH.my); g.stroke(); g.setLineDash([]);
+    const py = P(CH.my); g.fillStyle = "#2d3650"; g.fillRect(W - R + 1, CH.my - 9, R - 2, 18); g.fillStyle = "#e6e9ef"; g.fillText(py.toFixed(dg), W - R + 6, CH.my + 4);
+    const when = t => { const dt = new Date(t * 1000 + IST_MS); return `${DAYS[dt.getUTCDay()]} ${dt.toISOString().slice(8, 10)} ${dt.toISOString().slice(11, 16)} IST`; };
+    let txt = "";
+    if (i >= 0 && i < n) {
+      const b = bars[i], ch = i > 0 ? (b[4] / bars[i - 1][4] - 1) * 100 : 0;
+      txt = `${when(b[0])}   O ${b[1].toFixed(dg)}  H ${b[2].toFixed(dg)}  L ${b[3].toFixed(dg)}  C ${b[4].toFixed(dg)}  (${ch >= 0 ? "+" : ""}${ch.toFixed(3)} %)`;
+      const h = CH.hist.find(x => x.i0 === i);
+      if (h) txt += `\nforecast made here: P up ${Math.round(h.p_up * 100)} %, median ${(h.median[h.median.length - 1] - h.last >= 0 ? "+" : "")}${(h.median[h.median.length - 1] - h.last).toFixed(dg)}`
+        + (h.hit == null ? " — not known yet" : h.hit ? " — direction came TRUE" : " — direction was WRONG");
+    } else if (sg && i > iS && i <= iS + H) {
+      const k = i - iS - 1, up = sg.each ? sg.each.filter(p => p[k] > sg.last).length : null;
+      txt = `forecast +${k + 1} bar${k ? "s" : ""} (${when(bars[iS][0] + (k + 1) * 900)}):  median ${sg.median[k].toFixed(dg)}  (${((sg.median[k] / sg.last - 1) * 1e4).toFixed(1)} bps)`
+        + `   10–90 %: ${sg.q10[k].toFixed(dg)} … ${sg.q90[k].toFixed(dg)}` + (up != null ? `   paths above the forecast's close: ${up}/${sg.each.length}` : "");
+    }
+    if (lv && i === iL) {
+      const b = lv.bar;
+      txt = `${when(b[0])} forming (live)   O ${b[1].toFixed(dg)}  H ${b[2].toFixed(dg)}  L ${b[3].toFixed(dg)}  now ${lv.bid.toFixed(dg)} bid / ${lv.ask.toFixed(dg)} ask`
+        + `  (quote ${ist(lv.t_ms).slice(6)})` + (txt.startsWith("forecast") ? "\n" + txt : "");
+    }
+    $("#mread").textContent = txt + (txt ? `   ·   cursor ${py.toFixed(dg)}` : "");
+  }
+}
+function tri(g, x, y, up, col) { g.fillStyle = col; g.beginPath(); const s = 6, o = up ? 9 : -9; g.moveTo(x, y + o); g.lineTo(x - s, y + o + (up ? s : -s)); g.lineTo(x + s, y + o + (up ? s : -s)); g.closePath(); g.fill(); }
+function zoomAt(mx, f) {
+  const W = $("#mcv").clientWidth, sw = (W - L - R) / (CH.b - CH.a), at = CH.a + (mx - L) / sw;
+  const N = slotsOf(CH.d), w = Math.min(N + 10, Math.max(20, (CH.b - CH.a) * f));
+  CH.a = at - (at - CH.a) * w / (CH.b - CH.a); CH.b = CH.a + w; clampVp(); redraw();
+}
+function clampVp() { const N = slotsOf(CH.d), w = CH.b - CH.a; if (CH.a < -5) { CH.a = -5; CH.b = CH.a + w; } if (CH.b > N + 5) { CH.b = N + 5; CH.a = CH.b - w; } }
+const mcv = $("#mcv");
+mcv.addEventListener("wheel", e => { if (!CH) return; e.preventDefault(); const r = mcv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.deltaY > 0 ? 1.15 : 1 / 1.15); }, {passive: false});
+mcv.addEventListener("pointerdown", e => { if (!CH) return; mcv.setPointerCapture(e.pointerId); CH.drag = {x: e.clientX, a: CH.a, b: CH.b}; });
+mcv.addEventListener("pointermove", e => {
+  if (!CH) return; const r = mcv.getBoundingClientRect(); CH.mx = e.clientX - r.left; CH.my = e.clientY - r.top;
+  if (CH.drag) { const sw = (mcv.clientWidth - L - R) / (CH.drag.b - CH.drag.a), dx = (e.clientX - CH.drag.x) / sw; CH.a = CH.drag.a - dx; CH.b = CH.drag.b - dx; clampVp(); }
+  redraw();
+});
+mcv.addEventListener("pointerup", () => { if (CH) CH.drag = null; });
+mcv.addEventListener("pointerleave", () => { if (CH) { CH.mx = null; redraw(); } });
+mcv.addEventListener("dblclick", () => { if (CH) { resetVp(); redraw(); } });
+document.addEventListener("keydown", e => {
+  if (!CH || !$("#modal").classList.contains("show")) return;
+  const w = CH.b - CH.a;
+  if (e.key === "Escape") closeModal();
+  else if (e.key === "ArrowLeft") { CH.a -= w * .15; CH.b -= w * .15; clampVp(); redraw(); }
+  else if (e.key === "ArrowRight") { CH.a += w * .15; CH.b += w * .15; clampVp(); redraw(); }
+  else if (e.key === "+" || e.key === "=") zoomAt(mcv.clientWidth / 2, 1 / 1.25);
+  else if (e.key === "-") zoomAt(mcv.clientWidth / 2, 1.25);
+  else if (e.key === "0") { resetVp(); redraw(); }
+});
+$("#mclose").onclick = closeModal;
+$("#modal").addEventListener("click", e => { if (e.target.id === "modal") closeModal(); });
+for (const [id, key] of [["#m-paths", "paths"], ["#m-band", "band"]]) $(id).onclick = () => {
+  const on = $(id).getAttribute("aria-pressed") !== "true"; $(id).setAttribute("aria-pressed", on); if (CH) { CH[key] = on; redraw(); }
+};
+$("#m-past").onclick = () => {
+  if (!CH) return; CH.past = {tradeable: "all", all: "off", off: "tradeable"}[CH.past];
+  $("#m-past").textContent = "past: " + CH.past; $("#m-past").setAttribute("aria-pressed", CH.past !== "off"); redraw();
+};
+window.addEventListener("resize", () => { if (V) render(); redraw(); });
+
+$("#kronos-toggle").onclick = () => { if (!V) return; const on = !V.kronos_on; armed($("#kronos-toggle"), on ? "sure? Kronos ON" : "sure? Kronos off", () => cmd({action: "kronos", on}).then(() => setTimeout(load, 1500))); };
+async function load() {
+  let nv;
+  try { nv = await api("/api/kronos"); }
+  catch (e) { $("#state").textContent = "no Kronos data yet (" + e.message + "): is the engine running the Kronos book?"; return; }
+  if (V && nv.at === V.at) return;                            // the engine writes about every 15 s: nothing new yet
+  V = nv; render();
+  if (CH && $("#modal").classList.contains("show")) {        // the open chart: live candle redrawn; new forecast or a bar closed → reload, keep the view
+    const s = V.symbols.find(x => x.symbol === CH.sym), lv = liveOf(s), bs = CH.d.bars;
+    const newBar = lv && bs.length && lv.bar[0] - bs[bs.length - 1][0] > 900;
+    if (s && ((s.signal && (!CH.d.signal || s.signal.bar_t !== CH.d.signal.bar_t)) || newBar)) {
+      try {
+        const atEnd = CH.b >= slotsOf(CH.d) - 1, w = CH.b - CH.a, d = await api("/api/kronos/chart?sym=" + encodeURIComponent(CH.sym));
+        CH.d = d; index();
+        if (atEnd) { CH.b = slotsOf(d); CH.a = CH.b - w; }
+      } catch (e) { /* keep the old chart */ }
+    }
+    redraw();
+  }
+}
+load().then(() => { const h = decodeURIComponent(location.hash.slice(1)); if (h && V && V.symbols.some(s => s.symbol === h)) openModal(h); });
+setInterval(load, 5000);                      // cheap when nothing changed (same "at")
+</script>
+</body>
+</html>

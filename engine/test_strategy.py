@@ -67,10 +67,47 @@ def test_breaking_a_small_lh_inside_the_pullback_keeps_the_hh_breakable():
     rows = list(UP[:K + 13])                                                  # up to the HL at 9.5 and a bounce
     rows += [(9.85, 9.95, 9.8, 9.9), (9.9, 10.0, 9.85, 9.95), (9.95, 10.05, 9.6, 9.65),   # small swing high 10.05 (LH)
              (9.65, 9.7, 9.55, 9.6), (9.6, 9.7, 9.56, 9.65),
-             (9.65, 10.2, 9.6, 10.15),                                        # closes above the LH: CHoCH
+             (9.65, 10.2, 9.6, 10.15),                                        # closes above the LH, bias already up: BOS
              (10.15, 10.7, 10.1, 10.65)]                                      # closes above the HH 10.6: BOS
     ev = V.structure(bars(rows))["events"]
-    assert [(e["kind"], e["level"]) for e in ev[-2:]] == [("CHoCH", 10.05), ("BOS", 10.6)]
+    # learning chart 2026-10-26: a break WITH the bias is always a BOS, whatever the broken swing's label
+    # (David drew the engine's old "CHoCH" continuation breaks as BOS); the HH stays breakable either way
+    assert [(e["kind"], e["level"]) for e in ev[-2:]] == [("BOS", 10.05), ("BOS", 10.6)]
+
+
+# learning chart 2026-10-26 (David's EURUSD M15 lines): a downtrend with a major top 11.8, a first leg down
+# (sell bias), a lower high 10.6, a higher low 10.15, then a rally closing 10.7 — over the minor LH but far
+# under the major top — and a fall through the HL. The old engine called the rally a CHoCH buy (flipping its
+# bias and pruning the real levels) and the HL break a CHoCH sell; David drew no turn there and the HL break
+# as BOS. The trend only turns at the major top.
+DOWN_NOISE = [(11.0, 11.1, 10.9, 11.05), (11.05, 11.2, 11.0, 11.15), (11.15, 11.3, 11.1, 11.25),
+              (11.25, 11.5, 11.2, 11.45), (11.45, 11.8, 11.4, 11.5),                     # 4: the major top 11.8
+              (11.5, 11.6, 11.25, 11.3), (11.3, 11.4, 11.15, 11.35),                     # 6: minor low 11.15
+              (11.35, 11.45, 11.2, 11.25), (11.25, 11.3, 11.16, 11.2),
+              (11.2, 11.22, 10.9, 10.95),                                                # 9: closes under 11.15 → sell
+              (10.95, 11.0, 10.5, 10.6), (10.6, 10.7, 10.3, 10.4), (10.4, 10.5, 10.1, 10.2),
+              (10.2, 10.35, 10.1, 10.3), (10.3, 10.5, 10.25, 10.45), (10.45, 10.65, 10.4, 10.6),  # 15: LH top 10.65
+              (10.6, 10.62, 10.45, 10.5), (10.5, 10.55, 10.3, 10.35),
+              (10.35, 10.4, 10.15, 10.25), (10.25, 10.35, 10.2, 10.3), (10.3, 10.45, 10.28, 10.4),  # 18: HL 10.15
+              (10.4, 10.72, 10.38, 10.7),                                                # 21: closes over the LH 10.65
+              (10.7, 10.75, 10.55, 10.6), (10.6, 10.65, 10.35, 10.45),
+              (10.45, 10.5, 10.05, 10.1)]                                                # 24: closes under the HL 10.15
+
+
+def test_a_retrace_over_a_minor_lh_is_not_a_turn():
+    ev = V.structure(bars(DOWN_NOISE))["events"]
+    assert all(e["side"] == "sell" for e in ev), ev                           # the 10.7 close makes no buy event
+    last = ev[-1]
+    assert last["kind"] == "BOS" and last["level"] == 10.15 and last["level_label"] == "HL"
+    assert last["idx"] == 24                                                  # the HL was not pruned by the retrace
+
+
+def test_the_trend_turns_at_the_major_swing():
+    rows = DOWN_NOISE[:22] + [(10.7, 11.0, 10.65, 10.95), (10.95, 11.4, 10.9, 11.35),
+                              (11.35, 11.9, 11.3, 11.85)]                     # closes over the major top 11.8
+    last = V.structure(bars(rows))["events"][-1]
+    assert last["side"] == "buy" and last["level"] == 11.8                    # the turn is AT the major level
+    assert last["kind"] == "CHoCH"                                            # 11.8 is no HH: the structure turned
 
 
 def test_setup_demand_second_fvg_entry_ten_percent():
