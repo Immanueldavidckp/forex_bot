@@ -85,6 +85,7 @@ const IST_MS = 19800000, TF_MS = {M5: 3e5, M15: 9e5, M30: 18e5, H1: 36e5, H4: 14
 const C = {major: "#4dd0e1", mBOS: "#b388ff", mCHoCH: "#ff5252", bull: "#26a69a", bear: "#ef5350", zones: "#5c9ded", lux: "#f0a04b", v5: "#f5c542",
   zOBbull: "rgba(31,111,92,.45)", zOBbear: "rgba(128,52,52,.45)", zFVGbull: "rgba(46,92,140,.40)", zFVGbear: "rgba(140,100,38,.40)"};
 let BARS = "";   // "all" = the whole history (?bars=all)
+let AT = null;   // ?at=<UTC time>: open the chart there
 let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
 const LAYER = {major: true, ob: true, sd: true, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, sdb: false, liq: true, fvg: true, pd: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
   sess: false, cdl: false, cdlall: false, tl: false, cp: false, fib: false, vwap: false, osc: false, vp: false, wy: false, ew: false, of: false};   // default: the SMC row only
@@ -101,7 +102,10 @@ async function loadList() {
   $("#pick").innerHTML = L.map(x => `<option>${x}</option>`).join("");
   SYM = L.includes(q.get("sym")) ? q.get("sym") : L[0] || ""; TF = TF_MS[q.get("tf")] ? q.get("tf") : "M15";
   BARS = q.get("bars") === "all" ? "all" : ""; $("#allbars").setAttribute("aria-pressed", !!BARS);
-  for (const k of (q.get("on") || "").split(",")) if (k in LAYER) { LAYER[k] = true; const b = document.querySelector(`button[data-layer="${k}"]`); if (b) b.setAttribute("aria-pressed", true); }
+  for (const [key, val] of [["on", true], ["off", false]])                  // ?on=sdb,mit&off=sd,ob — layers from the link
+    for (const k of (q.get(key) || "").split(",")) if (k in LAYER) { LAYER[k] = val; const b = document.querySelector(`button[data-layer="${k}"]`); if (b) b.setAttribute("aria-pressed", val); }
+  const at = q.get("at");                                                    // ?at=2026-05-21T06:00 or ?at=2026-05-21 (UTC)
+  AT = !at ? null : /^\d+$/.test(at) ? +at : Date.parse(/T\d\d:\d\d(:\d\d)?$/.test(at) ? at + "Z" : at);
   $("#pick").value = SYM;
   $("#tfs").innerHTML = Object.keys(TF_MS).map(t => `<button data-tf="${t}" class="${t === TF ? "on" : ""}">${t}</button>`).join("");
   $("#tfs").querySelectorAll("button").forEach(b => b.onclick = () => { TF = b.dataset.tf; pick(); });
@@ -116,6 +120,7 @@ async function load(keepView) {
   D = await api(`/api/smc?sym=${encodeURIComponent(SYM)}&tf=${TF}` + (BARS ? "&bars=all" : "")); LOADED = Date.now();
   if (D.error) { $("#status").textContent = D.error; $("#side").innerHTML = ""; D = null; draw(); return; }
   if (!keepView) VP = null;
+  if (!keepView && AT != null && D.bars.length) { const i = idxOf(AT); VP = {a: i - 100, b: i + 60}; AT = null; }
   const s = D.summary, age = Math.round((Date.now() - s.t_last) / 60000);
   $("#status").innerHTML = `<b>${SYM} ${TF}</b> · last bar ${ist(s.t_last)} IST` + (age > 120 ? ` <span class="bear">(${age > 2880 ? Math.round(age / 1440) + " days" : Math.round(age / 60) + " h"} old — bars refresh while the V5 engine runs)</span>` : "") +
     ` · close <b>${fx(s.price)}</b> · ${D.bars.length} bars${BARS ? ` (whole history from ${new Date(D.bars[0][0]).toISOString().slice(0, 10)})` : ""} · <b class="h-major">structure: ${s.major.trend || "–"}</b>` +
@@ -584,9 +589,10 @@ function drawSD(g, G, vis) {
     const t1 = on ? null : (z.t_dead || z.t_broken || z.t_superseded || z.t_spent || null);
     if (!vis(z.t0, t1)) continue;
     const [rgb, col] = SDC[z.side];
-    box(g, G, z.t0, t1, z.top, z.bottom, on ? `rgba(${rgb},.16)` : "rgba(136,146,176,.06)", on ? col : "rgba(136,146,176,.5)", z.status === "tested" ? [5, 3] : [], sdTip(z));
+    box(g, G, z.t0, t1, z.top, z.bottom, on ? `rgba(${rgb},.16)` : `rgba(${rgb},.07)`, on ? col : `rgba(${rgb},.55)`, z.status === "tested" || !on ? [5, 3] : [], sdTip(z));
     const xa = Math.max(G.xt(z.t0), G.PL), xb = t1 == null ? G.W - G.PR : G.xt(t1), ye = G.y(z.entry);
-    g.strokeStyle = on ? col : "rgba(136,146,176,.5)"; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(xa, ye); g.lineTo(xb, ye); g.stroke(); g.setLineDash([]);
+    g.strokeStyle = on ? col : `rgba(${rgb},.55)`; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(xa, ye); g.lineTo(xb, ye); g.stroke(); g.setLineDash([]);
+    if (!on && BARS) { g.fillStyle = `rgba(${rgb},.8)`; g.fillText(`${z.side === "demand" ? "Demand" : "Supply"} (old) · ${z.kind.split(" ")[0]} · ${z.status}`, xa + 3, z.side === "demand" ? G.y(z.bottom) + 10 : G.y(z.top) - 4); }
     if (on) {                // 50 % of the box, as on the order blocks
       const ym = G.y(z.mid);
       g.strokeStyle = `rgba(${rgb},.45)`; g.setLineDash([1, 4]); g.beginPath(); g.moveTo(xa, ym); g.lineTo(xb, ym); g.stroke(); g.setLineDash([]);
