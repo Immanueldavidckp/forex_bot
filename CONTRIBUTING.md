@@ -29,7 +29,7 @@ the chart packet, reading and checking the answer. What is missing is the model 
 
 ## Rules of the road
 - **Never commit an API key or password.** Keep them in the environment or in `.env` (git ignores it).
-- **Work on your own branch** (`friend/gpt-provider` …) and open a pull request into `architecture`.
+- **Work on your own branch** (`friend/gpt-provider` …) and open a pull request into `main`.
 - **Don't edit `rules/` or `executor/limits.toml`.** They are David's. If you think a rule is wrong or unclear,
   write it in the pull request.
 - **Don't edit `engine/`.** It trades on David's laptop right now. Everything you need from it goes through
