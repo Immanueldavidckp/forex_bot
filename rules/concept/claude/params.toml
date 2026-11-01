@@ -4,7 +4,7 @@
 engine = "claude"
 version = "0.1"
 status = "draft"
-signals = ["bos", "choch", "direction"]
+signals = ["bos", "choch", "direction", "setup"]
 
 [check]
 margin_atr = 0.25         # a break closes beyond its level by ≥ 0.25 × ATR(14) (David's rule, major_structure.py)
@@ -14,3 +14,9 @@ max_age_bars = 40         # a reported break must have its closing candle within
 [packet]
 tail_bars = 40            # M15 bars shown to the model
 events = 3                # the last structure events from the toolkit
+
+[setup]                   # a BOS → its supply / demand zone → the leg it ran to (concept.md "Setup")
+zone_roles = ["origin", "origin+last"]   # the zone that STARTED the breaking move (engine/supply_demand.py role)
+zone_status = ["fresh"]   # price has not come back to it since the break
+leg_confirm_bars = 3      # the leg's extreme counts once 3 closed bars made no new extreme (the pullback began)
+max_bos_age_bars = 40     # a BOS older than 40 M15 bars (10 h) no longer makes a setup (= check.max_age_bars)

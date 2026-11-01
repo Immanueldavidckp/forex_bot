@@ -20,7 +20,7 @@ import bisect
 import json
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from marketdata import data as MD
 from shared import rules as R
@@ -36,9 +36,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def run(strategy: str, symbols: List[str], engine_kw: Optional[Dict[str, dict]] = None, days: Optional[float] = None,
         balance: float = 10_000.0, out_dir: Optional[str] = None, data_dir: str = MD.SAMPLE_DIR,
-        quiet: bool = False, engines: Optional[Dict] = None) -> Dict:
+        quiet: bool = False, engines: Optional[Dict] = None, overrides: Optional[Dict[str, Any]] = None) -> Dict:
     S = R.strategy(strategy)
-    engine_kw = engine_kw or {}
+    for key, val in (overrides or {}).items():              # a what-if on this run only; the file is not changed
+        *path, last = key.split(".")
+        node = S.spec
+        for k in path:
+            node = node.setdefault(k, {})
+        node[last] = val
+    S.problems = S.check(R.engines())
+    engine_kw = {k: dict(v) for k, v in (engine_kw or {}).items()}
+    engine_kw.setdefault("kronos", {}).setdefault("data_dir", data_dir)     # recorded forecasts sit with the bars
     engines = engines or {n: make_engine(n, **engine_kw.get(n, {})) for n in sorted(S.engines)}
     tf = S.timeframe
     infos, series, closes = {}, {}, {}
@@ -75,7 +83,7 @@ def run(strategy: str, symbols: List[str], engine_kw: Optional[Dict[str, dict]] 
                             "signals": [s.to_dict() for s in d.signals], "results": [r.to_dict() for r in results]})
 
     trades = ex.trades()
-    summary = {"strategy": f"{S.name} {S.version}", "engines": sorted(S.engines), "symbols": symbols,
+    summary = {"strategy": f"{S.name} {S.version}", "overrides": overrides or {}, "engines": sorted(S.engines), "symbols": symbols,
                "bars": len(steps), "trades": len(trades), "won": sum(1 for t in trades if t.pnl > 0),
                "total_r": round(sum(t.r for t in trades), 2), "pnl": round(sum(t.pnl for t in trades), 2),
                "open_at_end": len(ex.positions()),
@@ -107,10 +115,19 @@ def main() -> None:
     ap.add_argument("--balance", type=float, default=10_000.0)
     ap.add_argument("--data", default=MD.SAMPLE_DIR)
     ap.add_argument("--out", default=None, help="default runs/<strategy>-<time>")
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="what-if on this run only, e.g. --set stop.buffer_atr=0.5 (the strategy file is not changed)")
     a = ap.parse_args()
+    over = {}
+    for kv in a.set:
+        k, v = kv.split("=", 1)
+        try:
+            over[k] = json.loads(v)
+        except ValueError:
+            over[k] = v
     out = a.out or os.path.join(ROOT, "runs", f"{a.strategy}-{time.strftime('%Y%m%d-%H%M%S')}")
     run(a.strategy, a.symbols.split(","), {"claude": {"provider": a.claude}, "kronos": {"source": a.kronos}},
-        a.days, a.balance, out, a.data)
+        a.days, a.balance, out, a.data, overrides=over)
     print("→", out)
 
 

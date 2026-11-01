@@ -110,7 +110,7 @@ class Strategy:
     def engines(self) -> Set[str]:
         """Every engine this strategy asks: the needs + the exit rules."""
         out = {n["engine"] for n in self.needs}
-        for c in self.p("exit.close_on", []) or []:
+        for c in (self.p("exit.close_on", []) or []) + (self.p("entry.cancel_on", []) or []):
             out.add(c.split(".")[0])
         return out
 
@@ -141,9 +141,10 @@ class Strategy:
             bad.append("[stop] needs at = engine.signal.field or atr = k")
         if not (self.p("target.at") or self.p("target.rr") or self.p("target.atr")):
             bad.append("[target] needs at, rr or atr")
-        for c in self.p("exit.close_on", []) or []:
-            if len(c.split(".")) != 2 or c.split(".")[0] not in known:
-                bad.append(f"exit.close_on {c!r} must be engine.signal")
+        for key in ("exit.close_on", "entry.cancel_on"):
+            for c in self.p(key, []) or []:
+                if len(c.split(".")) != 2 or c.split(".")[0] not in known:
+                    bad.append(f"{key} {c!r} must be engine.signal")
         return bad
 
 

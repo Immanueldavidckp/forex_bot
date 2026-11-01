@@ -1,0 +1,26 @@
+[strategy]
+name = "claude_bos_zone"
+version = "0.1"
+status = "paper"
+timeframe = "M15"
+magic = 5050703
+
+[[need]]
+engine = "claude"
+signal = "setup"
+max_age_bars = 1
+
+[entry]
+type = "limit"
+limit_at = "claude.setup.entry"
+expires_bars = 96
+cancel_on = ["claude.choch"]
+no_entry_utc = ["20:45", "22:15"]
+
+[stop]
+at = "claude.setup.distal"
+buffer_atr = 0.25
+plus_spread = true
+
+[target]
+at = "claude.setup.leg_extreme"

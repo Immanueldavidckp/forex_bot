@@ -364,3 +364,47 @@ def test_every_strategy_runs_end_to_end_on_the_sample(strategy):
     out = run(strategy, ["GOLD"], days=4, quiet=True)
     s = out["summary"]
     assert s["bars"] > 100 and s["refused"] == 0
+
+
+# ── the BOS → zone → leg setup (rules/concept/claude [setup]) ───────────────────────────────────────────────────
+
+def test_claude_setup_ties_a_bos_to_its_supply_zone_and_leg_low():
+    """A known GOLD sell setup (found by concepter.scan on the full history, inside the 60-day sample)."""
+    now = 1789083000000
+    info, bars = MD.load("GOLD")
+    view = View("GOLD", now, {"M15": [b for b in bars["M15"] if b.t + M15 <= now][-500:],
+                              "H1": [b for b in bars["H1"] if b.t + 4 * M15 <= now][-500:]}, info)
+    r = make_engine("claude", provider="toolkit").on_bar(view)
+    (s,) = [x for x in r.signals if x.kind == "setup"]
+    d = s.data
+    assert s.side == "sell" and s.t == now and s.level == d["entry"]
+    assert d["leg_extreme"] < d["bos_level"] < d["proximal"] <= d["entry"] <= d["distal"]   # a sell: supply above
+    assert d["distal"] == d["top"] and d["zone_kind"] == "DBD"
+    assert any(m.kind == "zone" and m.text.startswith("Claude setup") for m in r.marks)
+
+
+def test_a_model_cannot_hand_in_a_setup_directly(gold_view):
+    p = FakeProvider([json.dumps({"signals": [{"signal": "setup", "side": "buy", "level": 1, "reason": "trust me"}]})])
+    r = make_engine("claude", provider=p).on_bar(gold_view)
+    assert r.signals == [] and "unknown signal" in r.notes
+
+
+def test_a_pending_limit_is_cancelled_when_the_structure_turns_and_overrides_change_one_run_only():
+    state = {"choch": False}
+    clau = Stub("claude", lambda t: ([Signal("claude", "setup", "X", "M15", t, "buy", level=99,
+                                             data={"entry": 99.0, "distal": 97.0, "leg_extreme": 104.0})]
+                                     if not state["choch"] else
+                                     [Signal("claude", "choch", "X", "M15", t, "sell", level=98)]))
+    bars, ex, cond, vf = conduct("claude_bos_zone", {"claude": clau})
+    now = 60 * M15
+    ex.on_bar("X", bars[-1], now)
+    d, res = cond.step("X", now, vf)
+    assert res[0].ok and d.commands[0].order == "limit" and d.commands[0].price == 99.0
+    assert d.commands[0].tp == 104.0 and d.commands[0].sl == pytest.approx(97.0 - 0.25 * 2.0 - 0.02)
+    state["choch"] = True
+    ex.on_bar("X", bars[-1], now + M15)
+    d, res = cond.step("X", now + M15, vf)
+    assert isinstance(d.commands[0], Close) and "cancelled" in d.commands[0].reason and ex.positions() == []
+    out = run("claude_bos_zone", ["GOLD"], days=1, quiet=True, overrides={"stop.buffer_atr": 0.5})
+    assert out["summary"]["overrides"] == {"stop.buffer_atr": 0.5}
+    assert R.strategy("claude_bos_zone").p("stop.buffer_atr") == 0.25                # the file is untouched

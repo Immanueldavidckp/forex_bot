@@ -50,9 +50,9 @@ def available(folder: str = SAMPLE_DIR) -> List[str]:
     return sorted(f[:-len(".json.gz")] for f in os.listdir(folder) if f.endswith(".json.gz"))
 
 
-def export(symbols: List[str], tfs: List[str], days: int) -> None:
-    """Cut the newest `days` of David's MT5 history (and every recorded Kronos forecast) into marketdata/sample."""
-    os.makedirs(SAMPLE_DIR, exist_ok=True)
+def export(symbols: List[str], tfs: List[str], days: int, out_dir: str = SAMPLE_DIR, with_kronos: bool = True) -> None:
+    """Cut the newest `days` (0 = all) of David's MT5 history (and every recorded Kronos forecast) into out_dir."""
+    os.makedirs(out_dir, exist_ok=True)
     keep = ("name", "description", "digits", "point", "trade_tick_size", "trade_tick_value", "trade_contract_size",
             "volume_min", "volume_step", "volume_max", "trade_stops_level", "currency_profit")
     forecasts: Dict[str, List[str]] = {s: [] for s in symbols}
@@ -72,12 +72,12 @@ def export(symbols: List[str], tfs: List[str], days: int) -> None:
         for tf in tfs:
             rows = d["bars"].get(tf, [])
             if rows:
-                start = rows[-1][0] - days * 86_400_000
+                start = rows[-1][0] - days * 86_400_000 if days else 0
                 out["bars"][tf] = [r for r in rows if r[0] >= start]
-        with gzip.open(os.path.join(SAMPLE_DIR, f"{sym}.json.gz"), "wt") as f:
+        with gzip.open(os.path.join(out_dir, f"{sym}.json.gz"), "wt") as f:
             json.dump(out, f, separators=(",", ":"))
-        if forecasts[sym]:
-            with gzip.open(os.path.join(SAMPLE_DIR, f"kronos_{sym}.jsonl.gz"), "wt") as f:
+        if forecasts[sym] and with_kronos:
+            with gzip.open(os.path.join(out_dir, f"kronos_{sym}.jsonl.gz"), "wt") as f:
                 f.write("\n".join(forecasts[sym]) + "\n")
         print(sym, {tf: len(v) for tf, v in out["bars"].items()}, f"kronos forecasts {len(forecasts[sym])}")
 
@@ -88,6 +88,8 @@ if __name__ == "__main__":
     e = sub.add_parser("export")
     e.add_argument("symbols", nargs="+")
     e.add_argument("--tfs", default="M5,M15,H1,H4")
-    e.add_argument("--days", type=int, default=60)
+    e.add_argument("--days", type=int, default=60, help="0 = the whole history")
+    e.add_argument("--out", default=SAMPLE_DIR)
+    e.add_argument("--no-kronos", action="store_true", help="leave the recorded live forecasts out")
     a = ap.parse_args()
-    export(a.symbols, a.tfs.split(","), a.days)
+    export(a.symbols, a.tfs.split(","), a.days, a.out, not a.no_kronos)

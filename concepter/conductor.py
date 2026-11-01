@@ -86,6 +86,11 @@ class Conductor:
             exp = S.p("entry.expires_bars")
             if exp and now - p.placed_t >= int(exp) * ms:
                 return [Close(name, p.ticket, reason=f"limit not filled in {exp} bars")]
+            for ref in S.p("entry.cancel_on", []) or []:          # the structure turned before the fill
+                engine, kind = ref.split(".")
+                against = [s for s in read(engine).signals if s.kind == kind and s.side != p.side and s.t == now]
+                if against:
+                    return [Close(name, p.ticket, reason=f"limit cancelled: {engine} {kind} {against[0].side}")]
             return []
         hold = S.p("exit.hold_bars")
         if hold and now - p.opened_t >= int(hold) * ms:

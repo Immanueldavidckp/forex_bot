@@ -40,6 +40,7 @@ max_age_bars = 4
 type = "market"             # market | limit
 # limit_at = "claude.bos.level"     # a limit at any needed signal's number: <engine>.<signal>.<number>
 # expires_bars = 12                 # an unfilled limit is cancelled after this many bars
+# cancel_on = ["claude.choch"]      # … or when this engine reports this signal against it before the fill
 no_entry_utc = ["20:45", "22:15"]   # no entries in this window (the rollover)
 # friday_last_utc = "19:30"
 
@@ -75,6 +76,7 @@ Numbers a signal can be pointed at (`<engine>.<signal>.<number>`):
 | kronos | direction | level (last close), p, p_up, move, move_atr, move_spread_x, horizon_bars |
 | claude | bos, choch | level, origin, close |
 | claude | direction | level (last close) |
+| claude | setup | level (= entry), entry, proximal, distal, top, bottom, leg_extreme, bos_level, origin, zone_score, rr_to_extreme, atr |
 
 `[live_engine]` in a strategy.toml holds numbers that the live engine in `engine/` uses but the conductor does not
 do yet (M5 confirmation, the layer, Mode A / B). They are kept here so all of a strategy's numbers sit in one place.
@@ -84,3 +86,5 @@ do yet (M5 confirmation, the layer, Mode A / B). They are kept here so all of a 
 | `v5_supply_demand` | v5 | demo: the live engine in `engine/` trades it; the conductor runs the paper version |
 | `kronos_forecast` | kronos | forecast-only since 2026-10-27 |
 | `kronos_direction_claude_bos` | kronos → claude | draft, David's example (2026-11-01) |
+| `kronos_claude_bos_zone` | kronos → claude setup | paper: Kronos direction + Claude BOS → its S&D zone, SL beyond the zone, TP the leg's swing (backtest: `concepter/backtests/kronos_claude_bos_zone.py`) |
+| `claude_bos_zone` | claude setup | paper: the same without Kronos (the comparison) |

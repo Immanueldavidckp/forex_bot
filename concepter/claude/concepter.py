@@ -49,7 +49,7 @@ def _iso(t: int) -> str:
 class ClaudeConcepter(Concepter):
     timeframes = ["M15", "H1"]
     lookback = 500
-    signal_kinds = ["bos", "choch", "direction"]
+    signal_kinds = ["bos", "choch", "direction", "setup"]
 
     def __init__(self, rules, provider="toolkit", **provider_kw):
         super().__init__(rules)
@@ -89,7 +89,59 @@ class ClaudeConcepter(Concepter):
         except Exception as e:                                  # a model / network failure: no signals, never a crash
             return Reading(marks=marks, notes=f"provider {self.model} failed: {e}")
         signals, notes = self.parse(reply, view)
+        for s in [s for s in signals if s.kind == "bos"]:
+            setup, why = self._setup(s, view, m, zs, a)
+            if setup:
+                signals.append(setup)
+                marks += [Mark("zone", "M15", setup.data["zone_t0"], setup.data["top"], price2=setup.data["bottom"],
+                               side=setup.side, text=f"Claude setup zone ({setup.data['zone_kind']})", engine="claude"),
+                          Mark("tp", "M15", setup.t, setup.data["leg_extreme"], side=setup.side, text="leg extreme",
+                               engine="claude")]
+            elif why:
+                notes.append(f"no setup for the {s.side} BOS at {s.level:g}: {why}")
         return Reading(signals=signals, marks=marks, notes=f"[{self.model}] " + "; ".join(notes))
+
+    def _setup(self, bos: Signal, view: View, m: Dict, zs: List[Dict], a: Optional[float]) -> Tuple[Optional[Signal], str]:
+        """rules/concept/claude [setup]: a BOS Claude reported → the supply / demand zone that started its move (the
+        valid ORIGIN zone of that break, still fresh) → the leg's extreme once a pullback has confirmed it
+        (setup.leg_confirm_bars closed bars without a new extreme). Reported on the bar the leg is confirmed."""
+        bars: List[Bar] = view.bars["M15"]
+        ms = TF_MS["M15"]
+        t_break = bos.t - ms
+        x = next((i for i in range(len(bars) - 1, -1, -1) if bars[i].t == t_break), None)
+        if x is None:
+            return None, ""
+        if len(bars) - 1 - x > int(self.rules.p("setup.max_bos_age_bars", 48)):
+            return None, ""                                       # too old to still be a setup: no note
+        want = "demand" if bos.side == "buy" else "supply"
+        roles = self.rules.p("setup.zone_roles", ["origin", "origin+last"])
+        z = next((z for z in zs if z["side"] == want and z["t_break"] == t_break and z["role"] in roles), None)
+        if z is None:
+            return None, f"no valid {want} origin zone for this break"
+        if z["status"] not in self.rules.p("setup.zone_status", ["fresh"]):
+            return None, f"the zone is {z['status']}"
+        later = [e for e in m["events"] if e["t"] > t_break and e["side"] != bos.side]
+        if later:
+            return None, f"a {later[0]['kind']} against it since"
+        buy = bos.side == "buy"
+        seg = bars[x:]
+        j = max(range(len(seg)), key=lambda i: seg[i].h) if buy else min(range(len(seg)), key=lambda i: seg[i].l)
+        k = int(self.rules.p("setup.leg_confirm_bars", 3))
+        if len(seg) - 1 - j < k:
+            return None, ""                                       # the leg is still running: wait, no note
+        extreme = seg[j].h if buy else seg[j].l
+        t_conf = seg[j + k].t + ms                               # the close of the bar that confirmed the leg
+        entry = z["entry"]
+        distal = z["bottom"] if buy else z["top"]
+        proximal = z["top"] if buy else z["bottom"]
+        risk = abs(entry - distal)
+        data = {"entry": entry, "proximal": proximal, "distal": distal, "top": z["top"], "bottom": z["bottom"],
+                "leg_extreme": extreme, "bos_level": bos.level, "origin": bos.get("origin"),
+                "zone_kind": z["kind"], "zone_score": z["score"], "zone_t0": z["t0"], "t_break": t_break,
+                "rr_to_extreme": round(abs(extreme - entry) / risk, 2) if risk else None,
+                "atr": round(a, 6) if a else None}
+        return Signal("claude", "setup", view.symbol, "M15", t_conf, bos.side, level=entry, data=data,
+                      text=f"BOS {bos.side} {bos.level:g} → {want} {z['bottom']:g}-{z['top']:g} → leg {extreme:g}"), ""
 
     def parse(self, reply: str, view: View) -> Tuple[List[Signal], List[str]]:
         mt = re.search(r"\{.*\}", reply or "", re.S)
@@ -114,7 +166,8 @@ class ClaudeConcepter(Concepter):
 
     def _check(self, s: Dict, view: View) -> Tuple[Optional[Signal], str]:
         kind, side = s.get("signal"), s.get("side")
-        if kind not in self.signal_kinds:
+        if kind not in ("bos", "choch", "direction"):            # a setup is never taken from the model: it is built
+                                                                 # from a checked BOS by _setup()
             return None, f"unknown signal {kind!r}"
         if side not in ("buy", "sell"):
             return None, f"side {side!r}"

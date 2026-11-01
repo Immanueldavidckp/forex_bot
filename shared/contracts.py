@@ -215,6 +215,8 @@ class Trade:
     r: float                            # result in R (risk at entry)
     exit_reason: str                    # sl | tp | close: <the strategy's reason>
     setup_id: str = ""
+    sl0: float = 0.0                    # the stop at entry (1R)
+    tp: float = 0.0                     # the target at exit
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

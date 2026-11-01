@@ -123,7 +123,8 @@ class PaperExecutor(Executor):
         risk = abs(p.entry - p.sl0) or 1e-12
         t = Trade(ticket=p.ticket, owner=p.owner, symbol=p.symbol, side=p.side, lots=p.lots, entry=p.entry,
                   exit=price, opened_t=p.opened_t, closed_t=self.now, pnl=round(pnl, 2),
-                  r=round((price - p.entry) * sign / risk, 3), exit_reason=why, setup_id=p.setup_id)
+                  r=round((price - p.entry) * sign / risk, 3), exit_reason=why, setup_id=p.setup_id,
+                  sl0=p.sl0, tp=p.tp)
         self.balance += pnl
         self.open.remove(p)
         self.closed.append(t)
