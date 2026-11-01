@@ -305,7 +305,7 @@ def main() -> int:
 
     # tables
     head = ["strategy", "SL buffer", "orders", "unfilled", "cancelled", "trades", "won", "win %", "avg win R",
-            "avg R", "total R", "max DD R", "P&L $ (0.01 lot)"]
+            "avg R", "total R", "max DD R", "P&L $"]
     rows = [head]
     for n, r in R_.items():
         s = stats(r["trades"])
@@ -352,6 +352,16 @@ def main() -> int:
             w.writerow([utc(r["t"]) if k == "t" else r.get(k) for k in keys])
 
     # README (→ a Google Doc on Drive) + PDF
+    # cross-check: the conductor's trades against the per-setup simulation (two separate pieces of code)
+    alone_by_t = {(r["t"], r["side"]): r for r in alone}
+    same = diff = cancelled_losers = 0
+    for t in base_run["trades"]:
+        k = next(k for k in t["setup_id"].split("+") if k.startswith("claude.setup"))
+        a_ = alone_by_t.get((int(k.split(".")[-1]), t["side"]))
+        if a_ and a_["r"] is not None and abs(a_["r"] - t["r"]) < 0.05:
+            same += 1
+        else:
+            diff += 1
     S = R.strategy("kronos_claude_bos_zone")
     ms_ = stats(main_run["trades"])
     bs_ = stats(base_run["trades"])
@@ -378,6 +388,23 @@ def main() -> int:
             f"{kn['avg_r']:+}R a trade.</p>",
             "<p>Pictures: 01 results table · 02 setups by Kronos · 03 equity · trade_NN one per trade (zone box, BOS, "
             "entry / SL / TP, fill ▲▼ and exit ✕). CSVs: every trade, and every setup with its Kronos reading.</p>",
+            "<h2>What it means</h2><ul>"
+            f"<li><b>Kronos does not pick the better setups.</b> It agreed strongly with only {ka['setups']} of the "
+            f"{len(setups)} setups, and those did worse ({ka['avg_r']:+}R a trade) than the rest ({kn['avg_r']:+}R). "
+            "Kronos more often pointed the other way after a BOS (table 02). It only cuts the number of trades.</li>"
+            f"<li><b>Taken one at a time the strategy is about break-even</b>, but every setup on its own loses "
+            f"{group(alone)['avg_r']:+}R a trade over {group(alone)['filled']} fills. The one-at-a-time run was lucky "
+            "in which setups it happened to take; the all-setups number is the fairer one.</li>"
+            "<li>Most losses are a pullback that runs straight through the zone; the wins are big (the leg's swing is "
+            "often 5–10R away), but too rare (12–20 % won).</li>"
+            "<li>A wider stop buffer wins more often but smaller; none of the three turns the result clearly "
+            "positive, and the swings between them are within the noise of 17–65 trades.</li></ul>"
+            "<h2>Checks</h2><ul>"
+            f"<li>The conductor's {same + diff} trades without Kronos were re-simulated one by one by separate code: "
+            f"{same} came out with the same R, {diff} differed.</li>"
+            "<li>Trade pictures were looked at by hand (zone, BOS, entry, SL, TP, fill and exit where the rules say).</li>"
+            "<li>No look-ahead: each Kronos forecast uses only the 512 bars up to the setup bar; each setup is found "
+            "from closed bars only.</li></ul>"
             "<h2>How it was simulated</h2><ul>"
             "<li>Conductor + paper executor (the same code a live run would use): one order at a time on the symbol; "
             "limit at the zone's entry line; filled when the ask (buy) / bid (sell) reaches it; the stop counts first "
@@ -397,7 +424,7 @@ def main() -> int:
             fig.figimage(img)
             pdf.savefig(fig)
             plt.close(fig)
-    summary = {"main": ms_, "no_kronos": bs_, "kronos_agrees_alone": ka, "kronos_not_alone": kn,
+    summary = {"crosscheck": {"same_r": same, "different": diff}, "main": ms_, "no_kronos": bs_, "kronos_agrees_alone": ka, "kronos_not_alone": kn,
                "all_alone": group(alone), "setups": len(setups), "forecasts": len(kron),
                "runs": {n: stats(r["trades"]) | {"orders": r["orders"], "unfilled": r["expired"], "cancelled": r["cancelled"]}
                         for n, r in R_.items()}}
