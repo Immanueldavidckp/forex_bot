@@ -1,0 +1,14 @@
+# The numbers of concept.md + trade.md. Same rule, same value: change both files together and raise the version.
+
+[strategy]
+name = "template"
+version = "0.1"
+status = "draft"            # draft | paper | demo | live
+timeframes = ["M15"]
+
+[entry]
+
+[stops]
+min_rr = 2.0
+
+[exit]

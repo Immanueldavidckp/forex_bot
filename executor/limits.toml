@@ -1,0 +1,25 @@
+# executor/limits.toml: DAVID's account safety limits. They hold for EVERY concepter, whatever its rules say, and
+# no concepter can change them. Only David edits this file.
+
+[account]
+demo_only = true                  # the MT5 executor refuses to trade a real account
+halt_file = "executor/HALT"       # kill switch: while this file exists, no new trades (`touch executor/HALT`)
+
+[order]
+require_sl = true                 # no stop → refused. The stop sits at the broker, so a crashed concepter is still protected
+default_lots = 0.01               # when a concepter does not say
+max_lots = 0.01                   # demo test: the minimum lot (David 2026-10-25)
+max_risk_pct = 2.5                # money lost at the stop, % of balance (V5 normal risk)
+
+[positions]
+max_open = 0                      # 0 = no limit (David 2026-10-30: "no limit for trade and position")
+max_per_concepter = 0             # 0 = no limit
+block_opposite_same_symbol = true # no buy and sell on one symbol at once: both sides pay the spread for nothing
+
+[loss]
+# NEW (proposed 2026-11-01, not in the live engine yet). A loss today, realised + open, of this % of the day's
+# start balance → no new trades until the next UTC day. 0 = off.
+daily_loss_limit_pct = 5.0
+
+[manage]
+stops_only_tighten = true         # a stop may only move toward profit, never further away

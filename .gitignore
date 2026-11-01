@@ -11,3 +11,9 @@ __pycache__/
 # runtime data, bar history, backtest output, logs, backups (750 MB) and the optional mt5.env
 engine_data/
 *.env
+
+# architecture (2026-11-01): paper-run output, the kill switch, secrets
+runs/
+executor/HALT
+.env
+*.key
