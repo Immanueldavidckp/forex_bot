@@ -19,4 +19,5 @@ jobs:
       - name: Tests
         # engine/test_ticks.py: 5 tests already failed on main before CI existed (dates fixed in the test);
         # fix them, then drop this --ignore.
-        run: python -m pytest -q -p no:cacheprovider tests engine --ignore=engine/test_ticks.py
+        # engine/research/: one-off study scripts (sd_test.py needs local data), not unit tests.
+        run: python -m pytest -q -p no:cacheprovider tests engine --ignore=engine/test_ticks.py --ignore=engine/research
