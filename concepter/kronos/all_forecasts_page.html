@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos Forecasts</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1b;--mute:#6b6b66;--line:#e2e1dc;--up:#1a8f5a;--dn:#d0453b;--fc:#2f6fdc;--band:rgba(47,111,220,.16);--ok:#1a8f5a;--bad:#d0453b;--na:#8a8a84;--sel:#eef3fd}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141413;--card:#1e1e1c;--ink:#ecebe6;--mute:#9a9992;--line:#33332f;--up:#3fbf83;--dn:#ef6b60;--fc:#6c9cff;--band:rgba(108,156,255,.2);--ok:#3fbf83;--bad:#ef6b60;--sel:#232b3b}}
+:root[data-theme="dark"]{--bg:#141413;--card:#1e1e1c;--ink:#ecebe6;--mute:#9a9992;--line:#33332f;--up:#3fbf83;--dn:#ef6b60;--fc:#6c9cff;--band:rgba(108,156,255,.2);--ok:#3fbf83;--bad:#ef6b60;--sel:#232b3b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:18px 16px 8px;max-width:1400px;margin:auto}
+h1{margin:0 0 4px;font-size:20px}
+.sub{color:var(--mute);font-size:13px}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 4px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:150px}
+.stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.stat span{color:var(--mute);font-size:12px}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.ctl{max-width:1400px;margin:auto;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+button{cursor:pointer}
+button.on{background:var(--fc);color:#fff;border-color:var(--fc)}
+.sp{flex:1}
+main{max-width:1400px;margin:auto;padding:12px 16px 40px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.cell{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+.cell:hover{border-color:var(--fc)}
+.cell canvas{width:100%;height:170px;display:block}
+.hd{display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--mute)}
+.hd b{color:var(--ink)}
+.tag{font-weight:600;font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid currentColor}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.na{color:var(--na)}
+.pager{display:flex;gap:8px;align-items:center;justify-content:center;margin:16px 0}
+.one{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.one canvas{width:100%;height:min(62vh,560px);display:block}
+.one .hd{font-size:14px;flex-wrap:wrap}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--mute);margin-top:8px}
+.legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:5px}
+table{border-collapse:collapse;font-size:13px;margin-top:10px;font-variant-numeric:tabular-nums}
+td,th{padding:3px 10px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}
+.hidden{display:none}
+@media (max-width:600px){.grid{grid-template-columns:1fr}.stat{min-width:calc(50% - 5px)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kronos forecasts — every prediction vs what really happened</h1>
+  <div class="sub">Blue line = Kronos median path, blue band = 10 %–90 % of its paths, 8 bars (2 h) ahead on M15. Candles right of the dotted line = what the market really did. "Right" = the side Kronos favoured (p up &gt; or &lt; 50 %) matches the close 8 bars later. Times IST. Built __BUILT__.</div>
+  <div class="stats" id="stats"></div>
+</header>
+<div class="bar"><div class="ctl">
+  <select id="fSrc"><option value="">All runs</option><option value="backtest">Backtest — GOLD, 342 BOS setups (Jun 2025 → Oct 2026)</option><option value="live">Live — 20 symbols, 26–28 Oct 2026</option></select>
+  <select id="fSym"></select>
+  <select id="fOut"><option value="">Any result</option><option value="ok">Right only</option><option value="bad">Wrong only</option><option value="na">No call (50/50) / no data</option></select>
+  <select id="fConf"><option value="">Any confidence</option><option value="strong">Strong (p ≥ 75 % or ≤ 25 %)</option><option value="mid">Weak (25–75 %)</option></select>
+  <span class="sp"></span>
+  <button id="vGrid" class="on">Grid</button><button id="vOne">One by one</button>
+</div></div>
+<main>
+  <div id="grid"></div>
+  <div id="one" class="hidden"></div>
+</main>
+<script>
+const D = /*DATA*/null;
+const $ = s => document.querySelector(s);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const ist = ms => { const d = new Date(ms + 5.5*3600e3); return d.toISOString().slice(0,16).replace('T',' '); };
+const fmt = (x,dg) => x==null ? '—' : x.toFixed(dg);
+
+D.forEach(f => {
+  f.dir = f.p > .5 ? 1 : f.p < .5 ? -1 : 0;
+  f.mv = f.rl==null ? null : f.rl - f.l;
+  f.res = (f.dir===0 || f.mv==null || f.mv===0) ? 'na' : (Math.sign(f.mv)===f.dir ? 'ok' : 'bad');
+  f.inb = f.rl==null ? null : (f.rl >= f.lo[7] && f.rl <= f.hi[7]);
+  f.conf = (f.p>=.75 || f.p<=.25) ? 'strong' : 'mid';
+});
+
+const syms = [...new Set(D.map(f=>f.y))].sort();
+$('#fSym').innerHTML = '<option value="">All symbols</option>' + syms.map(s=>`<option>${s}</option>`).join('');
+
+function stats(list){
+  const call = list.filter(f=>f.res!=='na'), ok = call.filter(f=>f.res==='ok').length;
+  const st = list.filter(f=>f.conf==='strong' && f.res!=='na'), sok = st.filter(f=>f.res==='ok').length;
+  const b = list.filter(f=>f.inb!=null), bin = b.filter(f=>f.inb).length;
+  const pct = (a,n) => n ? (100*a/n).toFixed(1)+' %' : '—';
+  $('#stats').innerHTML = [
+    [list.length, 'forecasts shown'],
+    [pct(ok,call.length), `direction right (${ok} of ${call.length}; coin flip = 50 %)`],
+    [pct(sok,st.length), `right when strong (${sok} of ${st.length})`],
+    [pct(bin,b.length), `real close inside the 10–90 % band (should be ~80 %)`],
+  ].map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+}
+
+let list = [], page = 0, cur = 0, view = 'grid';
+const PER = 24;
+
+function filter(){
+  const s=$('#fSrc').value, y=$('#fSym').value, o=$('#fOut').value, c=$('#fConf').value;
+  list = D.filter(f => (!s||f.s===s) && (!y||f.y===y) && (!o||f.res===o) && (!c||f.conf===c));
+  stats(list); page = 0; cur = 0; render();
+}
+
+function draw(cv, f, big){
+  const dpr = devicePixelRatio||1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext('2d'); g.scale(dpr,dpr);
+  const n = Math.max(f.b.length, f.k+1+8), padR = big?64:4, padL = 4, padT = 6, padB = big?22:6;
+  let lo = Infinity, hi = -Infinity;
+  f.b.forEach(b=>{lo=Math.min(lo,b[2]);hi=Math.max(hi,b[1]);});
+  f.lo.forEach(v=>lo=Math.min(lo,v)); f.hi.forEach(v=>hi=Math.max(hi,v));
+  const pad=(hi-lo)*.05; lo-=pad; hi+=pad;
+  const cw = (W-padL-padR)/n, X = i => padL + cw*(i+.5), Y = v => padT + (hi-v)/(hi-lo)*(H-padT-padB);
+  // forecast zone shade
+  g.fillStyle = css('--sel'); g.fillRect(X(f.k)+cw/2, padT, cw*8, H-padT-padB);
+  // band
+  g.fillStyle = css('--band'); g.beginPath();
+  g.moveTo(X(f.k), Y(f.l));
+  f.hi.forEach((v,i)=>g.lineTo(X(f.k+1+i), Y(v)));
+  for(let i=7;i>=0;i--) g.lineTo(X(f.k+1+i), Y(f.lo[i]));
+  g.closePath(); g.fill();
+  // candles
+  const up=css('--up'), dn=css('--dn');
+  f.b.forEach((b,i)=>{
+    const c = b[3]>=b[0]?up:dn; g.strokeStyle=c; g.fillStyle=c; g.lineWidth=1;
+    g.beginPath(); g.moveTo(X(i),Y(b[1])); g.lineTo(X(i),Y(b[2])); g.stroke();
+    const y1=Y(Math.max(b[0],b[3])), y2=Y(Math.min(b[0],b[3])), w=Math.max(1,cw*.65);
+    g.globalAlpha = i>f.k ? 1 : .55; g.fillRect(X(i)-w/2, y1, w, Math.max(1,y2-y1)); g.globalAlpha=1;
+  });
+  // last price + forecast start
+  g.strokeStyle=css('--mute'); g.setLineDash([3,3]); g.lineWidth=1;
+  g.beginPath(); g.moveTo(padL,Y(f.l)); g.lineTo(W-padR,Y(f.l)); g.stroke();
+  g.beginPath(); g.moveTo(X(f.k)+cw/2,padT); g.lineTo(X(f.k)+cw/2,H-padB); g.stroke(); g.setLineDash([]);
+  // median
+  g.strokeStyle=css('--fc'); g.lineWidth=big?2.5:2; g.beginPath(); g.moveTo(X(f.k),Y(f.l));
+  f.md.forEach((v,i)=>g.lineTo(X(f.k+1+i),Y(v))); g.stroke();
+  // real close at horizon
+  if(f.rl!=null){ g.fillStyle = f.res==='ok'?css('--ok'):f.res==='bad'?css('--bad'):css('--na');
+    g.beginPath(); g.arc(X(f.k+8),Y(f.rl),big?6:4,0,7); g.fill(); }
+  if(big){
+    g.fillStyle=css('--mute'); g.font='12px system-ui'; g.textAlign='left';
+    for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4; g.fillText(v.toFixed(f.dg),W-padR+6,Y(v)+4);}
+    g.textAlign='center';
+    [0,f.k,Math.min(f.b.length-1,f.k+8)].forEach(i=>{ if(f.bt[i]) g.fillText(ist(f.bt[i]).slice(5),X(i),H-6); });
+  }
+}
+
+function head(f){
+  const side = f.dir>0?'UP':f.dir<0?'DOWN':'50/50';
+  const lab = {ok:'RIGHT',bad:'WRONG',na:f.rl==null?'NO DATA':'NO CALL'}[f.res];
+  return `<div class="hd"><span><b>${f.y}</b> ${ist(f.t)} · ${f.s}</span><span>p up <b>${(f.p*100).toFixed(0)}%</b> → ${side} <span class="tag ${f.res}">${lab}</span></span></div>`;
+}
+
+function render(){
+  $('#grid').classList.toggle('hidden', view!=='grid'); $('#one').classList.toggle('hidden', view!=='one');
+  $('#vGrid').classList.toggle('on', view==='grid'); $('#vOne').classList.toggle('on', view==='one');
+  if(!list.length){ $('#grid').innerHTML = $('#one').innerHTML = '<p class="sub">Nothing matches these filters.</p>'; return; }
+  if(view==='grid'){
+    const pages = Math.ceil(list.length/PER), sl = list.slice(page*PER, page*PER+PER);
+    const pager = `<div class="pager"><button data-p="-1">◀ Prev</button><span>Page ${page+1} of ${pages}</span><button data-p="1">Next ▶</button></div>`;
+    $('#grid').innerHTML = pager + '<div class="grid">' + sl.map((f,i)=>`<div class="cell" data-i="${page*PER+i}">${head(f)}<canvas></canvas></div>`).join('') + '</div>' + pager;
+    $('#grid').querySelectorAll('.cell').forEach((el,i)=>draw(el.querySelector('canvas'), sl[i], false));
+  } else {
+    const f = list[cur], mv = f.mv==null?'—':(f.mv>0?'+':'')+f.mv.toFixed(f.dg);
+    $('#one').innerHTML = `<div class="pager"><button data-o="-1">◀ Prev</button><span>${cur+1} of ${list.length} (← → keys)</span><button data-o="1">Next ▶</button></div>
+      <div class="one">${head(f)}<canvas></canvas>
+      <div class="legend"><span><i style="background:var(--fc)"></i>Kronos median</span><span><i style="background:var(--band);height:10px"></i>10–90 % of ${f.n||16} paths</span><span><i style="border-top:2px dashed var(--mute)"></i>price when forecast was made</span><span>● real close 8 bars later</span></div>
+      <table><tr><th>Bar ahead</th>${[1,2,3,4,5,6,7,8].map(i=>`<th>+${i}</th>`).join('')}</tr>
+      <tr><td>Kronos median</td>${f.md.map(v=>`<td>${fmt(v,f.dg)}</td>`).join('')}</tr>
+      <tr><td>10 %</td>${f.lo.map(v=>`<td>${fmt(v,f.dg)}</td>`).join('')}</tr>
+      <tr><td>90 %</td>${f.hi.map(v=>`<td>${fmt(v,f.dg)}</td>`).join('')}</tr>
+      <tr><td>Real close</td>${[1,2,3,4,5,6,7,8].map(i=>`<td>${fmt(f.b[f.k+i]?.[3],f.dg)}</td>`).join('')}</tr></table>
+      <p class="sub">Price at forecast ${fmt(f.l,f.dg)} · real move after 8 bars ${mv} · real close ${f.inb==null?'—':f.inb?'inside':'outside'} the band · forecast bar ${ist(f.t)} IST (${new Date(f.t).toISOString().slice(0,16).replace('T',' ')} UTC)</p></div>`;
+    draw($('#one canvas'), f, true);
+  }
+}
+
+document.addEventListener('click', e=>{
+  const p=e.target.closest('[data-p]'), o=e.target.closest('[data-o]'), c=e.target.closest('.cell');
+  if(p){ const pages=Math.ceil(list.length/PER); page=(page+ +p.dataset.p+pages)%pages; render(); scrollTo(0,0); }
+  else if(o){ cur=(cur+ +o.dataset.o+list.length)%list.length; render(); }
+  else if(c){ cur=+c.dataset.i; view='one'; render(); scrollTo(0,0); }
+});
+document.addEventListener('keydown', e=>{
+  if(view!=='one'||!list.length) return;
+  if(e.key==='ArrowRight'){cur=(cur+1)%list.length;render();}
+  if(e.key==='ArrowLeft'){cur=(cur-1+list.length)%list.length;render();}
+});
+$('#vGrid').onclick=()=>{view='grid';page=Math.floor(cur/PER);render();};
+$('#vOne').onclick=()=>{view='one';render();};
+['#fSrc','#fSym','#fOut','#fConf'].forEach(s=>$(s).onchange=filter);
+let rt; addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,150);});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
+filter();
+</script>
+</body>
+</html>

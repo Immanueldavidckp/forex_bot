@@ -43,13 +43,26 @@ LEARN_DIR = os.path.join(DATA_DIR, "learn")
 LABELS_FILE = os.path.join(LEARN_DIR, "labels.jsonl")
 HIST_DIR = os.path.join(DATA_DIR, "history")
 KINDS = ("BOS", "CHoCH", "FVG", "supply", "demand", "swing high", "swing low",
-         "support", "resistance", "up trend", "down trend", "sideways", "line", "region")
+         "support", "resistance", "up trend", "down trend", "sideways", "fib", "line", "region")
 TF_MS = {"M5": 300_000, "M15": 900_000, "M30": 1_800_000, "H1": 3_600_000, "H4": 14_400_000}
 SYM_RE = re.compile(r"^[A-Za-z0-9._#-]{1,24}$")
 BOXES = ("FVG", "supply", "demand")
 LINES = ("BOS", "CHoCH")
 LEVELS = ("support", "resistance")        # a horizontal level, drawn along it (how humans mark S/R)
 TRENDS = ("up trend", "down trend", "sideways")   # a span of bars the drawn trend covers
+# David 2026-11-09 "add the fib retracement tool to teach the next version": a fib label is the LEG he measures —
+# dragged from the swing's start (t0, p0) to its end (t1, p1); the retracement levels are computed from that, not
+# stored. 0 = the end of the leg (where the pullback starts), 1 = its start. S&D David's targets are the same idea
+# (T1 = 0.618, T2 = 0.5, T3 = 0.382 between the entry and the move's extreme).
+FIB = (0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+
+
+def fib_levels(rec: Dict) -> List[Dict]:
+    """The price of every FIB ratio for one fib label: 0 at the leg's end (p1), 1 at its start (p0)."""
+    p0, p1 = rec.get("p0"), rec.get("p1")
+    if p0 is None or p1 is None:
+        return []
+    return [{"ratio": r, "price": round(p1 + r * (p0 - p1), 8)} for r in FIB]
 
 
 # ── bars (files only, never MT5) ─────────────────────────────────────────────
@@ -124,6 +137,10 @@ def labels(sym: Optional[str] = None, tf: Optional[str] = None) -> List[Dict]:
             elif r.get("id"):
                 out[r["id"]] = r
     keep = [r for r in out.values() if (sym is None or r.get("sym") == sym) and (tf is None or r.get("tf") == tf)]
+    for r in keep:
+        if r.get("kind") == "fib" and r.get("p1") is not None:
+            r["leg"] = "up" if r["p1"] > r["p0"] else "down"
+            r["levels"] = fib_levels(r)
     return sorted(keep, key=lambda r: (r.get("sym", ""), r.get("tf", ""), r.get("t0") or 0))
 
 
@@ -278,6 +295,15 @@ def compare(sym: Optional[str] = None, tf: Optional[str] = None, n: int = 3000,
                 got = next((s for s in near if s["kind"] == want), None) or (near[0] if near else None)
                 if got:
                     verdict = "ok" if got["kind"] == want else "mixed"
+            elif k == "fib" and lb.get("p1") is not None:
+                # the drawn leg: does the engine have a swing at each end? both = ok, one = mixed, none = missed
+                ends = []
+                for tt, pp in ((lb["t0"], lb["p0"]), (lb.get("t1", lb["t0"]), lb["p1"])):
+                    ends.append(next((s for s in det["swings"]
+                                      if abs(s["t"] - tt) <= 2 * TF_MS[t] and abs(s["price"] - pp) <= tol_p), None))
+                n_ok = sum(1 for e in ends if e)
+                verdict = "ok" if n_ok == 2 else "mixed" if n_ok == 1 else "missed"
+                got = {"kind": "swings", "ends": n_ok} if n_ok else None
             elif k in TRENDS:
                 # the engine's trend over the drawn span, read the way structure() reads it: the last two
                 # swing highs and lows inside the span — both rising = up, both falling = down, else sideways;
@@ -348,10 +374,21 @@ def fit(sym: Optional[str] = None, tf: Optional[str] = None, n: int = 3000) -> D
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="train the structure finding from David's drawn labels")
-    ap.add_argument("cmd", choices=["report", "fit"])
+    ap.add_argument("cmd", choices=["report", "fit", "fib"])
     ap.add_argument("--sym")
     ap.add_argument("--tf")
     a = ap.parse_args()
+    if a.cmd == "fib":                      # the fib legs David drew, readable: leg, start → end, every level's price
+        fibs = [r for r in labels(a.sym, a.tf) if r["kind"] == "fib"]
+        if not fibs:
+            print("no fib labels yet")
+        for r in fibs:
+            t = lambda ms: time.strftime("%Y-%m-%d %H:%M", time.gmtime(ms / 1000 + 19800)) + " IST"
+            print(f"{r['sym']} {r['tf']} fib {r.get('leg', '?')} leg  {t(r['t0'])} {r['p0']:g} → {t(r.get('t1', r['t0']))} {r['p1']:g}"
+                  + (f"  note: {r['note']}" if r.get("note") else "") + f"  [{r['id']}]")
+            for lv in r.get("levels", []):
+                print(f"    {lv['ratio']:<6g} {lv['price']:g}")
+        return 0
     if a.cmd == "report":
         c = compare(a.sym, a.tf)
         print(json.dumps({k: c[k] for k in ("per_kind", "extras", "total", "ok")}, indent=1))

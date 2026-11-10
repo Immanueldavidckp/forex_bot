@@ -33,11 +33,15 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:5px 8px;
 .why{font-size:12px;color:var(--ink2);padding:6px 10px 0}.rec{font-size:12px;color:var(--ink3);padding:2px 10px 8px}
 .card canvas{display:block;width:100%;height:190px;background:#0e121b;cursor:zoom-in}
 pre{margin:0;padding:10px 12px;color:var(--ink2);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
-#modal{position:fixed;inset:0;background:rgba(5,7,11,.9);display:none;z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+#modal{position:fixed;inset:0;background:#07090e;overflow:auto;display:none;z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:8px}
 #modal.show{display:flex}#modal .mh{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:min(1500px,96vw)}#modal .mh b{font-size:15px}
 #modal .grow{flex:1}#modal .mc{position:relative;width:min(1500px,96vw);height:min(780px,76vh)}
 #mcv{position:absolute;inset:0;width:100%;height:100%;background:#0e121b;border:1px solid var(--line);border-radius:8px;cursor:crosshair;touch-action:none}
 #mread{font-size:12px;color:var(--ink2);white-space:pre-wrap;min-height:18px}#modal .mhint{width:min(1500px,96vw);color:var(--ink3);font-size:12px}
+.fcrow{display:flex;flex-wrap:wrap;gap:8px}.fcc{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;min-width:150px}
+.fcc small{display:block;color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.05em}.fcc b{font-size:16px}.fcc span{display:block;color:var(--ink3);font-size:11px}
+.fcbar{height:6px;background:#1b2130;border-radius:3px;margin-top:10px;overflow:hidden}.fcbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .6s}
+.fclog{color:var(--ink3);font-size:11px;margin:8px 0 0;white-space:pre-wrap}
 @media (max-width:700px){header{padding:8px}section{padding-left:8px;padding-right:8px}.grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -49,12 +53,17 @@ pre{margin:0;padding:10px 12px;color:var(--ink2);font:12px/1.5 ui-monospace,SFMo
   <button id="kronos-toggle" class="toggle off" title="Kronos sends orders only when this is on AND the engine's trading is on">Kronos …</button>
 </header>
 <p class="note" id="rule"></p>
+<section id="fc"><h2>Kronos forecaster — the GPU model, live</h2>
+<div class="fcrow" id="fc-top">loading…</div>
+<div class="fcbar"><i id="fc-bar"></i></div><div class="note" id="fc-now" style="padding:4px 0 8px"></div>
+<div class="tw"><table><thead><tr><th>Symbol</th><th>State</th><th title="the last closed M15 bar the engine fed to Kronos">Feed bar</th><th>Forecast of bar</th><th>Made</th><th title="seconds of its GPU pass (4 charts share one pass)">Pass took</th><th>P up</th></tr></thead><tbody id="fc-rows"></tbody></table></div>
+<pre class="fclog" id="fc-log"></pre></section>
 <section><h2>All symbols — strongest agreement first (click a row or a chart for the big chart)</h2>
 <div class="tw"><table><thead><tr><th>Symbol</th><th title="bid now, and its move since the close the forecast was made from">Now</th><th>P up</th><th>Median move (2 h)</th><th>Decision</th><th>Live record</th><th>Trade</th></tr></thead><tbody id="board"></tbody></table></div></section>
 <section><h2>Forecasts — last 24 h of M15 and the next 2 h (blue: Kronos median, band: 10–90 % of the paths)</h2><div class="grid" id="cards"></div></section>
 <section><h2>Claude's MT5 trades — taken where the chart trend and Kronos agree</h2>
 <p class="note" id="c-note" style="padding:0;margin:0 0 8px"></p>
-<div class="tw"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>SL</th><th>TP</th><th>Now</th><th>P&amp;L</th><th>Opened</th><th>Planned exit</th><th>Why</th></tr></thead><tbody id="c-open"></tbody></table></div>
+<div class="tw"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>SL</th><th>TP</th><th>Now</th><th>P&amp;L</th><th title="profit now in units of the stop distance">R now</th><th>Risk $</th><th>Opened</th><th>Time exit</th><th>Why</th><th>Exit plan</th></tr></thead><tbody id="c-open"></tbody></table></div>
 <div class="tw" style="margin-top:8px"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>Exit</th><th>How</th><th>P&amp;L</th><th>Opened</th><th>Closed</th><th>Why</th></tr></thead><tbody id="c-closed"></tbody></table></div></section>
 <section><h2>Open Kronos trades</h2><div class="tw"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>SL</th><th>TP</th><th>Now</th><th>P&amp;L</th><th>Opened</th><th>Time exit</th><th>P up</th><th></th></tr></thead><tbody id="open"></tbody></table></div></section>
 <section><h2>Closed Kronos trades</h2><div class="tw"><table><thead><tr><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>Exit</th><th>Why</th><th>P&amp;L</th><th>Opened</th><th>Closed</th></tr></thead><tbody id="closed"></tbody></table></div></section>
@@ -62,13 +71,15 @@ pre{margin:0;padding:10px 12px;color:var(--ink2);font:12px/1.5 ui-monospace,SFMo
 
 <div id="modal" role="dialog" aria-modal="true">
   <div class="mh"><b id="mtitle"></b><span id="msub" class="muted num"></span><span class="grow"></span>
+    <span id="m-tfs" style="display:inline-flex;gap:4px"><button data-tf="M5">M5</button><button data-tf="M15">M15</button><button data-tf="M30">M30</button><button data-tf="H1">H1</button><button data-tf="H4">H4</button></span>
+    <button id="m-smc" aria-pressed="true" title="David's BOS / CHoCH on this timeframe (from /smc)">BOS / CHoCH</button><button id="m-sdd" aria-pressed="true" title="David's supply / demand zones on this timeframe (from /smc): zone = candle A, entry line, stop, T1-T3">S&amp;D David</button>
     <button id="m-paths" aria-pressed="true" title="every one of the 16 forecast paths">paths</button>
     <button id="m-band" aria-pressed="true" title="the 10–90 % range of the paths at each future bar">10–90 % band</button>
     <button id="m-past" aria-pressed="true" title="Kronos' earlier forecasts on these candles: tradeable ones (≥ 75 % agree) → all → off">past: tradeable</button>
     <button id="mclose">close</button></div>
   <div class="mh"><span id="mread" class="num"></span></div>
   <div class="mc"><canvas id="mcv"></canvas></div>
-  <div class="mhint">mouse wheel = zoom · drag = scroll back (512 bars) · double-click or 0 = back to now · ← → scroll · Esc = close · past forecasts: <span class="good">green</span> = the direction came true 2 h later, <span class="bad">red</span> = wrong, grey = not known yet · ▲▼ = trades (Kronos' and Claude's)</div>
+  <div class="mhint">mouse wheel = zoom · drag = scroll back (512 bars) · double-click or 0 = back to now · ← → scroll · Esc = close · past forecasts: <span class="good">green</span> = the direction came true 2 h later, <span class="bad">red</span> = wrong, grey = not known yet · ▲▼ = trades (Kronos' and Claude's) · BOS / CHoCH and S&amp;D David: David's rules from /smc on this timeframe (zone = candle A, solid line = entry, red = stop, green = T1–T3)</div>
 </div>
 
 <script>
@@ -168,14 +179,17 @@ function render() {
     cv.onclick = () => openModal(s.symbol);
   });
   const dgOf = sym => (v.symbols.find(s => s.symbol === sym) || {}).digits;
-  $("#c-note").innerHTML = `Placed by Claude with the MT5 tools (magic ${cl.magic ?? "–"}), demo only: a trade only where the D1 / H4 / H1 / M15 trend `
-    + `and ≥ ${Math.round(c.P_MIN * 100)} % of Kronos' paths point the same way. SL / TP sit at the broker; the engine only shows these, it never closes or changes them.`;
+  $("#c-note").innerHTML = `Placed by Claude (magic ${cl.magic ?? "–"}), demo only. Since 2026-11-07 the rule is engine/tools/claude_crypto.py: H1 trend + a 0.4–1.5 ATR pullback (TP 2R) or momentum at the extreme (TP 1.5R), `
+    + `stop beyond the 6-bar H1 swing / the S&D zone and ≥ 5 spreads, 0.01 lot. Its watcher (every 5 min): break-even at +1R, 1-ATR trail after +1.5R, 12 h time exit. The V5 engine only shows these.`;
   $("#c-open").innerHTML = cl.open.length ? cl.open.map(x => {
     const dg = dgOf(x.symbol);
+    const risk = x.risk || Math.abs(x.entry - x.sl), r = risk && x.price_now != null ? ((x.side === "buy" ? x.price_now - x.entry : x.entry - x.price_now) / risk) : null;
+    const opened = x.opened || x.opened_ms, exitAt = x.close_by_ms || (opened ? opened + 12 * 3600e3 : null);
     return `<tr class="num"><td><a href="#${esc(x.symbol)}" data-csym="${esc(x.symbol)}">${esc(x.symbol)}</a></td><td class="${x.side === "buy" ? "good" : "bad"}">${x.side}</td><td>${x.lots}</td>`
       + `<td>${fmt(x.entry, dg)}</td><td>${fmt(x.sl, dg)}</td><td>${fmt(x.tp, dg)}</td><td>${fmt(x.price_now, dg)}</td><td>${usd(x.pnl_now)}</td>`
-      + `<td>${ist(x.opened_ms)}</td><td>${ist(x.close_by_ms)}</td><td class="dec" title="${esc(x.plan)}">${esc(x.plan || x.comment)}</td></tr>`;
-  }).join("") : `<tr><td colspan="11" class="empty">no open Claude trade</td></tr>`;
+      + `<td class="${r > 0 ? "good" : r < 0 ? "bad" : ""}">${r == null ? "—" : r.toFixed(2) + " R"}</td><td>${risk ? usd(risk * x.lots * (x.contract || 1)) : "—"}</td>`
+      + `<td>${ist(opened)}</td><td>${ist(exitAt)}</td><td class="dec" title="${esc(x.why || "")}">${esc(x.why || x.comment)}</td><td class="dec" title="${esc(x.plan)}">${esc(x.plan || "")}</td></tr>`;
+  }).join("") : `<tr><td colspan="14" class="empty">no open Claude trade</td></tr>`;
   $("#c-closed").innerHTML = cl.closed.length ? cl.closed.map(x => {
     const dg = dgOf(x.symbol);
     return `<tr class="num"><td>${esc(x.symbol)}</td><td class="${x.side === "buy" ? "good" : "bad"}">${x.side}</td><td>${x.lots}</td><td>${fmt(x.entry, dg)}</td>`
@@ -245,22 +259,55 @@ function drawSmall(cv, s, trs) {
 
 // ── the big chart ──
 const L = 8, R = 74, T = 10, B = 24;
-function slotsOf(d) { return d.bars.length + (d.signal ? d.signal.median.length : 8) + 3; }
-function resetVp() { const n = CH.d.bars.length, N = slotsOf(CH.d); CH.a = Math.max(-2, n - 150); CH.b = N; }
-async function openModal(sym) {
-  $("#modal").classList.add("show");
+const TFS = {M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400};
+function slotsOf(d) { return d.bars.length + Math.ceil((d.signal ? d.signal.median.length : 8) * 900 / TFS[d.tf || "M15"]) + 3; }
+function uOf(ts) {                           // time (s) → continuous slot index, bar centres on whole numbers (weekend gaps stay one bar wide)
+  const b = CH.d.bars, n = b.length, tf = TFS[CH.tf];
+  if (ts >= b[n - 1][0]) return n - 1 + (ts - b[n - 1][0] - tf / 2) / tf;
+  let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (b[m][0] <= ts) lo = m; else hi = m - 1; }
+  return lo + Math.min(0.5, (ts - b[lo][0] - tf / 2) / tf);
+}
+function resetVp() { const n = CH.d.bars.length, N = slotsOf(CH.d); CH.a = Math.max(-2, n - 110); CH.b = N + (CH.tf === "M15" ? 14 : 6); }
+function dropStale(d) {            // a forecast older than the candles we hold is not drawn (it flattened the whole chart)
+  if (!d.signal) return "";
+  const last = d.bars[d.bars.length - 1][0], t = d.signal.bar_t / 1000;
+  if ((d.tf || "M15") === "M15" ? d.bars.some(b => b[0] === t) : t + 900 * (d.signal.median.length + 1) > last) return "";
+  const h = Math.round((last - t) / 3600); d.signal = null; return ` · latest forecast is ${h} h old, not drawn`;
+}
+async function openModal(sym, tf) {
+  tf = tf || (CH && CH.tf) || "M15";
+  $("#modal").classList.add("show"); document.body.style.overflow = "hidden";
   history.replaceState(null, "", "#" + sym);          // /kronos#GBPUSD opens that chart (a link to keep)
   $("#mtitle").textContent = sym; $("#msub").textContent = "loading…"; $("#mread").textContent = "";
   try {
-    const d = await api("/api/kronos/chart?sym=" + encodeURIComponent(sym));
-    CH = {sym, d, paths: $("#m-paths").getAttribute("aria-pressed") === "true", band: $("#m-band").getAttribute("aria-pressed") === "true",
-          past: CH ? CH.past : "tradeable", mx: null, my: null};
+    const d = await api("/api/kronos/chart?sym=" + encodeURIComponent(sym) + "&tf=" + tf);
+    if (d.error) throw new Error(d.error);
+    const stale = dropStale(d);
+    CH = {sym, d, stale, paths: $("#m-paths").getAttribute("aria-pressed") === "true", band: $("#m-band").getAttribute("aria-pressed") === "true",
+          past: CH ? CH.past : "tradeable", mx: null, my: null, tf, smc: null, bos: CH ? CH.bos : true, sdd: CH ? CH.sdd : true};
+    tfUi(); layersUi();
     $("#m-past").textContent = "past: " + CH.past; $("#m-past").setAttribute("aria-pressed", CH.past !== "off");
-    resetVp(); index(); redraw();
+    resetVp(); index(); redraw(); smcLoad();
   } catch (e) { $("#msub").textContent = "no chart data: " + e.message; }
 }
-function closeModal() { $("#modal").classList.remove("show"); history.replaceState(null, "", location.pathname); }
+function layersUi() { for (const id of ["#m-smc", "#m-sdd"]) $(id).setAttribute("aria-pressed", CH[id === "#m-smc" ? "bos" : "sdd"]); }
+for (const [id, key] of [["#m-smc", "bos"], ["#m-sdd", "sdd"]]) $(id).onclick = () => { if (!CH) return; CH[key] = !CH[key]; layersUi(); redraw(); };
+async function smcLoad() {                   // David's BOS / CHoCH + S&D on this timeframe (same numbers as /smc)
+  if (!CH) return; const key = CH.sym + CH.tf, since = CH.d.bars[0][0] * 1000;
+  try {
+    const r = await api(`/api/kronos/smc?sym=${encodeURIComponent(CH.sym)}&tf=${CH.tf}&since=${since}`);
+    if (CH && CH.sym + CH.tf === key) { CH.smc = r.error ? null : r; CH.smcErr = r.error || ""; redraw(); }
+  } catch (e) { /* the chart works without it */ }
+}
+setInterval(() => { if (CH && $("#modal").classList.contains("show")) smcLoad(); }, 30000);
+function tfUi() {                           // timeframe buttons (Kronos forecasts, bands and past forecasts exist on M15 only)
+  document.querySelectorAll("#m-tfs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.tf === CH.tf));
+  $("#m-past").style.display = CH.tf === "M15" ? "" : "none";
+}
+document.querySelectorAll("#m-tfs button").forEach(b => b.onclick = () => { if (CH && b.dataset.tf !== CH.tf) openModal(CH.sym, b.dataset.tf); });
+function closeModal() { $("#modal").classList.remove("show"); document.body.style.overflow = ""; history.replaceState(null, "", location.pathname); }
 function index() {                            // bar time → index, and each past forecast's outcome
+  if (CH.tf !== "M15") { CH.at = new Map(CH.d.bars.map((b, i) => [b[0], i])); CH.hist = []; const sg = CH.d.signal; $("#msub").textContent = CH.tf + " candles" + (sg ? ` · Kronos M15 forecast (next ${sg.median.length} × 15 min): P up ${Math.round(sg.p_up * 100)} % · median ${((sg.median[sg.median.length - 1] / sg.last - 1) * 1e4).toFixed(1)} bps` : "") + (CH.stale || ""); return; }
   const d = CH.d, at = new Map(d.bars.map((b, i) => [b[0], i])), H = d.signal ? d.signal.median.length : 8;
   CH.at = at;
   CH.past = CH.past || "tradeable";
@@ -276,7 +323,7 @@ function index() {                            // bar time → index, and each pa
   $("#msub").textContent = (sg ? `P up ${Math.round(sg.p_up * 100)} % · median ${(sg.median[H - 1] - sg.last >= 0 ? "+" : "")}${((sg.median[H - 1] / sg.last - 1) * 1e4).toFixed(1)} bps in ${H} bars · ` : "")
     + `on this chart: direction right ${scored.length ? Math.round(100 * scored.filter(h => h.hit).length / scored.length) : "–"} % of ${scored.length} forecasts`
     + (conf.length ? `, ${Math.round(100 * conf.filter(h => h.hit).length / conf.length)} % of ${conf.length} tradeable` : "")
-    + (s.decision ? ` · last decision: ${s.decision.side ? s.decision.side + " — " + (s.decision.action || s.decision.why) : "no trade — " + s.decision.why}` : "");
+    + (CH.stale || "") + (s.decision ? ` · last decision: ${s.decision.side ? s.decision.side + " — " + (s.decision.action || s.decision.why) : "no trade — " + s.decision.why}` : "");
 }
 function redraw() { if (!CH || !$("#modal").classList.contains("show")) return; if (!CH.raf) CH.raf = requestAnimationFrame(() => { CH.raf = 0; drawBig(); }); }
 function niceStep(range, n) { const r = range / n, p = Math.pow(10, Math.floor(Math.log10(r))), m = r / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; }
@@ -286,7 +333,7 @@ function drawBig() {
   const g = cv.getContext("2d"); g.scale(dpr, dpr);
   const d = CH.d, bars = d.bars, n = bars.length, sg = d.signal, H = sg ? sg.median.length : 0;
   const s = V.symbols.find(x => x.symbol === CH.sym) || {}, dg = s.digits ?? 5;
-  const lv = liveOf(s), iL = liveIndex(bars, lv), iS = sigIndex(bars, sg);
+  const lv = liveOf(s), iL = CH.tf === "M15" ? liveIndex(bars, lv) : -1, iS = sigIndex(bars, sg);
   const sw = (W - L - R) / (CH.b - CH.a), X = i => L + (i - CH.a + 0.5) * sw;
   const i0 = Math.max(0, Math.floor(CH.a)), i1 = Math.min(n - 1, Math.ceil(CH.b));
   const trs = tradesOf(CH.sym), done = tradesOf(CH.sym, true);
@@ -312,9 +359,10 @@ function drawBig() {
   }
   // time axis (IST): a label every ~110 px, the date when the day changes
   const every = Math.max(1, Math.round(110 / sw)); let lastDay = "";
-  for (let i = i0; i <= i1 + H; i++) {
+  const FS = sg ? Math.ceil(H * 900 / TFS[CH.tf]) + 1 : 0;
+  for (let i = i0; i <= i1 + FS; i++) {
     if (i % every) continue;
-    const t = i < n ? bars[i][0] : bars[n - 1][0] + (i - n + 1) * 900;
+    const t = i < n ? bars[i][0] : bars[n - 1][0] + (i - n + 1) * TFS[CH.tf];
     const dt = new Date(t * 1000 + IST_MS), day = dt.toISOString().slice(0, 10);
     const lab = day !== lastDay ? `${DAYS[dt.getUTCDay()]} ${dt.toISOString().slice(8, 10)} ${dt.toISOString().slice(11, 16)}` : dt.toISOString().slice(11, 16);
     lastDay = day; g.fillStyle = "#667085"; g.fillText(lab, X(i) - 14, Hh - 7);
@@ -328,6 +376,46 @@ function drawBig() {
     g.beginPath(); g.moveTo(X(i), Y(b[2])); g.lineTo(X(i), Y(b[3])); g.stroke();
     const y1 = Y(Math.max(b[1], b[4])), y2 = Y(Math.min(b[1], b[4])); g.fillRect(X(i) - cw / 2, y1, cw, Math.max(1, y2 - y1));
   }
+
+  // David's structure + S&D (smc_compare, this timeframe): drawn under the forecast and the trades
+  if (CH.smc) {
+    const S = CH.smc, tfs = TFS[CH.tf], XT = ts => X(uOf(ts)), XR = W - R;
+    g.font = "bold 10px ui-sans-serif,system-ui";
+    if (CH.sdd) for (const z of S.sdd) {
+      const d = z.side === "demand", rgb = d ? "76,175,80" : "239,83,80", col = d ? "#66bb6a" : "#ef5350";
+      const xa = XT(z.t0 / 1000), xb = z.live || z.t_end == null ? XR : XT(z.t_end / 1000);
+      if (xb < L || xa > XR) continue;
+      const box = (xa_, xb_, top, bot, fill, stroke, dash) => { g.fillStyle = fill; g.fillRect(xa_, Y(top), Math.max(1, xb_ - xa_), Math.max(1, Y(bot) - Y(top)));
+        if (stroke) { g.setLineDash(dash); g.strokeStyle = stroke; g.strokeRect(xa_, Y(top), Math.max(1, xb_ - xa_), Math.max(1, Y(bot) - Y(top))); g.setLineDash([]); } };
+      if (z.fvg && z.t_c != null) box(xa, XT(z.t_c / 1000 + tfs), z.fvg.top, z.fvg.bottom, `rgba(${rgb},.10)`, `rgba(${rgb},.6)`, [2, 2]);
+      box(xa, xb, z.top, z.bottom, `rgba(${rgb},${z.live ? .24 : .10})`, col, z.live ? [] : [5, 3]);
+      g.strokeStyle = col; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(xa, Y(z.mid)); g.lineTo(xb, Y(z.mid)); g.stroke(); g.setLineDash([]);
+      g.lineWidth = 1.5; g.beginPath(); g.moveTo(xa, Y(z.proximal)); g.lineTo(xb, Y(z.proximal)); g.stroke(); g.lineWidth = 1;
+      g.fillStyle = col; g.textAlign = "left";
+      g.fillText(`${d ? "DEMAND" : "SUPPLY"} · A · ${z.status}`, Math.max(xa, L) + 3, d ? Y(z.bottom) + 11 : Y(z.top) - 5);
+      const xs = Math.max(XT((z.t_touch != null ? z.t_touch : z.t_break) / 1000), L);
+      if (xs < xb) {
+        g.globalAlpha = z.live ? 1 : .55; g.textAlign = "right";
+        const ys = Y(z.distal) + (d ? 3 : -3);
+        g.strokeStyle = g.fillStyle = "#ff1744"; g.lineWidth = 1.5; g.setLineDash([6, 3]); g.beginPath(); g.moveTo(xs, ys); g.lineTo(xb, ys); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+        g.fillText(`SL ${z.distal.toFixed(dg)}`, Math.min(xb, XR) - 3, ys + (d ? 11 : -3));
+        (z.targets || []).forEach((t, k) => { const yt = Y(t.price);
+          g.strokeStyle = g.fillStyle = "#00e676"; g.setLineDash(k === 2 ? [] : [3, 3]); g.beginPath(); g.moveTo(xs, yt); g.lineTo(xb, yt); g.stroke(); g.setLineDash([]);
+          g.fillText(`T${k + 1} ${t.price.toFixed(dg)} · ${t.rr}R`, Math.min(xb, XR) - 3, yt - 3); });
+        g.textAlign = "left"; g.globalAlpha = 1;
+      }
+    }
+    if (CH.bos) for (const b of S.breaks) {
+      const bull = b.side === "bull", col = bull ? "#26a69a" : "#ef5350", x0 = XT(b.t_from / 1000 + tfs / 2), x1 = XT(b.t / 1000 + tfs / 2), y = Y(b.level);
+      if (x1 < L || x0 > XR) continue;
+      g.strokeStyle = col; g.lineWidth = b.kind === "CHoCH" ? 2 : 1.5; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.lineWidth = 1;
+      const txt = (bull ? "Bull " : "Bear ") + b.kind, w = g.measureText(txt).width + 10, bh = 15;
+      const bx = Math.min(Math.max((x0 + x1) / 2 - w / 2, L + 2), XR - w - 2), by = bull ? y - bh - 3 : y + 3;
+      g.fillStyle = b.kind === "CHoCH" ? (bull ? "rgba(38,166,154,.35)" : "rgba(239,83,80,.35)") : "rgba(14,18,27,.92)";
+      g.fillRect(bx, by, w, bh); g.strokeStyle = col; g.strokeRect(bx + .5, by + .5, w - 1, bh - 1);
+      g.fillStyle = "#e6e9ef"; g.fillText(txt, bx + 5, by + 11);
+    }
+  }
   // Kronos' earlier forecasts on these candles
   if (CH.past !== "off") for (const h of CH.hist) {
     if (CH.past === "tradeable" && h.agree < V.config.P_MIN) continue;
@@ -339,7 +427,7 @@ function drawBig() {
   g.lineWidth = 1;
   // the latest forecast
   if (sg) {
-    const x0 = X(iS), xi = k => X(iS + 1 + k);
+    const T0 = sg.bar_t / 1000, xt = ts => X(uOf(ts)), x0 = xt(T0 + 450), xi = k => xt(T0 + (k + 1) * 900 + 450);
     if (CH.band) {
       g.fillStyle = "rgba(122,162,255,.16)"; g.beginPath(); g.moveTo(x0, Y(sg.last));
       sg.q90.forEach((q, k) => g.lineTo(xi(k), Y(q))); for (let k = H - 1; k >= 0; k--) g.lineTo(xi(k), Y(sg.q10[k])); g.closePath(); g.fill();
@@ -349,8 +437,8 @@ function drawBig() {
       g.beginPath(); g.moveTo(x0, Y(sg.last)); p.forEach((c, k) => g.lineTo(xi(k), Y(c))); g.stroke();
     }
     g.strokeStyle = "#7aa2ff"; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x0, Y(sg.last)); sg.median.forEach((m, k) => g.lineTo(xi(k), Y(m))); g.stroke(); g.lineWidth = 1;
-    g.setLineDash([3, 3]); g.strokeStyle = "#4a5470"; g.beginPath(); g.moveTo(x0 + sw / 2, T); g.lineTo(x0 + sw / 2, Hh - B); g.stroke(); g.setLineDash([]);
-    g.fillStyle = "#9aa3b2"; g.fillText("forecast", x0 + sw / 2 + 3, T + 12);
+    g.setLineDash([3, 3]); g.strokeStyle = "#4a5470"; const xe = xt(T0 + 900); g.beginPath(); g.moveTo(xe, T); g.lineTo(xe, Hh - B); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#9aa3b2"; g.fillText("Kronos M15 forecast", xe + 3, T + 12);
   }
   if (iL >= 0) {                               // the forming candle (live), outlined so it reads as unfinished
     const b = lv.bar, col = lv.bid >= b[1] ? "#26a69a" : "#ef5350";
@@ -379,6 +467,15 @@ function drawBig() {
     });
   }
   g.restore();
+  if (CH.smc && CH.bos) {                      // the two levels waiting now (David's structure): CHoCH = the protected swing, BOS = the next extreme
+    g.font = "bold 10px ui-sans-serif,system-ui";
+    for (const [q, txt, col] of [[CH.smc.protected, "CHoCH", "#ff8a80"], [CH.smc.bos_level, "BOS", "#b388ff"]]) if (q) {
+      const y = Y(q.price); if (y < T || y > Hh - B) continue;
+      g.strokeStyle = col; g.globalAlpha = .5; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+      g.fillStyle = col; g.fillRect(W - R - 44, y - 7, 44, 14); g.fillStyle = "#0b0e14"; g.fillText(txt, W - R - 40, y + 3);
+    }
+    g.font = "11px ui-sans-serif,system-ui";
+  }
   if (lv) {                                    // price tag on the axis: bid now (grey = no new tick for 5 min)
     const y = Math.min(Hh - B - 9, Math.max(T + 9, Y(lv.bid)));
     priceTag(g, W - R + 1, R - 2, y, (staleQ(lv) ? "last " : "") + lv.bid.toFixed(dg), staleQ(lv) ? "#667085" : lv.bid >= lv.bar[1] ? "#26a69a" : "#ef5350");
@@ -397,7 +494,7 @@ function drawBig() {
       const h = CH.hist.find(x => x.i0 === i);
       if (h) txt += `\nforecast made here: P up ${Math.round(h.p_up * 100)} %, median ${(h.median[h.median.length - 1] - h.last >= 0 ? "+" : "")}${(h.median[h.median.length - 1] - h.last).toFixed(dg)}`
         + (h.hit == null ? " — not known yet" : h.hit ? " — direction came TRUE" : " — direction was WRONG");
-    } else if (sg && i > iS && i <= iS + H) {
+    } else if (CH.tf === "M15" && sg && i > iS && i <= iS + H) {
       const k = i - iS - 1, up = sg.each ? sg.each.filter(p => p[k] > sg.last).length : null;
       txt = `forecast +${k + 1} bar${k ? "s" : ""} (${when(bars[iS][0] + (k + 1) * 900)}):  median ${sg.median[k].toFixed(dg)}  (${((sg.median[k] / sg.last - 1) * 1e4).toFixed(1)} bps)`
         + `   10–90 %: ${sg.q10[k].toFixed(dg)} … ${sg.q90[k].toFixed(dg)}` + (up != null ? `   paths above the forecast's close: ${up}/${sg.each.length}` : "");
@@ -416,7 +513,7 @@ function zoomAt(mx, f) {
   const N = slotsOf(CH.d), w = Math.min(N + 10, Math.max(20, (CH.b - CH.a) * f));
   CH.a = at - (at - CH.a) * w / (CH.b - CH.a); CH.b = CH.a + w; clampVp(); redraw();
 }
-function clampVp() { const N = slotsOf(CH.d), w = CH.b - CH.a; if (CH.a < -5) { CH.a = -5; CH.b = CH.a + w; } if (CH.b > N + 5) { CH.b = N + 5; CH.a = CH.b - w; } }
+function clampVp() { const N = slotsOf(CH.d) + 12, w = CH.b - CH.a; if (CH.a < -5) { CH.a = -5; CH.b = CH.a + w; } if (CH.b > N + 5) { CH.b = N + 5; CH.a = CH.b - w; } }
 const mcv = $("#mcv");
 mcv.addEventListener("wheel", e => { if (!CH) return; e.preventDefault(); const r = mcv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.deltaY > 0 ? 1.15 : 1 / 1.15); }, {passive: false});
 mcv.addEventListener("pointerdown", e => { if (!CH) return; mcv.setPointerCapture(e.pointerId); CH.drag = {x: e.clientX, a: CH.a, b: CH.b}; });
@@ -458,11 +555,11 @@ async function load() {
   V = nv; render();
   if (CH && $("#modal").classList.contains("show")) {        // the open chart: live candle redrawn; new forecast or a bar closed → reload, keep the view
     const s = V.symbols.find(x => x.symbol === CH.sym), lv = liveOf(s), bs = CH.d.bars;
-    const newBar = lv && bs.length && lv.bar[0] - bs[bs.length - 1][0] > 900;
-    if (s && ((s.signal && (!CH.d.signal || s.signal.bar_t !== CH.d.signal.bar_t)) || newBar)) {
+    const newBar = lv && bs.length && lv.bar[0] - bs[bs.length - 1][0] >= (CH.tf === "M15" ? 901 : TFS[CH.tf]);
+    if (s && ((s.signal && !CH.stale && (!CH.d.signal || s.signal.bar_t !== CH.d.signal.bar_t)) || newBar)) {
       try {
-        const atEnd = CH.b >= slotsOf(CH.d) - 1, w = CH.b - CH.a, d = await api("/api/kronos/chart?sym=" + encodeURIComponent(CH.sym));
-        CH.d = d; index();
+        const atEnd = CH.b >= slotsOf(CH.d) - 1, w = CH.b - CH.a, d = await api("/api/kronos/chart?sym=" + encodeURIComponent(CH.sym) + "&tf=" + CH.tf);
+        CH.stale = dropStale(d); if (d.error) throw 0; CH.d = d; index();
         if (atEnd) { CH.b = slotsOf(d); CH.a = CH.b - w; }
       } catch (e) { /* keep the old chart */ }
     }
@@ -470,7 +567,41 @@ async function load() {
   }
 }
 load().then(() => { const h = decodeURIComponent(location.hash.slice(1)); if (h && V && V.symbols.some(s => s.symbol === h)) openModal(h); });
-setInterval(load, 5000);                      // cheap when nothing changed (same "at")
+setInterval(load, 5000);
+// ---- forecaster panel: /api/kronos/status every 3 s (process alive?, GPU, what it is forecasting, seconds per chart / candle)
+const dur = s => s == null ? "–" : s < 90 ? Math.round(s) + " s" : s < 5400 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h";
+const barT = ms => ms ? ist(ms).slice(0, 11) : "–";
+async function fcLoad() {
+  let d; try { d = await api("/api/kronos/status"); } catch (e) { $("#fc-top").textContent = "status unavailable: " + e.message; return; }
+  const card = (k, v, sub) => `<div class="fcc"><small>${k}</small><b>${v}</b><span>${sub || ""}</span></div>`;
+  const done = d.symbols.filter(r => r.state === "forecast").length, N = d.symbols.length - (d.off_today || []).length, g = d.gpu;
+  const doing = d.alive && d.running.length ? Math.max(0, (d.now - d.running_since) / 1000) : null;
+  $("#fc-top").innerHTML =
+    card("Forecaster", d.alive ? `<span class="good">running</span>` : `<span class="bad">NOT running</span>`, d.alive ? `pid ${d.pid} · up ${dur(d.uptime_s)}` : "start: python -m concepter.kronos.signals")
+    + card("Model", d.model, `${d.paths} paths × ${d.horizon} bars · ${d.tf} · ${d.context}-bar context`)
+    + card("GPU", g ? `${g.util} %` : "–", g ? `${g.name.replace("NVIDIA GeForce ", "")} · ${g.mem_used}/${g.mem_total} MB · ${g.temp} °C` : "no nvidia-smi")
+    + card("One chart", d.per_chart_s ? dur(d.per_chart_s) : "–", d.best_chart_s ? `${d.paths} paths × ${d.horizon} candles · best seen ${d.best_chart_s.toFixed(1)} s` : "")
+    + card("One candle", d.per_candle_s ? d.per_candle_s.toFixed(1) + " s" : "–", `one chart ÷ ${d.horizon} forecast candles`)
+    + card("All " + N + " charts", dur(d.full_cycle_s), `${d.chunk} charts per GPU pass`)
+    + card("Up to date", `${done} / ${N}`, d.pending.length ? `${d.pending.length} waiting · ~${dur(d.eta_s)} left` : "all current");
+  $("#fc-bar").style.width = (100 * done / N) + "%";
+  const sh = d.shares_gpu_with.length ? ` · GPU shared with ${d.shares_gpu_with.map(x => x.name).join(", ")} (slows it down)` : "";
+  $("#fc-now").innerHTML = !d.alive ? `<span class="bad">The forecaster process is not running — no new forecasts.</span>`
+    : d.running.length ? `Forecasting now: <b>${d.running.join(", ")}</b> — ${dur(doing)} into this pass (a pass takes ~${dur(d.last_pass ? d.last_pass.secs : null)})${sh}`
+    : `Idle — every symbol has a forecast for its latest closed bar; waiting for the next M15 close${sh}`;
+  $("#fc-now").innerHTML += (d.off_today || []).length ? `<br><span class="muted">Today the forecaster serves <b>${N}</b> symbols (<code>--symbols</code>); <b>${d.off_today.length}</b> are off today (market closed / David's choice): ${d.off_today.join(", ")}</span>` : "";
+  $("#fc-rows").innerHTML = d.symbols.map(r => {
+    const run = d.running.includes(r.symbol), lag = r.feed_t ? (d.now - r.feed_t) / 3600e3 : null;
+    const st = run ? `<span class="warn">forecasting…</span>` : r.state === "forecast" ? `<span class="good">forecast ready</span>`
+      : r.state === "queued" ? `<span class="muted">waiting</span>` : r.state === "off today" ? `<span class="muted">off today</span>` : `<span class="bad">no feed</span>`;
+    return `<tr><td><b>${esc(r.symbol)}</b></td><td>${st}</td><td class="num ${lag > 1 ? "warn" : ""}" title="${lag > 1 ? "the engine has not written a newer bar for " + dur(lag * 3600) : ""}">${barT(r.feed_t)}</td>`
+      + `<td class="num">${barT(r.bar_t)}</td><td class="num">${r.made_ms ? ago(r.made_ms) : "never"}</td><td class="num">${r.secs != null ? r.secs + " s" : "–"}</td>`
+      + `<td class="num">${r.p_up != null ? Math.round(r.p_up * 100) + " %" : "–"}</td></tr>`;
+  }).join("");
+  $("#fc-log").textContent = d.log.join("\n");
+}
+fcLoad(); setInterval(fcLoad, 3000);
+                      // cheap when nothing changed (same "at")
 </script>
 </body>
 </html>

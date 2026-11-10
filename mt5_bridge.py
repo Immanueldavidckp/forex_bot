@@ -247,6 +247,19 @@ def op_cancel(q):
     return _result(mt5.order_send(req), req)
 
 
+def op_modify(q):
+    """Move a pending order's price / stop / target (0 or missing = keep)."""
+    o = mt5.orders_get(ticket=int(q["ticket"]))
+    if not o:
+        raise ValueError(f"no pending order {q['ticket']}")
+    o = o[0]
+    info = _symbol(o.symbol)
+    r = lambda k, old: round(float(q[k]), info.digits) if q.get(k) else old
+    req = {"action": mt5.TRADE_ACTION_MODIFY, "order": o.ticket, "symbol": o.symbol, "price": r("price", o.price_open),
+           "sl": r("sl", o.sl), "tp": r("tp", o.tp), "type_time": o.type_time, "expiration": o.time_expiration}
+    return _result(mt5.order_send(req), req)
+
+
 def op_sltp(q):
     p = mt5.positions_get(ticket=int(q["ticket"]))
     if not p:
@@ -281,8 +294,10 @@ def op_deals(q):
     if q.get("position"):
         ds = mt5.history_deals_get(position=int(q["position"]))
     else:
-        now = time.time() + 86400                       # the server clock runs ahead of UTC
-        ds = mt5.history_deals_get(int(now - 86400 * float(q.get("days", 3))), int(now))
+        # deals are stamped in server time (ahead of UTC): end a day AHEAD so none is cut off, start `days` back from
+        # real now. (Until 2026-11-09 the start was taken from the shifted now too, so days=1 returned ~2 hours.)
+        now = time.time()
+        ds = mt5.history_deals_get(int(now - 86400 * float(q.get("days", 3))), int(now + 86400))
     return [_nt(d) for d in ds or []]
 
 

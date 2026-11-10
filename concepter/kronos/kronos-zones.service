@@ -1,0 +1,18 @@
+# Kronos × S&D David zones: will price touch each fresh zone in the next 50 M15 candles (read only; page /kzones).
+#   cp ~/forex/concepter/kronos/kronos-zones.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now kronos-zones
+[Unit]
+Description=Kronos-base 50-candle touch forecasts for David's S&D zones (GPU, read only; dashboard /kzones)
+
+[Service]
+WorkingDirectory=%h/forex
+Environment=PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+Environment=PYTHONWARNINGS=ignore
+Environment=MT5_NO_LAUNCH=1
+ExecStart=%h/opt/kronos-venv/bin/python -m concepter.kronos.zone_touch
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:%h/forex/engine_data/kronos/zones/zones.log
+StandardError=append:%h/forex/engine_data/kronos/zones/zones.log
+
+[Install]
+WantedBy=default.target

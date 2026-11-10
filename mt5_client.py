@@ -189,6 +189,11 @@ def cancel(ticket: int) -> Dict:
     return one({"op": "cancel", "ticket": ticket})
 
 
+def modify(ticket: int, price: float = 0.0, sl: float = 0.0, tp: float = 0.0) -> Dict:
+    """Move a pending order's price / stop / target (0 = keep)."""
+    return one({"op": "modify", "ticket": ticket, "price": price, "sl": sl, "tp": tp})
+
+
 def sltp(ticket: int, sl: float = 0.0, tp: float = 0.0) -> Dict:
     return one({"op": "sltp", "ticket": ticket, "sl": sl, "tp": tp})
 

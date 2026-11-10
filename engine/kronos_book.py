@@ -53,6 +53,12 @@ def friday_late(now: int) -> bool:
     return d.weekday() == 4 and (d.hour, d.minute) >= (hh, mm)
 
 
+def lot_for(info: Dict) -> float:
+    """The lot Kronos trades: the broker minimum (at least 0.01), on the volume step."""
+    step = float(info.get("volume_step") or 0.01)
+    return round(round(max(float(info.get("volume_min") or 0.01), 0.01) / step) * step, 8)
+
+
 def decide(sig: Dict, rows: List[list], info: Dict, market: str, now: int, tick: Optional[Dict] = None) -> Dict:
     """One forecast → {"side": "buy" | "sell" | None, "why", and for a trade "entry", "sl", "tp", "atr"}.
     Without a tick the levels are estimated from the last close ± half the bar's spread (the pre-check)."""
@@ -78,12 +84,47 @@ def decide(sig: Dict, rows: List[list], info: Dict, market: str, now: int, tick:
     gap = stops_gap(info)
     sl_d = max(K["SL_ATR"] * a, gap)
     tp_d = max(K["TP_ATR"] * a, gap)
+    capped = False
+    if K.get("MAX_RISK_USD"):                       # David 2026-11-09: stop never risks more than $2 at the lot traded
+        mpm = money_per_move(info) * lot_for(info)
+        cap_d = K["MAX_RISK_USD"] / mpm if mpm > 0 else sl_d
+        if cap_d < sl_d:
+            if cap_d < gap:
+                return {**out, "why": f"a ${K['MAX_RISK_USD']:g} stop ({cap_d:g}) is inside the broker's stops level {gap:g}"}
+            sl_d, capped = cap_d, True
     if spread > K["MAX_SPREAD_SL"] * sl_d:
         return {**out, "why": f"spread {spread:g} is over {K['MAX_SPREAD_SL']:.0%} of the stop {sl_d:g}"}
     dg = int(info.get("digits") or 5)
+    from .trade_checks import chk, g
+    checks = [
+        chk("Setup", "Kronos paths agreeing", f"{agree:.0%} of {sig.get('paths', K['PATHS'])} paths {'up' if side == 'buy' else 'down'} (P up {p_up:.0%})",
+            f"≥ {K['P_MIN']:.0%} on one side", True),
+        chk("Setup", "Median path ends on that side", f"{move:+.6g} in {K['HORIZON']} bars", "up for a buy, down for a sell", True),
+        chk("Setup", "Median move vs spread", f"{g(abs(move))} = {abs(move) / spread:.1f} × spread {g(spread)}" if spread else f"{g(abs(move))}, spread 0",
+            f"≥ {K['MIN_MOVE_SPREAD_X']:g} × the spread", True),
+        chk("Guard", "Friday late (forex / gold)", "crypto: trades all week" if market == "crypto" else "not Friday late",
+            f"no entry after Friday {K['FRIDAY_LAST_ENTRY_UTC']} UTC", True),
+        chk("Risk", "Stop", (f"{g(sl_d)} = ${K['MAX_RISK_USD']:g} cap (1 ATR = {g(K['SL_ATR'] * a)})" if capped else
+                             f"{K['SL_ATR']:g} ATR(M15) = {g(sl_d)}" + (" (stops level)" if sl_d == gap else "")),
+            f"{K['SL_ATR']:g} ATR, at most ${K.get('MAX_RISK_USD') or 0:g} at {lot_for(info):g} lot, outside the stops level {g(gap)}", True),
+        chk("Risk", "Target", f"{K['TP_ATR']:g} ATR = {g(tp_d)} ({tp_d / sl_d:.1f} R)", f"{K['TP_ATR']:g} ATR", True),
+        chk("Risk", "Spread vs stop", f"{g(spread)} = {spread / sl_d:.0%} of the stop", f"≤ {K['MAX_SPREAD_SL']:.0%}", True),
+    ]
     return {**out, "side": side, "entry": round(entry, dg), "sl": round(entry - sg * sl_d, dg), "tp": round(entry + sg * tp_d, dg),
-            "atr": a, "why": f"{agree:.0%} of {sig.get('paths', K['PATHS'])} paths {'up' if side == 'buy' else 'down'}, "
+            "atr": a, "checks": checks, "why": f"{agree:.0%} of {sig.get('paths', K['PATHS'])} paths {'up' if side == 'buy' else 'down'}, "
                              f"median {move:+g} in {K['HORIZON']} bars"}
+
+
+def kronos_marks(sig: Dict, entry: float) -> List[Dict]:
+    """The forecast the trade was taken on: the median path + the 10–90 % band, drawn from the entry bar's close."""
+    t0 = sig["bar_t"] + BAR_MS
+    med = list(sig.get("median") or [])
+    ts = [t0 + i * BAR_MS for i in range(len(med) + 1)]
+    m = {"type": "path", "label": f"Kronos median, {sig.get('paths', K['PATHS'])} paths (10–90 % band)", "t": ts,
+         "p": [sig.get("last", entry)] + med, "color": "#b388ff"}
+    if sig.get("q10") and sig.get("q90"):
+        m["band"] = [[sig.get("last", entry)] + list(sig["q10"]), [sig.get("last", entry)] + list(sig["q90"])]
+    return [m]
 
 
 class KronosBook:
@@ -228,6 +269,13 @@ class KronosBook:
             else:
                 tick = mt5c.tick(sym)
                 d = decide(sig, rows, info, self.market(sym), now, tick)
+                if d["side"]:
+                    from .trade_checks import chk
+                    d["checks"] = d.get("checks", []) + [
+                        chk("Guard", "Forecast age", f"{age // 1000} s after the bar closed", f"≤ {K['SIGNAL_MAX_AGE_SEC'] // 60} min", True),
+                        chk("Guard", "Free margin", "enough", f"≥ {K['MIN_FREE_MARGIN_PCT']} % of equity", True),
+                        chk("Guard", "Kronos + engine trading", "both ON", "switches on /kronos and the home page", True),
+                        chk("Guard", "Exit plan", f"TP / SL at the broker · {K['HOLD_BARS']} bars (2 h) time exit", "", None)]
                 act = self.enter(sym, sig, d, info) if d["side"] else ""
         rec = {"bar_t": sig["bar_t"], "at": now, "p_up": sig["p_up"], "side": d["side"], "why": d["why"],
                "action": act or ("no trade" if not d["side"] else "")}
@@ -236,9 +284,7 @@ class KronosBook:
             f.write(json.dumps({"symbol": sym, **rec}) + "\n")
 
     def enter(self, sym: str, sig: Dict, d: Dict, info: Dict) -> str:
-        step = float(info.get("volume_step") or 0.01)
-        q = round(max(float(info["volume_min"]), 0.01) / step) * step
-        q = round(q, 8)
+        q = lot_for(info)
         tag = _dt.datetime.fromtimestamp(sig["bar_t"] / 1000, _dt.timezone.utc).strftime("%d%H%M")
         res = mt5c.order(sym, d["side"], q, d["sl"], d["tp"], self.magic, f"KRN {tag}", 30)
         if not res.get("ok"):
@@ -255,7 +301,8 @@ class KronosBook:
         self.trades[tid] = {"id": tid, "symbol": sym, "side": d["side"], "lots": q, "entry": fill, "sl": d["sl"], "tp": d["tp"],
                             "ticket": pos["ticket"] if pos else res.get("order"), "opened_ms": opened,
                             "close_by_ms": opened + K["HOLD_BARS"] * BAR_MS, "bar_t": sig["bar_t"], "p_up": sig["p_up"],
-                            "median_end": sig["median"][-1], "risk_usd": round(q * abs(fill - d["sl"]) * money_per_move(info), 2)}
+                            "median_end": sig["median"][-1], "risk_usd": round(q * abs(fill - d["sl"]) * money_per_move(info), 2),
+                            "checks": d.get("checks"), "marks": kronos_marks(sig, fill)}
         journal("kronos_entry", id=tid, symbol=sym, side=d["side"], lots=q, entry=fill, sl=d["sl"], tp=d["tp"], p_up=sig["p_up"])
         log(f"kronos {sym} {d['side']}: {q} @ {fill:g}, SL {d['sl']:g}, TP {d['tp']:g} ({d['why']})")
         return f"{d['side']} {q} @ {fill:g}"
@@ -274,6 +321,10 @@ class KronosBook:
             p = pos_by.get(t["ticket"])
             if p:
                 t["price_now"], t["pnl_now"] = p.get("price_current"), p.get("profit")
+                if p.get("sl"):                     # a stop moved at the broker (e.g. pulled in to $2) shows on /kronos
+                    t["sl"] = p["sl"]
+                if p.get("tp"):
+                    t["tp"] = p["tp"]
                 if now >= t["close_by_ms"] and not t.get("closing"):
                     r = mt5c.close(int(t["ticket"]), "KRN time exit")
                     if r.get("ok"):
@@ -379,7 +430,7 @@ class KronosBook:
         _write(VIEW_FILE, {
             "at": now, "kronos_on": on, "trading": trading, "service_ms": made,
             "config": {k: K[k] for k in ("SYMBOLS", "MAGIC", "TF", "CONTEXT", "HORIZON", "PATHS", "P_MIN", "MIN_MOVE_SPREAD_X",
-                                         "SL_ATR", "TP_ATR", "HOLD_BARS", "MAX_POSITIONS", "MAX_PER_SYMBOL")},
+                                         "SL_ATR", "TP_ATR", "MAX_RISK_USD", "HOLD_BARS", "MAX_POSITIONS", "MAX_PER_SYMBOL")},
             "symbols": [{"symbol": s, "market": self.market(s), "digits": (self.info.get(s) or {}).get("digits"),
                          "bars": [[r[0] // 1000, r[1], r[2], r[3], r[4]] for r in (self.rows.get(s) or [])[-96:]],
                          "live": self.live.get(s),

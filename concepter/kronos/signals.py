@@ -37,8 +37,12 @@ def frame(rows) -> pd.DataFrame:
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--symbols", default="", help="comma list; default config KRONOS['SYMBOLS'] (David 2026-11-08: crypto only on a Sunday)")
+    syms = list(dict.fromkeys(x for x in ap.parse_args().symbols.split(",") if x)) or list(K["SYMBOLS"])
     pred = load()
-    log(f"Kronos-base loaded on {pred.device}; {', '.join(K['SYMBOLS'])} {K['TF']}, {K['PATHS']} paths × {K['HORIZON']} bars")
+    log(f"Kronos-base loaded on {pred.device}; {', '.join(syms)} {K['TF']}, {K['PATHS']} paths × {K['HORIZON']} bars")
     try:
         with open(SIGNALS_FILE) as f:
             sigs = json.load(f)
@@ -46,7 +50,7 @@ def main() -> int:
         sigs = {}
     while True:
         todo = []
-        for sym in K["SYMBOLS"]:
+        for sym in syms:
             try:
                 with open(os.path.join(FEED_DIR, f"{sym}.json")) as f:
                     rows = json.load(f)["bars"]

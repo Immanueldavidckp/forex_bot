@@ -128,12 +128,13 @@ def sdc_page(bars: List[Dict], m: Dict) -> List[Dict]:
 
 
 def sdd_page(bars: List[Dict], m: Dict) -> List[Dict]:
-    """David's own supply / demand (sd_david.py): bull BOS → demand, bear BOS → supply, valid only with an FVG in the move"""
+    """David's supply / demand, the class rule (sd_david.py): BOS → A-B-C gap in the BOS move → candle A is the zone"""
     T = lambda i: _T(bars, i)
     return [{"side": z["side"], "valid": z["valid"], "why": z["why"], "top": z["top"], "bottom": z["bottom"],
-             "proximal": z["proximal"], "distal": z["distal"], "bos_level": z["bos_level"], "t_level": T(z["level_idx"]),
-             "t0": T(z["base"][0]), "t1": T(z["base"][1]), "n": z["base"][1] - z["base"][0] + 1, "t_break": T(z["break"]),
-             "t_disp": T(z["disp"]), "fvgs": [{"top": f["top"], "bottom": f["bottom"], "t": T(f["idx"] - 1), "atr": f["atr"]} for f in z["fvgs"]],
+             "mid": z["mid"], "proximal": z["proximal"], "distal": z["distal"], "bos_level": z["bos_level"],
+             "t_level": T(z["level_idx"]), "t_origin": T(z["origin"]), "t_break": T(z["break"]),
+             "t0": T(z["a"]), "t_c": T(z["a"] + 2) if z["a"] is not None else None,
+             "fvg": z["fvg"], "fib_ext": z.get("fib_ext"), "targets": z.get("targets"),
              "status": z["status"], "t_touch": T(z["touch_idx"]), "t_broken": T(z["broken_idx"]),
              "t_superseded": T(z["superseded_idx"]), "t_end": T(z["end_idx"]), "live": z["live"]}
             for z in sd_david.zones(bars, m)]
@@ -381,7 +382,7 @@ _CACHE: Dict[tuple, tuple] = {}
 CACHE_S = 30          # the internet copy serves this page too: one computation per chart per 30 s, whoever asks
 
 
-FULL_BARS = 60000     # "whole history": every bar on disk (GOLD M15 ≈ 33,000 → ~30 s to compute, kept 10 min)
+FULL_BARS = 100000    # "whole history": every bar on disk (M15 / M30 ≈ 100,000 since 2026-11-03 → ~1.5 min to compute, kept 10 min)
 FULL_CACHE_S = 600
 
 

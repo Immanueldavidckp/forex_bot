@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kronos Zone Touch</title>
+<style>
+:root{--bg:#0b0e14;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
+--up:#26a69a;--down:#ef5350;--good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.num{font-variant-numeric:tabular-nums}a{color:var(--accent)}
+header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.96);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+h1{font-size:15px;margin:0;letter-spacing:.04em}h1 b{color:var(--accent)}
+.kv{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink2)}.kv b{color:var(--ink)}
+section{padding:12px 16px}section h2{font-size:12px;letter-spacing:.08em;color:var(--ink2);margin:0 0 8px;text-transform:uppercase}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--ink3);font-weight:500}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+#board tr{cursor:pointer}#board tr:hover td{background:#161c29}
+.empty{color:var(--ink3);padding:8px}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.muted{color:var(--ink3)}
+.note{color:var(--ink3);font-size:12px;padding:0 16px;margin:10px 0 0}.note b{color:var(--ink2)}
+.meter{display:inline-block;width:70px;height:8px;border-radius:4px;background:#1b2130;vertical-align:middle;margin-right:6px;overflow:hidden}
+.meter i{display:block;height:100%}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ch{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line)}
+.sym{font-weight:700;font-size:14px}
+.badge{border-radius:999px;padding:2px 8px;font-size:12px;border:1px solid var(--line)}
+.b-demand{background:rgba(38,166,154,.15);border-color:rgba(38,166,154,.6);color:#7ee0d3}.b-supply{background:rgba(239,83,80,.15);border-color:rgba(239,83,80,.6);color:#ffaaa8}
+.card canvas{display:block;width:100%;height:240px;background:#0e121b}
+.rec{font-size:12px;color:var(--ink2);padding:6px 10px 8px}
+@media (max-width:700px){header{padding:8px}section{padding-left:8px;padding-right:8px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1><b>KRONOS</b> × S&amp;D DAVID ZONES</h1>
+  <a href="/">← V5 engine</a><a href="/smc">/smc</a><a href="/kronos">/kronos</a>
+  <div class="kv num" id="state">loading…</div>
+</header>
+<p class="note">Every <b>fresh</b> S&amp;D David zone on M15 (BOS → candle A of the first A-B-C gap, the class video 6 rule).
+Kronos-base draws <b id="np">16</b> paths of the next <b id="nh">50</b> M15 candles, each with its own high / low,
+and checks every candle: <b>Touch</b> = paths whose wick reaches candle A's wick (the entry),
+<b>50 %</b> = paths reaching the dashed 50 % line, <b>Stop</b> = paths that CLOSE beyond candle A,
+<b>Stop first</b> = the stop came before any touch. <b>Candle</b> = the median candle (1–50) of the touch.
+Read only, no orders. Nearest zones are forecast first (~1 min per symbol on the GPU).</p>
+<section><h2>Test on PAST candles — does Kronos know if price will touch the zone?</h2>
+<p class="note" style="padding:0;margin:0 0 8px">Old S&amp;D David zones (newest first, up to 6 per symbol). At the candle after each BOS,
+Kronos sees ONLY the candles up to there (the zone is worked out again on them, no peek) and forecasts 50 candles;
+then the 50 candles that REALLY came are checked. <b>AUC</b>: 0.5 = coin flip, 1.0 = always right about which zones get touched.
+The baseline uses no model at all: "a nearer zone is touched more often". Kronos is worth something only if it beats the baseline.</p>
+<div class="kv num" id="bt-sum" style="margin:0 0 8px">no result yet</div>
+<div class="tw"><table><thead><tr><th>Kronos said P(touch)</th><th>Zones</th><th>Kronos average</th><th>Really touched</th><th>Real rate</th></tr></thead><tbody id="bt-buckets"></tbody></table></div>
+<div class="card" style="margin-top:8px"><div class="ch"><span class="sym" id="bt-title">click a zone below for its chart</span></div><canvas id="bt-cv" style="height:300px"></canvas></div>
+<div class="tw" style="margin-top:8px;max-height:420px;overflow-y:auto"><table><thead><tr><th>Symbol</th><th>Zone</th><th>From</th><th>Entry</th><th>Away</th><th>Kronos touch</th><th>Real touch candle</th><th>Kronos 50 %</th><th>Real 50 %</th><th>Kronos stop first</th><th>Real stop first</th></tr></thead><tbody id="bt-rows"></tbody></table></div>
+</section>
+<section><h2>LIVE: fresh zones now, most likely touch first (click a row for its chart)</h2>
+<div class="tw"><table><thead><tr><th>Symbol</th><th>Zone</th><th>Entry (A wick)</th><th>50 %</th><th>Stop</th><th>T1</th><th>Now</th><th>Away</th>
+<th>Touch in 50</th><th>50 %</th><th>Stop</th><th>Stop first</th><th>Candle</th><th>Forecast of</th></tr></thead><tbody id="board"></tbody></table></div></section>
+<section><h2>Charts — last 30 h of M15 and the next 50 candles (blue: Kronos median close, band 10–90 % of closes, dotted: 10 % low / 90 % high)</h2>
+<div class="grid" id="cards"></div></section>
+<section><h2>Was Kronos right? Past forecasts against the real candles</h2>
+<p class="note" style="padding:0;margin:0 0 8px" id="sb-note"></p>
+<div class="tw"><table><thead><tr><th>Kronos said P(touch)</th><th>Forecasts</th><th>Really touched in 50</th><th>Rate</th></tr></thead><tbody id="buckets"></tbody></table></div>
+<div class="tw" style="margin-top:8px"><table><thead><tr><th>Symbol</th><th>Zone</th><th>Forecast of</th><th>Entry</th><th>P touch</th><th>Kronos candle</th><th>Real touch candle</th><th>Real stop candle</th></tr></thead><tbody id="recent"></tbody></table></div></section>
+<script>
+const $ = id => document.getElementById(id);
+const pct = x => x == null ? "—" : Math.round(x * 100) + "%";
+const tm = ms => ms ? new Date(ms).toISOString().slice(5, 16).replace("T", " ") + " UTC" : "—";
+const ago = ms => { if (!ms) return "—"; const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? m + " min ago" : (m / 60).toFixed(1) + " h ago"; };
+function fmt(x, ref) { if (x == null) return "—"; const a = Math.abs(ref || x); const d = a >= 1000 ? 2 : a >= 10 ? 3 : 5; return (+x).toFixed(d); }
+function meter(p, col) { return p == null ? '<span class="muted">waiting</span>' :
+  `<span class="meter"><i style="width:${Math.round(p*100)}%;background:${col}"></i></span>${pct(p)}`; }
+let DATA = null;
+function rows() {
+  const out = [];
+  for (const [s, e] of Object.entries(DATA.symbols || {})) for (const z of e.zones || []) out.push({ ...z, e });
+  out.sort((a, b) => (b.p_touch ?? -1) - (a.p_touch ?? -1) || (a.dist_atr ?? 99) - (b.dist_atr ?? 99));
+  return out;
+}
+function draw(cv, e, zs) {
+  const W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const bars = e.bars || [], fc = e.fc && e.fc_bar_t === e.last_t ? e.fc : (e.fc || null), nh = (fc && fc.median.length) || 50;
+  const n = bars.length + nh, pad = 8, right = 62, cw = (W - pad - right) / n;
+  let lo = Infinity, hi = -Infinity;
+  for (const b of bars) { lo = Math.min(lo, b[3]); hi = Math.max(hi, b[2]); }
+  if (fc) { for (const x of fc.low10) lo = Math.min(lo, x); for (const x of fc.high90) hi = Math.max(hi, x); }
+  for (const z of zs) { const near = Math.abs(z.entry - e.last) < (hi - lo) * 1.5; if (near) { lo = Math.min(lo, z.bottom); hi = Math.max(hi, z.top); } }
+  const m = (hi - lo) * 0.05; lo -= m; hi += m;
+  const Y = p => pad + (hi - p) / (hi - lo) * (H - 2 * pad), X = i => pad + (i + 0.5) * cw;
+  g.fillStyle = "rgba(122,162,255,.05)"; g.fillRect(X(bars.length) - cw / 2, 0, nh * cw, H);
+  for (const z of zs) {
+    const col = z.side === "demand" ? "38,166,154" : "239,83,80";
+    g.fillStyle = `rgba(${col},.22)`; g.fillRect(pad, Y(z.top), W - pad - right, Math.max(1, Y(z.bottom) - Y(z.top)));
+    g.strokeStyle = `rgba(${col},.9)`; g.lineWidth = 1; g.setLineDash([4, 3]);
+    g.beginPath(); g.moveTo(pad, Y(z.mid)); g.lineTo(W - right, Y(z.mid)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = `rgb(${col})`; g.font = "11px ui-sans-serif"; g.fillText(`${z.side} ${pct(z.p_touch)}`, W - right + 3, Y(z.entry) + 4);
+  }
+  bars.forEach((b, i) => {
+    const up = b[4] >= b[1]; g.strokeStyle = g.fillStyle = up ? "#26a69a" : "#ef5350";
+    g.beginPath(); g.moveTo(X(i), Y(b[2])); g.lineTo(X(i), Y(b[3])); g.stroke();
+    const y1 = Y(Math.max(b[1], b[4])), y2 = Y(Math.min(b[1], b[4])); g.fillRect(X(i) - cw * 0.35, y1, Math.max(1, cw * 0.7), Math.max(1, y2 - y1));
+  });
+  if (fc) {
+    const k0 = bars.length, P = (arr, i) => [X(k0 + i), Y(arr[i])];
+    g.fillStyle = "rgba(74,123,208,.22)"; g.beginPath();
+    fc.q90.forEach((_, i) => { const [x, y] = P(fc.q90, i); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    for (let i = fc.q10.length - 1; i >= 0; i--) { const [x, y] = P(fc.q10, i); g.lineTo(x, y); }
+    g.fill();
+    for (const [arr, dash] of [[fc.low10, [2, 3]], [fc.high90, [2, 3]], [fc.median, []]]) {
+      g.strokeStyle = dash.length ? "rgba(122,162,255,.6)" : "#7aa2ff"; g.lineWidth = dash.length ? 1 : 1.8; g.setLineDash(dash);
+      g.beginPath(); arr.forEach((_, i) => { const [x, y] = P(arr, i); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+    }
+    g.setLineDash([]); g.lineWidth = 1;
+  }
+  g.fillStyle = "#9aa3b2"; g.font = "11px ui-sans-serif"; g.fillText(fmt(hi, e.last), W - right + 3, 12); g.fillText(fmt(lo, e.last), W - right + 3, H - 4);
+}
+function render() {
+  const S = DATA.symbols || {}, rs = rows(), q = DATA.queue || [];
+  const waiting = q.filter(s => S[s] && S[s].fc_bar_t !== S[s].last_t).length;
+  $("state").innerHTML = `<span>zones <b>${rs.length}</b></span><span>symbols <b>${q.length}</b></span>` +
+    `<span>still to forecast this bar <b>${waiting}</b></span><span>updated <b>${ago(DATA.at)}</b></span>`;
+  $("board").innerHTML = rs.length ? rs.map(z => `<tr data-s="${z.symbol}"><td><b>${z.symbol}</b></td>
+    <td><span class="badge b-${z.side}">${z.side}</span></td><td class="num">${fmt(z.entry, z.e.last)}</td><td class="num">${fmt(z.mid, z.e.last)}</td>
+    <td class="num">${fmt(z.stop, z.e.last)}</td><td class="num">${fmt(z.t1, z.e.last)}</td><td class="num">${fmt(z.e.last)}</td>
+    <td class="num">${z.dist_atr == null ? "—" : z.dist_atr + " ATR"}</td>
+    <td>${meter(z.p_touch, "#3ddc97")}</td><td>${meter(z.p_mid, "#7aa2ff")}</td><td>${meter(z.p_stop, "#ff6b6b")}</td>
+    <td class="num">${pct(z.p_stop_first)}</td><td class="num">${z.first_median ?? "—"}</td>
+    <td class="num ${z.e.fc_bar_t === z.e.last_t ? "" : "warn"}">${z.e.fc_bar_t ? tm(z.e.fc_bar_t) : "waiting"}</td></tr>`).join("")
+    : '<tr><td colspan="14" class="empty">no fresh zone right now (or the forecaster has not run yet)</td></tr>';
+  const syms = [...new Set(rs.map(z => z.symbol))];
+  $("cards").innerHTML = syms.map(s => `<div class="card" id="c-${s}"><div class="ch"><span class="sym">${s}</span>
+    ${S[s].zones.map(z => `<span class="badge b-${z.side}">${z.side} ${fmt(z.entry, S[s].last)} · touch ${pct(z.p_touch)}</span>`).join("")}</div>
+    <canvas></canvas><div class="rec">last close ${tm(S[s].last_t)} · forecast ${S[s].fc_bar_t ? "of " + tm(S[s].fc_bar_t) + ", " + S[s].fc_secs + " s on the GPU" : "waiting"}</div></div>`).join("");
+  for (const s of syms) draw(document.querySelector(`#c-${s} canvas`), S[s], S[s].zones);
+  const sb = DATA.scoreboard || { n: 0, buckets: [], recent: [] };
+  $("sb-note").innerHTML = `${sb.logged || 0} forecasts logged; <b>${sb.n}</b> are finished (touched, or 50 candles passed) and scored below (one per zone per hour).`;
+  $("buckets").innerHTML = sb.buckets.map(b => `<tr><td>${pct(b.from)} – ${pct(b.to)}</td><td class="num">${b.n}</td><td class="num">${b.touched}</td><td class="num">${b.rate == null ? "—" : pct(b.rate)}</td></tr>`).join("");
+  $("recent").innerHTML = sb.recent.length ? sb.recent.map(r => `<tr><td>${r.symbol}</td><td><span class="badge b-${r.side}">${r.side}</span></td><td>${tm(r.bar_t)}</td>
+    <td class="num">${fmt(r.entry)}</td><td class="num">${pct(r.p_touch)}</td><td class="num">${r.first_median ?? "—"}</td>
+    <td class="num ${r.real_touch ? "good" : "muted"}">${r.real_touch ?? "no touch"}</td><td class="num ${r.real_stop ? "bad" : "muted"}">${r.real_stop ?? "—"}</td></tr>`).join("")
+    : '<tr><td colspan="8" class="empty">nothing finished yet: a forecast is scored when price touches or after 50 candles (12.5 h)</td></tr>';
+  document.querySelectorAll("#board tr[data-s]").forEach(tr => tr.onclick = () => document.getElementById("c-" + tr.dataset.s)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+}
+async function load() {
+  try { const r = await fetch("/api/kzones", { cache: "no-store" }); if (r.ok) { DATA = await r.json(); render(); } else $("state").textContent = "the forecaster has not written anything yet"; }
+  catch (e) { $("state").textContent = "error: " + e; }
+}
+let BT = null, BTSEL = null;
+function btChart(r) {
+  const cv = $("bt-cv"), W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const b = r.bars, k0 = r.k0, fc = r.fc, n = b.length, pad = 8, right = 70, cw = (W - pad - right) / n;
+  let lo = Math.min(...b.map(x => x[3]), ...fc.q10, r.bottom), hi = Math.max(...b.map(x => x[2]), ...fc.q90, r.top);
+  const m = (hi - lo) * .05; lo -= m; hi += m;
+  const Y = p => pad + (hi - p) / (hi - lo) * (H - 2 * pad), X = i => pad + (i + .5) * cw;
+  g.fillStyle = "rgba(122,162,255,.05)"; g.fillRect(X(k0 + 1) - cw / 2, 0, (n - k0 - 1) * cw, H);
+  const col = r.side === "demand" ? "38,166,154" : "239,83,80";
+  g.fillStyle = `rgba(${col},.22)`; g.fillRect(pad, Y(r.top), W - pad - right, Math.max(1, Y(r.bottom) - Y(r.top)));
+  g.strokeStyle = `rgba(${col},.9)`; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(pad, Y(r.mid)); g.lineTo(W - right, Y(r.mid)); g.stroke(); g.setLineDash([]);
+  b.forEach((x, i) => { const up = x[4] >= x[1]; g.strokeStyle = g.fillStyle = i > k0 ? (up ? "#1d7a71" : "#a63b39") : (up ? "#26a69a" : "#ef5350");
+    g.beginPath(); g.moveTo(X(i), Y(x[2])); g.lineTo(X(i), Y(x[3])); g.stroke();
+    const y1 = Y(Math.max(x[1], x[4])), y2 = Y(Math.min(x[1], x[4])); g.fillRect(X(i) - cw * .35, y1, Math.max(1, cw * .7), Math.max(1, y2 - y1)); });
+  g.fillStyle = "rgba(74,123,208,.25)"; g.beginPath();
+  fc.q90.forEach((v, i) => i ? g.lineTo(X(k0 + 1 + i), Y(v)) : g.moveTo(X(k0 + 1), Y(v)));
+  for (let i = fc.q10.length - 1; i >= 0; i--) g.lineTo(X(k0 + 1 + i), Y(fc.q10[i])); g.fill();
+  g.strokeStyle = "#7aa2ff"; g.lineWidth = 1.8; g.beginPath(); fc.median.forEach((v, i) => i ? g.lineTo(X(k0 + 1 + i), Y(v)) : g.moveTo(X(k0 + 1), Y(v))); g.stroke(); g.lineWidth = 1;
+  g.strokeStyle = "#f5c542"; g.beginPath(); g.moveTo(X(k0) + cw / 2, 0); g.lineTo(X(k0) + cw / 2, H); g.stroke();
+  if (r.real_touch) { g.fillStyle = "#3ddc97"; g.beginPath(); g.arc(X(k0 + r.real_touch), Y(r.entry), 4, 0, 7); g.fill(); }
+  g.fillStyle = "#9aa3b2"; g.font = "11px ui-sans-serif"; g.fillText(fmt(hi, r.last), W - right + 3, 12); g.fillText(fmt(lo, r.last), W - right + 3, H - 4);
+  g.fillStyle = `rgb(${col})`; g.fillText(`${r.side} ${fmt(r.entry, r.last)}`, W - right + 3, Y(r.entry) + 4);
+  $("bt-title").innerHTML = `${r.symbol} ${r.side} @ ${fmt(r.entry, r.last)} — yellow line = where Kronos stood; right of it the REAL 50 candles (darker) and Kronos' forecast (blue). Kronos ${pct(r.p_touch)} touch → really ${r.real_touch ? "touched on candle " + r.real_touch + " (green dot)" : "no touch"}`;
+}
+function btRender() {
+  const s = BT.summary || {}, good = (a, b) => a != null && b != null ? (a > b + .02 ? "good" : a < b - .02 ? "bad" : "warn") : "";
+  $("bt-sum").innerHTML = !s.n ? `running: 0 of ${BT.total} zones done` :
+    `<span>zones <b>${s.n}</b> / ${BT.total}${BT.done ? "" : " (running)"}</span><span>symbols <b>${s.symbols}</b></span>
+     <span>really touched <b>${pct(s.real_touch_rate)}</b></span><span>Kronos said on average <b>${pct(s.kronos_mean_p)}</b></span>
+     <span>AUC Kronos <b class="${good(s.auc_kronos, s.auc_distance)}">${s.auc_kronos ?? "—"}</b> vs baseline (distance) <b>${s.auc_distance ?? "—"}</b></span>
+     <span>Brier Kronos <b class="${good(s.brier_base, s.brier)}">${s.brier}</b> vs always-say-${pct(s.real_touch_rate)} <b>${s.brier_base}</b> (lower is better)</span>
+     <span>50 % line: real ${pct(s.real_mid_rate)}, AUC ${s.auc_kronos_mid ?? "—"}</span><span>stop first: real ${pct(s.real_stop_first_rate)}, AUC ${s.auc_kronos_stop_first ?? "—"}</span>
+     <span>touch-candle error (median) <b>${s.candle_err_median ?? "—"}</b> candles</span>`;
+  $("bt-buckets").innerHTML = (s.buckets || []).map(b => `<tr><td>${pct(b.from)} – ${pct(b.to)}</td><td class="num">${b.n}</td><td class="num">${pct(b.kronos)}</td><td class="num">${b.touched}</td><td class="num">${b.rate == null ? "—" : pct(b.rate)}</td></tr>`).join("");
+  const zs = [...(BT.zones || [])].sort((a, b) => b.t0 - a.t0);
+  $("bt-rows").innerHTML = zs.map((r, i) => `<tr data-i="${r.id}" style="cursor:pointer"><td><b>${r.symbol}</b></td><td><span class="badge b-${r.side}">${r.side}</span></td><td>${tm(r.t0)}</td>
+    <td class="num">${fmt(r.entry, r.last)}</td><td class="num">${r.dist_atr} ATR</td><td>${meter(r.p_touch, "#3ddc97")}</td>
+    <td class="num ${r.real_touch ? "good" : "muted"}">${r.real_touch ?? "no touch"}</td><td class="num">${pct(r.p_mid)}</td><td class="num">${r.real_mid ?? "—"}</td>
+    <td class="num">${pct(r.p_stop_first)}</td><td class="num ${r.real_stop_first ? "bad" : "muted"}">${r.real_stop_first ? "yes" : "no"}</td></tr>`).join("");
+  document.querySelectorAll("#bt-rows tr").forEach(tr => tr.onclick = () => { BTSEL = tr.dataset.i; btChart(BT.zones.find(z => z.id === BTSEL)); });
+  const sel = BT.zones.find(z => z.id === BTSEL) || zs[0]; if (sel) btChart(sel);
+}
+async function loadBT() {
+  try { const r = await fetch("/api/kzones/backtest", { cache: "no-store" }); if (r.ok) { BT = await r.json(); btRender(); } } catch (e) {}
+}
+load(); loadBT(); setInterval(() => { load(); loadBT(); }, 30000); addEventListener("resize", () => { DATA && render(); BT && btRender(); });
+</script>
+</body>
+</html>

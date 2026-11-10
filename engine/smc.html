@@ -21,7 +21,7 @@ main { flex:1; display:flex; min-height:0 }
 #wrap { flex:1; position:relative; min-width:0 } canvas { position:absolute; inset:0; width:100%; height:100% }
 #tip { position:absolute; pointer-events:none; background:#0e121bee; border:1px solid var(--line); border-radius:6px; padding:5px 8px;
   font-size:12px; white-space:pre; display:none; z-index:2 }
-aside { width:400px; border-left:1px solid var(--line); overflow-y:auto; overflow-x:hidden; padding:4px 10px 12px; font-size:12px }
+aside { width:520px; flex:none; overflow-y:auto; overflow-x:hidden; padding:4px 10px 12px; font-size:12px }
 aside h2 { font-size:12px; margin:12px 0 4px; font-weight:700; letter-spacing:.04em }
 aside h3 { font-size:11px; margin:8px 0 2px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em }
 .h-major { color:var(--major) } .h-ta { color:#bcaaa4 } .h-zones { color:var(--zones) } .h-lux { color:var(--lux) } .h-v5 { color:var(--v5) }
@@ -29,17 +29,21 @@ table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums 
 td { padding:2px 4px; white-space:nowrap } tr.r { cursor:pointer } tr.r:hover { background:#1a2030 }
 .bull { color:var(--bull) } .bear { color:var(--bear) } .note { color:var(--muted); font-size:11px; margin-top:4px }
 footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line); font-size:12px }
-@media (max-width:760px){ aside{ display:none } }
+#split { width:6px; flex:none; cursor:col-resize; background:var(--line) } #split:hover, #split.on { background:#5c6bc0 }
+table.trades td { padding:3px 4px } table.trades tr.hd td { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--line) }
+table.trades tr.r td { border-bottom:1px solid #1a2030 } tr.sel { background:#2a3350 !important; box-shadow:inset 3px 0 #ffd54f }
+.sl { color:#ff5252 } .tp { color:#00e676 } .en { color:#ffe082; font-weight:600 }
+@media (max-width:760px){ aside, #split { display:none } }
 </style>
 </head>
 <body>
 <header>
-  <h1>V5 SMC COMPARE <a href="/">← dashboard</a></h1>
+  <h1>V5 SMC COMPARE <a href="/">← dashboard</a> <a href="/kzones">Kronos × zones</a></h1>
   <select id="pick"></select><span id="tfs"></span>
   <button class="l-major" data-layer="major" aria-pressed="true" title="BOS = close beyond the leg's extreme, CHoCH = close beyond the protected swing (the low / high the last BOS came from; after a CHoCH the old trend's top / bottom). Internal breaks are not marked.">BOS / CHoCH</button>
   <button class="l-major" data-layer="ob" aria-pressed="true" title="order blocks of the major BOS / CHoCH: the last opposite candle before the displacement that broke structure (full wick, 50 % line); live = not closed through; the nearest 3 per side, plus breakers (a failed OB price came back to)">OB</button>
   <button class="l-major" data-layer="sd" aria-pressed="false" title="supply / demand — only the VALID zones: the base (1–3 small candles, or David's last opposite candle) before a displacement (body ≥ 1.5 × the 10 before) whose move out closed beyond a major swing (BOS / CHoCH: David's rule), box ≤ 1.5 ATR, left cleanly; score 0–10 = the odds enhancers (shown, never a filter); dashed line = the body edge (entry)">Supply / Demand</button>
-  <button class="l-david" data-layer="sdd" aria-pressed="true" title="DAVID's supply / demand: a bull BOS → DEMAND, a bear BOS → SUPPLY (only BOS, not CHoCH), valid only when the BOS move holds an FVG (≥ 0.3 ATR, the FVG layer's rule). The zone = where the BOS move started: far edge = the wick of the origin candle, near edge = the highest (demand) / lowest (supply) candle body up to the first big candle of the move (≤ 6 candles). Dotted boxes = the FVG(s) that make it valid. Only these places may take an entry.">S&amp;D David</button>
+  <button class="l-david" data-layer="sdd" aria-pressed="true" title="DAVID's supply / demand (class video 6): a bull BOS → DEMAND, a bear BOS → SUPPLY (only BOS, not CHoCH). Inside the BOS move, 3 candles A-B-C whose wicks do not touch (the FVG, any size). The zone = candle A, wick to wick: the candle BELOW the gap (demand) / ABOVE the gap (supply), dashed 50 % line. Not valid if the 4th candle fills the gap. Entry = price touches A's wick (solid line); stop beyond candle A.">S&amp;D David</button>
   <button class="l-new" data-layer="sdc" aria-pressed="false" title="NEW supply / demand, the S&amp;D school's way (Seiden / OTA, research 2026-11-01, engine/sd_classic.py): the BASE (1–6 small-body candles) at the ORIGIN of a leg before a strong move away; near edge = the base's body, far edge = its wick; solid = the origin zone of a leg, the pauses inside a leg are 'continuation' (button +cont.); BOS ✓ = its move broke structure (a strength point, not required by this school)">S&amp;D new</button>
   <button class="l-new" data-layer="sdcc" aria-pressed="false" title="also the continuation zones of the new supply / demand: pauses inside a leg (RBR / DBD …), lower grade">+cont.</button>
   <button class="l-new" data-layer="obr" aria-pressed="false" title="NEW order blocks, the ICT / SMC-indicator way (research 2026-11-01, engine/order_blocks.py): ONE down candle (bullish) / up candle (bearish) — at the extreme of the leg that broke structure by close, blended with the same-colour candles right before it; full-range box, dashed = the open (ICT entry), dotted = 50 % of the body (mean threshold); needs a displacement">OB new</button>
@@ -47,7 +51,6 @@ footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line);
   <button class="l-major" data-layer="kcbz" aria-pressed="false" title="the backtest of Kronos direction + Claude BOS → its supply / demand zone (rules/strategy/kronos_claude_bos_zone, 2026-11-01): every trade with the BOS it came from (dashed purple), the zone it traded, entry / SL / TP, the fill ▲▼ and the exit ✕; label C = Claude only, K+C = with Kronos. Made for GOLD M15 — turn on &quot;whole history&quot; to see all of them">BOS-zone backtest</button>
   <button class="l-major" data-layer="liq" aria-pressed="true" title="liquidity: equal highs / lows (≥ 2 swings within 0.5 ATR), swing highs / lows and the previous day's high / low not yet taken (nearest 3 above and below), and the latest sweeps (wick through, close back inside)">Liquidity</button>
   <button class="l-major" data-layer="fvg" aria-pressed="true" title="fair value gaps of the major BOS / CHoCH moves only (≥ 0.3 ATR); live = not filled, not invalid by your V5 rule, not cancelled by a later CHoCH">FVG</button>
-  <button class="l-major" data-layer="pd" aria-pressed="true" title="premium / discount of the major dealing range: protected swing ↔ the leg's high / low; EQ 50 %, OTE 62–79 %">Premium/Discount</button>
   <span class="sep">concepts:</span>
   <button class="l-ta" data-layer="sess" aria-pressed="false" title="row 2 — sessions in their own time zones: Asia range 20:00–00:00 New York, London 08:00–16:30 London, New York 08:00–17:00 New York; their high / low as levels until broken (swept = wick through + close back); ICT killzones as the strip at the bottom; daily / weekly / monthly / midnight / 08:30 opens; the pullback depth of the major leg in the panel">Sessions</button>
   <button class="l-ta" data-layer="cdl" aria-pressed="false" title="row 3 — TA-Lib's 61 candlestick patterns (a port that matches TA-Lib bar for bar); shown: reversal patterns that make the high / low of the 10 bars before them, at a level of their own side (bullish in a bull OB / FVG or at sell-side liquidity, bearish in a bear OB / FVG or at buy-side liquidity); ‘all candles’ shows every one">Candles</button>
@@ -74,9 +77,10 @@ footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line);
 <div id="status">loading…</div>
 <main>
   <div id="wrap"><canvas id="cv"></canvas><canvas id="ov"></canvas><div id="tip"></div></div>
+  <div id="split" title="drag left / right to make the list wider or narrower"></div>
   <aside id="side"></aside>
 </main>
-<footer>times IST · wheel = zoom · drag = scroll · double-click = back to now · hover a zone or line for its numbers · click a row on the right to jump there · everything is computed here from our own bars, nothing runs in MT5 ·
+<footer>times IST · wheel = zoom · drag = scroll · double-click = back to now · hover a zone or line for its numbers · click a trade on the right to show only that one (click again = all) · drag the bar left of the list to resize it · everything is computed here from our own bars, nothing runs in MT5 ·
 SMC Zones © Allan Niñal (PolyForm Noncommercial) · LuxAlgo SMC © LuxAlgo, MQL5 port by I. Ladjohounlou (CC BY-NC-SA 4.0)</footer>
 <script>
 "use strict";
@@ -86,8 +90,11 @@ const C = {major: "#4dd0e1", mBOS: "#b388ff", mCHoCH: "#ff5252", bull: "#26a69a"
   zOBbull: "rgba(31,111,92,.45)", zOBbear: "rgba(128,52,52,.45)", zFVGbull: "rgba(46,92,140,.40)", zFVGbear: "rgba(140,100,38,.40)"};
 let BARS = "";   // "all" = the whole history (?bars=all)
 let AT = null;   // ?at=<UTC time>: open the chart there
+let SDDO = null;   // /api/sdd: the engine's S&D David orders (engine/sdd_book.py)
+let NEXT_SEL = null;   // a trade clicked in the all-symbols list: select its zone once that chart has loaded
+let SEL = null;   // the one S&D David zone shown alone (its t_break); null = all of them
 let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
-const LAYER = {major: true, ob: true, sd: false, sdd: true, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, liq: true, fvg: true, pd: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
+const LAYER = {major: true, ob: true, sd: false, sdd: true, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, liq: true, fvg: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
   sess: false, cdl: false, cdlall: false, tl: false, cp: false, fib: false, vwap: false, osc: false, vp: false, wy: false, ew: false, of: false};   // default: the SMC row only
 
 async function api(p) { const r = await fetch(p); if (!r.ok) throw new Error(p + " " + r.status); return r.json(); }
@@ -111,6 +118,7 @@ async function loadList() {
   $("#tfs").querySelectorAll("button").forEach(b => b.onclick = () => { TF = b.dataset.tf; pick(); });
 }
 function pick() {
+  SEL = null;
   $("#tfs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tf === TF));
   history.replaceState(null, "", `?sym=${encodeURIComponent(SYM)}&tf=${TF}` + (BARS ? "&bars=all" : "")); load(false); pollLive();
 }
@@ -120,6 +128,7 @@ async function load(keepView) {
   D = await api(`/api/smc?sym=${encodeURIComponent(SYM)}&tf=${TF}` + (BARS ? "&bars=all" : "")); LOADED = Date.now();
   if (D.error) { $("#status").textContent = D.error; $("#side").innerHTML = ""; D = null; draw(); return; }
   if (!keepView) VP = null;
+  if (NEXT_SEL != null) { const k = NEXT_SEL; NEXT_SEL = null; focusZone(k); }
   if (!keepView && AT != null && D.bars.length) { const i = idxOf(AT); VP = {a: i - 100, b: i + 60}; AT = null; }
   const s = D.summary, age = Math.round((Date.now() - s.t_last) / 60000);
   $("#status").innerHTML = `<b>${SYM} ${TF}</b> · last bar ${ist(s.t_last)} IST` + (age > 120 ? ` <span class="bear">(${age > 2880 ? Math.round(age / 1440) + " days" : Math.round(age / 60) + " h"} old — bars refresh while the V5 engine runs)</span>` : "") +
@@ -133,6 +142,8 @@ async function load(keepView) {
 // ── the V5 engine's own state (engine/status.py via /api/status) ──
 let ST = null;
 async function loadStatus() {
+  try { SDDO = await (await fetch("/api/sdd", {cache: "no-store"})).json(); } catch (e) { SDDO = null; }
+  if (D) side();                                   // the order column at once (/api/status can take a few seconds)
   try { ST = await (await fetch(`/api/status?sym=${encodeURIComponent(SYM)}`, {cache: "no-store"})).json(); }
   catch (e) { ST = null; return; }
   if (D) { side(); draw(); }
@@ -199,8 +210,79 @@ function stratPanel() {
   return h;
 }
 
-// ── right panel: the data ──
+// ── right panel: DAVID's S&D trades — entry · stop · targets (David 2026-11-05: replaces the details panel) ──
 function side() {
+  const V = (D.sdd || []).filter(z => z.valid).reverse(), n = V.length;
+  const stCls = z => z.status === "broken" ? "muted" : z.status === "tested" ? "en" : "tp";
+  let h = sddAll() + `<h2 style="color:#ffe082">THIS CHART — S&amp;D zones · entry · stop · targets</h2>` +
+    `<div class="note">${n} zones on this ${SYM} ${TF} chart, newest first. Click one: the chart shows only that one and moves to it. Click it again${SEL != null ? ' or <button id="sddall" style="padding:1px 7px">show all</button>' : ""} to bring the others back.` +
+    `${LAYER.sdd ? "" : ' <b class="bear">The S&amp;D David layer is off.</b>'}</div>` +
+    `<table class="trades"><tr class="hd"><td>#</td><td>zone · BOS</td><td>entry</td><td>SL</td><td>T1</td><td>T2</td><td>T3</td><td></td><td>order</td></tr>` +
+    V.map((z, i) => {
+      const d = z.side === "demand", T = z.targets || [];
+      return `<tr class="r${z.t_break === SEL ? " sel" : ""}" data-k="${z.t_break}" data-t="${z.t0}" title="${sddTip(z).replace(/"/g, "&quot;")}">` +
+        `<td class="muted">${n - i}</td><td><span style="color:${DVC[z.side][1]}">${d ? "BUY · demand" : "SELL · supply"}</span><br><span class="muted">${ist(z.t_break)}</span></td>` +
+        `<td class="en">${fx(z.proximal)}</td><td class="sl">${fx(z.distal)}</td>` +
+        [0, 1, 2].map(k => `<td class="tp">${T[k] ? fx(T[k].price) + `<br><span class="muted">${T[k].rr}R</span>` : "–"}</td>`).join("") +
+        `<td class="${stCls(z)}">${z.status}</td>${ordCell(z)}</tr>`;
+    }).join("") + (n ? "" : `<tr><td class="muted" colspan="9">no valid zone on this chart</td></tr>`) + `</table>`;
+  const sc = $("#side").scrollTop; $("#side").innerHTML = h; $("#side").scrollTop = sc;
+  const all = $("#sddall"); if (all) all.onclick = () => { SEL = null; side(); draw(); };
+  $("#side").querySelectorAll("tr.r").forEach(tr => tr.onclick = () => {
+    const k = +tr.dataset.k;
+    if (SEL === k) { SEL = null; side(); draw(); return; }
+    focusZone(k); side(); draw();
+  });
+  $("#side").querySelectorAll("tr.o").forEach(tr => tr.onclick = () => {   // a trade of any symbol → its chart, that zone alone
+    const sym = tr.dataset.sym, k = +tr.dataset.k;
+    if (sym === SYM && TF === SDDO.tf) { focusZone(k); side(); draw(); return; }
+    SYM = sym; TF = SDDO.tf; $("#pick").value = SYM; pick(); NEXT_SEL = k;
+  });
+}
+function focusZone(k) {   // show only this S&D David zone and move the chart to it
+  SEL = k;
+  if (!LAYER.sdd) { LAYER.sdd = true; const b = document.querySelector('button[data-layer="sdd"]'); if (b) b.setAttribute("aria-pressed", true); }
+  const z = (D.sdd || []).find(q => q.t_break === k);
+  if (!z) return;
+  const i0 = idxOf(z.t0), i1 = z.live ? D.bars.length - 1 : idxOf(z.t_end), w = Math.max(i1 - i0 + 40, 80);
+  VP = {a: i0 - 20, b: i0 - 20 + w};
+}
+// every S&D David order the engine placed, all symbols (engine/sdd_book.py → /api/sdd): the P&L and what traded
+function sddAll() {
+  if (!SDDO) return `<h2 style="color:#ffe082">MY S&amp;D TRADES — all symbols</h2><div class="note">loading the engine's orders…</div>`;
+  const O = Object.values(SDDO.orders || {}), money = v => (v >= 0 ? "+" : "") + (v || 0).toFixed(2);
+  const op = O.filter(o => o.state === "open"), wt = O.filter(o => o.state === "pending"), cl = O.filter(o => o.state === "closed");
+  const cx = O.filter(o => o.state === "cancelled"), won = cl.filter(o => (o.pnl_usd || 0) > 0).length;
+  const now = op.reduce((a, o) => a + (o.pnl_now || 0), 0), net = cl.reduce((a, o) => a + (o.pnl_usd || 0), 0);
+  const rank = {open: 0, pending: 1, closed: 2, cancelled: 3};
+  const L = O.filter(o => o.state !== "cancelled").sort((a, b) => rank[a.state] - rank[b.state] || (b.ended_ms || b.placed_ms) - (a.ended_ms || a.placed_ms));
+  const pl = o => o.state === "open" ? `<b class="${(o.pnl_now || 0) >= 0 ? "tp" : "sl"}">${money(o.pnl_now)}</b>`
+    : o.state === "closed" ? `<b class="${o.pnl_usd >= 0 ? "tp" : "sl"}">${money(o.pnl_usd)}</b>` : `<span class="muted">–</span>`;
+  const st = o => o.state === "open" ? `<b class="tp">OPEN</b>` : o.state === "pending" ? `<span class="en">waiting</span>`
+    : `<span class="${o.end === "target" ? "tp" : o.end === "stop" ? "sl" : "muted"}">${o.end === "target" ? "TP hit" : o.end === "stop" ? "SL hit" : o.end}</span>`;
+  return `<h2 style="color:#ffe082">MY S&amp;D TRADES — all symbols</h2>` +
+    `<div style="margin:2px 0 6px">open <b>${op.length}</b> · P&amp;L now <b class="${now >= 0 ? "tp" : "sl"}">$${money(now)}</b> · waiting <b>${wt.length}</b> · ` +
+    `closed <b>${cl.length}</b> (won ${won}, lost ${cl.length - won}) · net <b class="${net >= 0 ? "tp" : "sl"}">$${money(net)}</b>` +
+    `${cx.length ? ` · <span class="muted">${cx.length} cancelled before a fill</span>` : ""}</div>` +
+    `<div class="note" style="margin-bottom:4px">engine ${SDDO.on && SDDO.trading ? '<b class="tp">trading</b>' : '<b class="sl">NOT trading</b>'} · ${SDDO.tf} · target ${SDDO.target} · 0.01 lot · magic ${SDDO.magic} · ` +
+    `waiting = limit order at the zone, not filled yet (no P&amp;L). Click a trade to open its chart.</div>` +
+    `<table class="trades"><tr class="hd"><td>symbol</td><td></td><td>entry</td><td>SL</td><td>TP</td><td>P&amp;L $</td></tr>` +
+    L.map(o => `<tr class="r o" data-sym="${o.symbol}" data-k="${o.t_break}" title="#${o.ticket} · placed ${ist(o.placed_ms)}${o.opened_ms ? " · filled " + ist(o.opened_ms) : ""}${o.ended_ms ? " · ended " + ist(o.ended_ms) : ""} · risk $${o.risk_usd}">` +
+      `<td><b>${o.symbol}</b> <span class="${o.side === "buy" ? "tp" : "sl"}">${o.side.toUpperCase()}</span></td><td>${st(o)}</td>` +
+      `<td class="en">${fx(o.entry != null ? o.entry : o.price)}</td><td class="sl">${fx(o.sl)}</td><td class="tp">${fx(o.tp)}</td><td>${pl(o)}</td></tr>`).join("") +
+    (L.length ? "" : `<tr><td class="muted" colspan="6">no S&amp;D order yet</td></tr>`) + `</table>`;
+}
+function ordCell(z) {   // what the engine did with this zone (SDDO: engine/sdd_book.py, magic 5050700)
+  if (!SDDO || TF !== SDDO.tf || !(SDDO.symbols || []).includes(SYM)) return `<td class="muted">–</td>`;
+  const id = `${SYM}-${z.t_break}`, o = (SDDO.orders || {})[id];
+  if (!o) { const w = (SDDO.why || {})[id]; return `<td class="muted" title="${(w || "").replace(/"/g, "&quot;")}">${w ? "no order" : "–"}</td>`; }
+  const tip = `#${o.ticket} ${o.side} ${o.lots} · limit ${fx(o.price)} · SL ${fx(o.sl)} · TP ${fx(o.tp)} (${o.rr}R, risk $${o.risk_usd})` + (o.end ? `\n${o.end}` : "");
+  const txt = o.state === "pending" ? `<span class="en">waiting</span>` : o.state === "open" ? `<b class="tp">OPEN</b>${o.pnl_now != null ? " " + o.pnl_now.toFixed(2) : ""}`
+    : o.state === "closed" ? `<b class="${o.pnl_usd >= 0 ? "tp" : "sl"}">${o.end} ${o.pnl_usd >= 0 ? "+" : ""}${o.pnl_usd}</b>` : `<span class="muted">cancelled</span>`;
+  return `<td title="${tip.replace(/"/g, "&quot;")}">${txt}</td>`;
+}
+// the old details panel (BOS / CHoCH, OB, liquidity, FVG, indicators) — not shown since 2026-11-05 (David), kept to bring back
+function sideDetails() {
   const s = D.summary, row = (t, cells) => `<tr class="r" data-t="${t}">${cells.map(c => `<td>${c}</td>`).join("")}</tr>`;
   const zrows = zs => zs.map(z => row(z.t0, [`<span class="${sideCls(z.side)}">${z.kind} ${z.side}${z.scope ? " · " + z.scope : ""}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, ist(z.t0)])).join("") || `<tr><td class="muted">none</td></tr>`;
   const brows = bs => bs.slice().reverse().map(b => row(b.t, [ist(b.t), `<span class="${sideCls(b.side)}">${b.kind} ${b.side}${b.scope ? " · " + b.scope : ""}</span>`, fx(b.level)])).join("") || `<tr><td class="muted">none</td></tr>`;
@@ -210,11 +292,6 @@ function side() {
     (M.protected ? row(M.protected.t, [`CHoCH level (protected ${M.protected.kind})`, fx(M.protected.price), ist(M.protected.t)]) : "") +
     (M.bos_level ? row(M.bos_level.t, [`BOS level (leg ${M.bos_level.kind})`, fx(M.bos_level.price), ist(M.bos_level.t)]) : row(0, ["BOS level", "waiting for a pullback", ""])) +
     `</table><h3>confirmations (newest first)</h3><table>${brows(M.breaks)}</table>`;
-  const R = M.range;
-  if (LAYER.pd && R) h += `<h3>premium / discount (major range)</h3><table>` +
-    row(R.t0, ["range", `${fx(R.low)} – ${fx(R.high)}`, ""]) + row(R.t0, ["EQ 50 %", fx(R.eq), ""]) +
-    row(R.t0, [`OTE 62–79 %`, `${fx(R.ote[0])} – ${fx(R.ote[1])}`, ""]) +
-    row(s.t_last, ["price now", `<b class="${R.zone === "premium" ? "bear" : R.zone === "discount" ? "bull" : ""}">${Math.round(R.pos * 100)} % · ${R.zone}${R.in_ote ? " · in OTE" : ""}</b>`, ""]) + `</table>`;
   if (LAYER.ob) h += `<h3>order blocks — live (nearest)</h3><table>${M.obs_live.map(o => row(o.t0, [`<span class="${sideCls(o.side)}">${o.side === "bull" ? "Bull" : "Bear"} OB</span>`, `${fx(o.bottom)} – ${fx(o.top)}`, `${o.status === "mean" ? "past 50 %" : o.status} · ${ist(o.t0)}`])).join("") || `<tr><td class="muted">none live</td></tr>`}` +
     (LAYER.mit ? M.breakers : []).map(o => row(o.t_breaker, [`<span class="${o.side === "bull" ? "bear" : "bull"}">Breaker (was ${o.side} OB)</span>`, `${fx(o.bottom)} – ${fx(o.top)}`, ist(o.t_breaker)])).join("") + `</table>`;
   if (LAYER.sd && D.sd) h += sideSD(row);
@@ -335,17 +412,6 @@ function draw() {
   const tA = B[G.iA][0], tB = B[G.iB][0];
   const vis = (t0, t1) => (t1 == null || t1 >= tA - TF_MS[TF] * 2) && t0 <= tB + TF_MS[TF] * 20;
   // zones first (under the candles' wicks), lines and labels after
-  if (LAYER.pd && D.major.range) {
-    const R = D.major.range, x0 = Math.max(G.PL, G.xt(R.t0)), xr = W - G.PR;
-    const band = (a, b, col) => { const y0 = G.y(Math.max(a, b)), y1 = G.y(Math.min(a, b)); g.fillStyle = col; g.fillRect(x0, y0, xr - x0, y1 - y0); };
-    band(R.eq, R.high, "rgba(239,83,80,.07)"); band(R.low, R.eq, "rgba(38,166,154,.07)");
-    band(R.ote[0], R.ote[1], R.trend === "up" ? "rgba(38,166,154,.10)" : "rgba(239,83,80,.10)");
-    const ye = G.y(R.eq); g.strokeStyle = "#8892b0"; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(x0, ye); g.lineTo(xr, ye); g.stroke(); g.setLineDash([]);
-    g.fillStyle = "#8892b0";
-    g.fillText("Premium", x0 + 4, G.y(R.high) + 9); g.fillText("EQ " + fx(R.eq), x0 + 4, ye - 7); g.fillText("Discount", x0 + 4, G.y(R.low) - 8);
-    g.fillText("OTE", x0 + 4, G.y((R.ote[0] + R.ote[1]) / 2));
-    HITS.push({x0, x1: xr, y0: G.y(R.high), y1: G.y(R.low), area: 1e9, tip: `major range ${fx(R.low)} – ${fx(R.high)}\nEQ ${fx(R.eq)} · OTE ${fx(R.ote[0])} – ${fx(R.ote[1])}\nprice ${Math.round(R.pos * 100)} % = ${R.zone}`});
-  }
   if (LAYER.fvg) {
     g.font = "10px system-ui,sans-serif";
     for (const f of D.major.fvgs) {
@@ -784,35 +850,57 @@ function drawOBR(g, G, vis) {
 // ── DAVID's supply / demand (engine/sd_david.py) ──
 const DVC = {demand: ["76,175,80", "#66bb6a"], supply: ["239,83,80", "#ef5350"]};
 function sddTip(z) {
-  return `DAVID S&D · ${z.side === "demand" ? "DEMAND (bull BOS)" : "SUPPLY (bear BOS)"} · ${z.status}` +
-    `\nBOS ${z.side === "demand" ? "↑" : "↓"} through ${fx(z.bos_level)} at ${ist(z.t_break)}` +
-    `\nzone ${fx(z.bottom)} – ${fx(z.top)}: far edge (wick) ${fx(z.distal)} · near edge (body, entry) ${fx(z.proximal)} · ${z.n} candle(s) from ${ist(z.t0)}` +
-    `\nFVG inside the BOS move: ${z.fvgs.map(f => fx(f.bottom) + " – " + fx(f.top) + " (" + f.atr + " ATR, " + ist(f.t) + ")").join(" · ")}` +
+  const d = z.side === "demand";
+  return `DAVID S&D · ${d ? "DEMAND (bull BOS)" : "SUPPLY (bear BOS)"} · ${z.status}` +
+    `\nBOS ${d ? "↑" : "↓"} through ${fx(z.bos_level)} at ${ist(z.t_break)}` +
+    `\nzone = candle A ${ist(z.t0)} (the candle ${d ? "below" : "above"} the gap): ${fx(z.bottom)} – ${fx(z.top)} · 50 % ${fx(z.mid)}` +
+    `\nentry = touch of A's wick ${fx(z.proximal)} · stop ${d ? "below" : "above"} ${fx(z.distal)}` +
+    `\ntargets (fib 1 = entry → 0 = recent ${d ? "high" : "low"} ${fx(z.fib_ext)}): ${(z.targets || []).map((t, k) => "T" + (k + 1) + " " + t.fib + " " + fx(t.price) + " (" + t.rr + "R)").join(" · ")}` +
+    `\nFVG A→C ${fx(z.fvg.bottom)} – ${fx(z.fvg.top)}${z.fvg.atr != null ? " (" + z.fvg.atr + " ATR)" : ""}` +
     `${z.t_touch ? "\ntested " + ist(z.t_touch) : ""}${z.t_broken ? " · broken " + ist(z.t_broken) : ""}${z.t_superseded && (!z.t_broken || z.t_superseded < z.t_broken) ? " · CHoCH against " + ist(z.t_superseded) : ""}`;
 }
 function drawSDD(g, G, vis) {
   g.save(); g.font = "bold 10px system-ui,sans-serif";
   for (const z of D.sdd) {
-    if (!z.valid) continue;
-    if (!z.live && !LAYER.mit) continue;
+    if (!z.valid || (SEL != null && z.t_break !== SEL)) continue;   // a trade picked in the list → only that one
+    // one zone per BOS → the ended ones are drawn too (faded, up to their end)
     const t1 = z.live ? null : z.t_end;
     if (!vis(z.t0, t1)) continue;
-    const [rgb, col] = DVC[z.side], tip = sddTip(z);
-    for (const f of z.fvgs)                                                      // the FVG(s) that make it valid
-      box(g, G, f.t, z.t_break, f.top, f.bottom, `rgba(${rgb},.10)`, `rgba(${rgb},.6)`, [2, 2], tip);
+    const [rgb, col] = DVC[z.side], tip = sddTip(z), d = z.side === "demand";
+    box(g, G, z.t0, z.t_c, z.fvg.top, z.fvg.bottom, `rgba(${rgb},.10)`, `rgba(${rgb},.6)`, [2, 2], tip);   // the A→C gap
     box(g, G, z.t0, t1, z.top, z.bottom, `rgba(${rgb},${z.live ? .24 : .10})`, col, z.live ? [] : [5, 3], tip);
-    const xa = Math.max(G.xt(z.t0), G.PL), xb = t1 == null ? G.W - G.PR : G.xt(t1), yp = G.y(z.proximal);
-    g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(xa, yp); g.lineTo(xb, yp); g.stroke(); g.lineWidth = 1;   // the entry edge
+    const xa = Math.max(G.xt(z.t0), G.PL), xb = t1 == null ? G.W - G.PR : G.xt(t1);
+    g.strokeStyle = col;
+    g.setLineDash([4, 3]); g.beginPath(); g.moveTo(xa, G.y(z.mid)); g.lineTo(xb, G.y(z.mid)); g.stroke(); g.setLineDash([]);   // 50 %
+    g.lineWidth = 1.5; g.beginPath(); g.moveTo(xa, G.y(z.proximal)); g.lineTo(xb, G.y(z.proximal)); g.stroke(); g.lineWidth = 1;   // entry = A's wick
     g.fillStyle = col;
-    g.fillText(`${z.side === "demand" ? "DEMAND" : "SUPPLY"} · BOS ${z.side === "demand" ? "↑" : "↓"} · FVG ✓ · ${z.status}`, xa + 3, z.side === "demand" ? G.y(z.bottom) + 11 : G.y(z.top) - 5);
+    g.fillText(`${d ? "DEMAND" : "SUPPLY"} · candle A · BOS ${d ? "↑" : "↓"} · ${z.status}`, xa + 3, d ? G.y(z.bottom) + 11 : G.y(z.top) - 5);
+    const xg = Math.max(G.xt(z.t0), G.PL), xc = z.t_c != null ? G.xt(z.t_c) : xg;          // the FVG label on the gap
+    if (xc > G.PL) { g.fillStyle = `rgba(${rgb},.9)`; g.fillText("FVG", xg + 2, d ? G.y(z.fvg.top) - 3 : G.y(z.fvg.bottom) + 11); }
+    const xs = Math.max(G.xt(z.t_touch != null ? z.t_touch : z.t_break), G.PL), al = z.live ? 1 : .55;   // stop + targets: from the entry touch (or the BOS while waiting)
+    const xr = Math.min(xb, G.W - G.PR);                                                       // labels stay on screen
+    if (xs < xr) {
+      const ys = G.y(z.distal);
+      g.globalAlpha = al; g.strokeStyle = "#ff1744"; g.lineWidth = 1.5; g.setLineDash([6, 3]);
+      g.beginPath(); g.moveTo(xs, ys + (d ? 3 : -3)); g.lineTo(xb, ys + (d ? 3 : -3)); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+      g.fillStyle = "#ff1744"; g.textAlign = "right"; g.fillText(`SL ${fx(z.distal)}`, xr - 3, ys + (d ? 14 : -6));
+      for (const [k, t] of (z.targets || []).entries()) {
+        const yt = G.y(t.price);
+        g.strokeStyle = "#00e676"; g.setLineDash(k === 2 ? [] : [3, 3]); g.lineWidth = k === 2 ? 1.5 : 1;
+        g.beginPath(); g.moveTo(xs, yt); g.lineTo(xb, yt); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+        g.fillStyle = "#00e676"; g.fillText(`T${k + 1} · fib ${t.fib} · ${fx(t.price)} · ${t.rr}R`, xr - 3, yt + (d ? -3 : 11));
+      }
+      g.textAlign = "left"; g.globalAlpha = 1;
+    }
   }
   g.restore();
 }
 function sideSDD(row) {
   const L = D.sdd, V = L.filter(z => z.valid), live = V.filter(z => z.live).sort((a, b) => b.top - a.top);
-  return `<h3>DAVID supply / demand</h3><table>${live.map(z => row(z.t0, [`<span style="color:${DVC[z.side][1]}">${z.side === "demand" ? "Demand · bull BOS" : "Supply · bear BOS"}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, `${z.status} · entry ${fx(z.proximal)}`])).join("") || `<tr><td class="muted">none live</td></tr>`}</table>` +
+  const noGap = L.filter(z => z.why && z.why.startsWith("no gap")).length, filled = L.filter(z => z.why && z.why.startsWith("the 4th")).length;
+  return `<h3>DAVID supply / demand</h3><table>${live.map(z => row(z.t0, [`<span style="color:${DVC[z.side][1]}">${z.side === "demand" ? "Demand · bull BOS" : "Supply · bear BOS"}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, `${z.status} · entry ${fx(z.proximal)} · stop ${fx(z.distal)}`])).join("") || `<tr><td class="muted">none live</td></tr>`}</table>` +
     `<h3>latest (newest first)</h3><table>${V.slice(-8).reverse().map(z => row(z.t0, [`<span style="color:${DVC[z.side][1]}">${z.side === "demand" ? "Demand" : "Supply"}</span> ${ist(z.t_break)}`, `${fx(z.bottom)} – ${fx(z.top)}`, z.status])).join("")}</table>` +
-    `<div class="note">${L.length} BOS on this chart → ${V.length} valid zones (${L.length - V.length} BOS had no FVG ≥ 0.3 ATR inside the move → not valid). Bull BOS → demand, bear BOS → supply; CHoCH gives no zone. Zone = where the BOS move started: far edge = the origin candle's wick, near edge (solid line, the entry) = the highest / lowest candle body up to the first big candle (≤ 6 candles). Dotted = the FVG that makes it valid. Ends on a close through the far edge, or a CHoCH against it.</div>`;
+    `<div class="note">${L.length} BOS on this chart → ${V.length} valid zones (${noGap} had no A-B-C gap in the move, ${filled} had every gap filled by the 4th candle). The class rule (video 6): bull BOS → demand, bear BOS → supply, one per BOS, CHoCH gives no zone. Inside the BOS move, the first 3 candles A-B-C (from where the move starts) whose wicks don't touch (any size) → the zone is candle A, wick to wick (below the gap = demand, above = supply), dashed = 50 %. Solid line = entry (A's wick); red SL = beyond candle A; green T1 / T2 / T3 = a Fib from the entry (1) to the recent high / low (0) at its 0.618 / 0.5 / 0.382 (class: \"target up to 0.382\"). Dotted = the FVG gap. Ends on a close through the far edge, or a CHoCH against it.</div>`;
 }
 function sideSDC(row) {
   const L = D.sdc, live = L.filter(z => z.live).sort((a, b) => b.top - a.top), orig = L.filter(z => z.role === "origin");
@@ -1340,7 +1428,16 @@ $("#pick").onchange = () => { SYM = $("#pick").value; pick(); };
 $("#reload").onclick = () => load(true);
 $("#allbars").onclick = () => { BARS = BARS ? "" : "all"; $("#allbars").setAttribute("aria-pressed", !!BARS); pick(); };
 window.addEventListener("resize", () => D && draw());
-(async () => { try { await loadList(); await load(false); pollLive(); } catch (e) { $("#status").textContent = "error: " + e.message; } })();
+{ // the list is resizable: drag the bar between the chart and the list
+  const A = $("#side"), S = $("#split"), keep = w => { A.style.width = Math.max(220, Math.min(window.innerWidth - 300, w)) + "px"; };
+  try { const w = +localStorage.getItem("smc_side_w"); if (w) keep(w); } catch (e) {}
+  let on = false;
+  S.addEventListener("mousedown", e => { on = true; S.classList.add("on"); document.body.style.userSelect = "none"; e.preventDefault(); });
+  window.addEventListener("mousemove", e => { if (!on) return; keep(window.innerWidth - e.clientX - 3); if (D) draw(); });
+  window.addEventListener("mouseup", () => { if (!on) return; on = false; S.classList.remove("on"); document.body.style.userSelect = "";
+    try { localStorage.setItem("smc_side_w", parseInt(A.style.width)); } catch (e) {} });
+}
+(async () => { try { await loadList(); await load(false); pollLive(); loadStatus(); } catch (e) { $("#status").textContent = "error: " + e.message; } })();
 setInterval(() => { if (LAYER.of && !document.hidden) loadOF(false); }, 15000);   // the forming bar's footprint
 setInterval(() => { if (!document.hidden) loadStatus(); }, 10000);   // the engine's own state
 setInterval(pollLive, 5000);                       // the live tick + forming bar (the engine reads them every loop, ≈ 15 s)

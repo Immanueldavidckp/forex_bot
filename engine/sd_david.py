@@ -1,24 +1,27 @@
 """
-engine/sd_david.py — David's OWN supply / demand (2026-11-01, after the internet versions were "fully wrong"):
-
-  "if the BULL BOS then mark the DEMAND, if the BEAR BOS then the SUPPLY — only these places we can take the entry;
-   once the BOS happened, inside that BOS we should have the FVG, then only that supply or demand is valid"
+engine/sd_david.py — David's supply / demand, the CLASS rule (class video 6 + 6.1, OK'd by David 2026-11-04;
+rules + sources: engine/research/ob_sd/class_video6/supply_demand_rules.md, pictures class6_demand.png / class6_supply.png)
 
   1 the break    a BOS of David's structure (major_structure.py: BOS at the leg's extreme by close; CHoCH is not a BOS
-                 and gives no zone here). Bull BOS → DEMAND, bear BOS → SUPPLY.
-  2 the FVG      the BOS move (its origin → the break candle) must hold an FVG of its own side: a 3-candle gap whose
-                 middle candle is inside the move and that is ≥ 0.3 ATR(14) — the same FVGs as the /smc FVG layer
-                 (smc_marks.py). No FVG → the zone is NOT valid and is not drawn.
-  3 the zone     where the BOS move started (first version, for David to check): the move's origin candle (its lowest
-                 low for demand / highest high for supply) and the candles after it up to the first displacement
-                 candle of the move (body ≥ 1.5 × the 10 before, David's V5 number), at most 6 candles.
-                   demand: far edge = the lowest low (wick), near edge = the highest candle BODY of those candles
-                   supply: far edge = the highest high (wick), near edge = the lowest candle BODY
-                 If the origin candle is itself the displacement, the zone is that candle's low → open (high → open).
-  4 life         fresh → tested (price back at the near edge = the entry place) → broken on a CLOSE beyond the far edge;
-                 a CHoCH against it ends it too (the trend it belonged to is over)
+                 and gives no zone). Bull BOS → DEMAND (buy side only), bear BOS → SUPPLY (sell side only).
+  2 A-B-C        inside the move that made the BOS (its origin candle → the break candle, not before it, not past it)
+                 three candles A-B-C whose wicks do NOT touch: bull A.high < C.low, bear A.low > C.high. That gap is the
+                 FVG. Colour does not matter. ANY gap size counts ("even if it is a small gap you can consider it").
+                 No gap → no zone.
+  3 the zone     candle A, wick to wick: demand = the candle BELOW the gap, supply = the candle ABOVE the gap
+                 (= the class's order-block candle). Dashed 50 % line in the middle (drawn only).
+  4 4th candle   the candle after C fills the gap (bull: its low ≤ A.high, bear: its high ≥ A.low) → that gap is NOT valid.
+  ONE per BOS    "each BOS gives one demand / one supply": the FIRST valid A-B-C from where the BOS move starts (the
+                 corner of the leg, as drawn in the class); the leg's other gaps are kept in "others" (not drawn).
+  5 entry        price comes back and touches A's wick: demand = A.high, supply = A.low (proximal).
+     stop        beyond candle A: demand below A.low, supply above A.high (distal).
+     targets     a Fib from the entry (1) to the recent high (0) for demand / recent low for supply; T1 = its 0.618,
+                 T2 = 0.5, T3 = 0.382 ("you can set your target up to 0.382", class 6.1 at 43:43, frame: 1 = 4176.44
+                 entry, 0 = 4215.94 high, target 0.382 = 4200.85). Recent high/low = the leg's extreme from candle A up to
+                 the candle before price comes back to the zone (or up to now while it hasn't).
+  6 life         fresh → tested (the wick touch) → broken on a CLOSE beyond the far edge; a CHoCH against it ends it too.
 
-    zones(bars, m) → one zone per BOS, oldest first, valid and not valid (valid=False + why)
+    zones(bars, m) → one entry per BOS, oldest first, valid and not valid (valid=False + why)
 """
 from __future__ import annotations
 
@@ -26,62 +29,86 @@ from typing import Dict, List, Optional
 
 from .major_structure import atr14, major_structure
 
-FVG_MIN_ATR = 0.3          # = smc_marks.FVG_MIN_ATR (the page's FVG layer)
-DISP_X, AVG_BARS = 1.5, 10  # David's displacement
-MAX_BASE = 6
-
-
-def _body(b):
-    return abs(b["c"] - b["o"])
-
 
 def zones(bars: List[Dict], m: Optional[Dict] = None, n: int = 5) -> List[Dict]:
     N = len(bars)
-    if N < AVG_BARS + 3:
+    if N < 5:
         return []
     m = m or major_structure(bars, n)
     A = atr14(bars)
-    bodies = [_body(b) for b in bars]
-    avg = [None] * N
-    for i in range(AVG_BARS, N):
-        avg[i] = sum(bodies[i - AVG_BARS:i]) / AVG_BARS
     out: List[Dict] = []
     for k, e in enumerate(m["events"]):
         if e["kind"] != "BOS":
             continue
         side, o, x = e["side"], e["origin"]["idx"], e["idx"]
         buy = side == "buy"
-        # 2 the FVG inside the BOS move
-        fvgs = []
-        for i in range(max(o + 1, 1), min(x, N - 2) + 1):
-            if i + 1 > x:
-                break
-            a = A[i - 1] if A[i - 1] == A[i - 1] else None
-            if buy and bars[i + 1]["l"] > bars[i - 1]["h"]:
-                gap = (bars[i - 1]["h"], bars[i + 1]["l"])
-            elif not buy and bars[i + 1]["h"] < bars[i - 1]["l"]:
-                gap = (bars[i + 1]["h"], bars[i - 1]["l"])
+        # David 2026-11-09 (NZDUSD: candle A 9 days before the BOS, crossed 146 times): the "BOS move" is the LAST swing
+        # before the break, not the whole leg from its extreme; a candle A price came back through before the BOS is no zone
+        o = move_start(bars, o, x, buy, n)
+        base = {"side": "demand" if buy else "supply", "dir": side, "event": k, "bos_level": e["level"],
+                "level_idx": e["level_idx"], "origin": o, "leg_origin": e["origin"]["idx"], "break": x}
+        gaps = []
+        for a in range(max(o, 0), x - 1):                     # A = a, B = a+1, C = a+2, all inside the BOS move
+            c = a + 2
+            ba, bc = bars[a], bars[c]
+            if buy and bc["l"] > ba["h"]:
+                gap = (ba["h"], bc["l"])
+            elif not buy and bc["h"] < ba["l"]:
+                gap = (bc["h"], ba["l"])
             else:
                 continue
-            if a and gap[1] - gap[0] >= FVG_MIN_ATR * a:
-                fvgs.append({"bottom": gap[0], "top": gap[1], "idx": i, "atr": round((gap[1] - gap[0]) / a, 2)})
-        # 3 the zone where the move started
-        d = next((i for i in range(o, x + 1) if avg[i] and bodies[i] >= DISP_X * avg[i]
-                  and ((bars[i]["c"] > bars[i]["o"]) if buy else (bars[i]["c"] < bars[i]["o"]))), None)
-        if d == o:
-            base = [o]
-            prox = bars[o]["o"]
-        else:
-            base = list(range(o, min(d if d is not None else o + 1, o + MAX_BASE)))
-            prox = max(max(bars[i]["o"], bars[i]["c"]) for i in base) if buy else min(min(bars[i]["o"], bars[i]["c"]) for i in base)
-        dist = min(bars[i]["l"] for i in base) if buy else max(bars[i]["h"] for i in base)
-        z = {"side": "demand" if buy else "supply", "dir": side, "event": k, "bos_level": e["level"], "level_idx": e["level_idx"],
-             "origin": o, "break": x, "disp": d, "base": [base[0], base[-1]], "proximal": prox, "distal": dist,
-             "top": max(prox, dist), "bottom": min(prox, dist), "fvgs": fvgs, "valid": bool(fvgs),
-             "why": None if fvgs else "no FVG (≥ 0.3 ATR) inside the BOS move"}
+            d = c + 1                                          # the 4th candle
+            filled = d < N and ((buy and bars[d]["l"] <= ba["h"]) or (not buy and bars[d]["h"] >= ba["l"]))
+            at = A[a] if A[a] == A[a] else None
+            # price back into candle A before the BOS = the zone was already used; not fresh, not a zone
+            touched = any((bars[i]["l"] <= ba["h"]) if buy else (bars[i]["h"] >= ba["l"]) for i in range(d + 1, x))
+            gaps.append({"a": a, "bottom": gap[0], "top": gap[1], "filled": filled or touched, "touched_before_bos": touched,
+                         "atr": round((gap[1] - gap[0]) / at, 2) if at else None})
+        pick = next((g for g in gaps if not g["filled"]), None)
+        if pick is None:
+            why = ("the 4th candle filled every gap in the BOS move, or price came back through candle A before the BOS"
+                   if gaps else "no gap (A-B-C) inside the BOS move")
+            out.append(dict(base, a=None, top=None, bottom=None, mid=None, proximal=None, distal=None, fvg=None,
+                            others=gaps, valid=False, why=why, status=None, touch_idx=None, broken_idx=None,
+                            superseded_idx=None, end_idx=None, live=False))
+            continue
+        ba = bars[pick["a"]]
+        z = dict(base, a=pick["a"], top=ba["h"], bottom=ba["l"], mid=(ba["h"] + ba["l"]) / 2,
+                 proximal=ba["h"] if buy else ba["l"], distal=ba["l"] if buy else ba["h"],
+                 fvg={"bottom": pick["bottom"], "top": pick["top"], "atr": pick["atr"]},
+                 others=[g for g in gaps if g is not pick], valid=True, why=None)
         _track(bars, z, m)
+        _targets(bars, z)
         out.append(z)
     return out
+
+
+def move_start(bars: List[Dict], o: int, x: int, buy: bool, n: int = 5) -> int:
+    """Where the move that broke structure starts: the last n-bar swing (low for a bull BOS, high for a bear BOS)
+    before the break candle x, inside the leg [o, x]. No swing in the leg → the leg's origin o."""
+    for i in range(x - n, o, -1):
+        lo, hi = max(o, i - n), min(x, i + n)
+        if buy and bars[i]["l"] <= min(bars[j]["l"] for j in range(lo, hi + 1)):
+            return i
+        if not buy and bars[i]["h"] >= max(bars[j]["h"] for j in range(lo, hi + 1)):
+            return i
+    return o
+
+
+FIB_TARGETS = (0.618, 0.5, 0.382)       # T1, T2, T3 — Fib levels with 1 = the entry and 0 = the recent high / low
+
+
+def _targets(bars, z) -> None:
+    buy = z["dir"] == "buy"
+    end = next(i for i in (z["touch_idx"], z["end_idx"], len(bars)) if i is not None)
+    seg = bars[z["a"]:max(end, z["break"] + 1)]
+    ext = max(b["h"] for b in seg) if buy else min(b["l"] for b in seg)
+    e = z["proximal"]
+    z["fib_ext"] = ext
+    z["targets"] = [{"fib": f, "price": ext + f * (e - ext)} for f in FIB_TARGETS]
+    risk = abs(e - z["distal"])
+    for t in z["targets"]:
+        t["rr"] = round(abs(t["price"] - e) / risk, 2) if risk else None
 
 
 def _track(bars, z, m) -> None:
@@ -99,3 +126,5 @@ def _track(bars, z, m) -> None:
     ends = [i for i in (z["broken_idx"], ch) if i is not None]
     z["end_idx"] = min(ends) if ends else None
     z["live"] = z["end_idx"] is None
+    if z["touch_idx"] is not None and z["end_idx"] is not None and z["touch_idx"] > z["end_idx"]:
+        z["touch_idx"] = None                         # came back only after the zone was over → no entry

@@ -197,8 +197,14 @@ KRONOS = {
     # David 2026-10-26 "why only three": the engine's 17 forex pairs + gold + the two big coins. FxPro's other coins
     # are left out: their spread is 0.6-3 × ATR(M15) (median, Sep 2025 → Oct 2026) and MAX_SPREAD_SL allows 0.45 ×,
     # so they could never trade and would only cost GPU time (16 paths ≈ 10-20 s per symbol per bar)
+    # David 2026-11-08 "add all the crypto symbols": every FxPro coin on the S&D list is forecast too; most still cannot
+    # trade (MAX_SPREAD_SL refuses a spread over 30 % of the 1-ATR stop) — they show on /kronos with the reason
     "SYMBOLS": ["GOLD", "BITCOIN", "ETHEREUM", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
-                "EURGBP", "EURJPY", "EURCHF", "EURCAD", "GBPJPY", "GBPCHF", "GBPCAD", "CADJPY", "CADCHF", "CHFJPY"],
+                "EURGBP", "EURJPY", "EURCHF", "EURCAD", "GBPJPY", "GBPCHF", "GBPCAD", "CADJPY", "CADCHF", "CHFJPY",
+                "AAVE", "ALGORAND", "APTOS", "AVALANCHE", "BAT", "BINANCECOIN", "BITCOINCASH", "CARDANO", "CHAINLINK",
+                "COSMOS", "DASH", "DOGECOIN", "ETHCLASSIC", "FILECOIN", "GRAPH", "HEDERA", "HYPERLIQUID", "IMMUTABLE",
+                "INTERNET", "IOTA", "LITECOIN", "NEAR", "NEO", "POLKADOT", "SOLANA", "STELLAR", "SUSHISWAP", "TEZOS",
+                "THETA", "TRON", "TRUMP", "UNISWAP", "VECHAIN", "XRP"],
     "MAGIC": 5050600,
     "TF": "M15", "CONTEXT": 512, "HORIZON": 8, "PATHS": 16,
     "P_MIN": 0.75, "MIN_MOVE_SPREAD_X": 2.0,
@@ -206,6 +212,10 @@ KRONOS = {
     # mostly < 1 ATR): target twice the stop. The 14-month replay (1,740 GOLD/EURUSD/BITCOIN forecasts) loses about the
     # spread with every size (SL 1.5/TP median −0.076 ATR a trade, SL 1/TP 2 −0.065, 38 % won): fewer wins, not an edge
     "ATR_PERIOD": 14, "SL_ATR": 1.0, "TP_ATR": 2.0, "MAX_SPREAD_SL": 0.3,
+    # David 2026-11-09 "stoploss under 2 dollar" (a GOLD stop at 1 ATR was ~$10 at 0.01 lot): the stop is pulled in so
+    # it never loses more than MAX_RISK_USD at the lot traded; the target stays TP_ATR × ATR. 0 = no cap.
+    # Replay of the 231 closed trades before this: now +$1.42, with the $2 stop −$16.60 (9 of 11 gold trades stopped)
+    "MAX_RISK_USD": 2.0,
     # David 2026-10-26 "make it unlimited, it's just a testing": 0 = no cap — every forecast that passes is its own
     # trade, also on a symbol that already has a Kronos trade open (FxPro demo is a hedging account)
     "HOLD_BARS": 8, "MAX_POSITIONS": 0, "MAX_PER_SYMBOL": 0,
@@ -216,6 +226,39 @@ KRONOS = {
     # the mt5 tools (mt5_mcp.py, MT5_MCP_MAGIC), are shown on /kronos next to Kronos' — read only, never managed here
     "CLAUDE_MAGIC": 24102099,
     "DIR": os.path.join(DATA_DIR, "kronos"),
+}
+
+# ── DAVID's supply / demand, traded (David 2026-11-05: "take the trade in the 15m, start the trading") ──
+# engine/sdd_book.py: every valid S&D David zone (engine/sd_david.py, the class video 6 rule) on M15 that is still
+# FRESH gets a LIMIT order at its entry (candle A's wick), stop beyond candle A, target T1 (Fib 0.618 from the entry
+# to the recent high / low), minimum lot. The order is cancelled when the zone ends (broken / CHoCH against it) or
+# is touched without a fill. David's choices 2026-11-05: auto-trade every zone, target T1, every symbol (crypto + forex + gold).
+# NOT backtested before going live (the earlier S&D rules backtested had no edge). control.json "sdd" overrides
+# ENABLED (python3 -m engine.run sdd on|off|status); orders also need trading ON like V5's.
+SDD = {
+    "ENABLED": True,
+    # David 2026-11-05 (2nd ask): every symbol on the /smc list = the engine's crypto + forex + gold (was forex + gold)
+    "SYMBOLS": "all", "SYMBOLS_EXTRA": ["GOLD"],
+    "MAGIC": 5050700,
+    "TF": "M15", "BARS": 3000,           # the same window as the /smc chart, so the zones are the ones David sees
+    "TARGET": 1,                         # T1 = Fib 0.618
+    "MAX_SPREAD_RISK": 0.25,             # skip a zone whose spread is over 25 % of its stop distance
+    # David 2026-11-09: "make the stop loss 10 points below the demand zone or 10 points above the supply zone"
+    # (MT5 points = the symbol's point: 0.00001 on EURUSD = 1 pip for 10, 0.01 on GOLD / BITCOIN). Waiting orders move too
+    "SL_BUFFER_POINTS": 10,
+    "MIN_FREE_MARGIN_PCT": 30,
+    "DIR": os.path.join(DATA_DIR, "sdd"),
+}
+
+# ── Kronos × S&D David zones (David 2026-11-07: "run the kronos for 50 candles ... will it touch the BOS supply /
+# demand FVG zone ... not the 2 h one, check the 15m, all the candles, show in the dashboard") ──
+# concepter/kronos/zone_touch.py (GPU, service kronos-zones): for every symbol with a FRESH S&D David zone, Kronos-base
+# draws PATHS paths of the next HORIZON M15 bars (each path with its own high / low) and counts the paths that touch
+# the zone's wick (entry), its 50 % line, and close beyond its stop. Read-only: no orders. Page /kzones.
+# ~57 s per symbol on the GTX 1650 (16 paths × 50 bars), so a full pass is long: nearest zones are forecast first.
+KRONOS_ZONES = {
+    "TF": "M15", "HORIZON": 50, "PATHS": 16, "CONTEXT": 512, "BARS": 3000,
+    "DIR": os.path.join(DATA_DIR, "kronos", "zones"),
 }
 
 

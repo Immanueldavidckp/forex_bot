@@ -10,6 +10,7 @@ engine/run.py — the V5 engine's loop and commands. Run from ~/forex with the s
     python3 -m engine.run filters strict|test|profit its thresholds: the spec as written, the 0.01-lot test
                                                     profile, or "profit" (no caps + the cost gate, David 2026-10-30)
     python3 -m engine.run kronos on|off|status       Kronos' trades (engine/kronos_book.py; forecasts: service kronos-signals)
+    python3 -m engine.run sdd on|off|status          DAVID's S&D zones traded on M15 (engine/sdd_book.py)
 
 Every loop_sec: read the account / positions / pending layers, apply the dashboard's commands, manage
 the open trades. Every time a timeframe is due (M5 / M15 each minute, M30 / H1 every 5 min, H4 every
@@ -30,6 +31,8 @@ from .feed import Feed, mt5c
 from .kronos_book import KronosBook
 from . import live as LV
 from . import kronos_book as KB
+from .sdd_book import SddBook
+from . import sdd_book as SB
 from .terminal import Terminal
 
 
@@ -128,6 +131,10 @@ def cmd_run(a) -> int:
     kronos = KronosBook(feed)
     log(f"kronos: {', '.join(KB.K['SYMBOLS'])} on {KB.K['TF']}, magic {kronos.magic}, "
         f"{'ON' if KB.enabled() else 'off'} (forecasts from the kronos-signals service)")
+    sdd = SddBook(feed)
+    log(f"S&D David: {len(sdd.symbols())} symbols on {SB.S['TF']}, limit orders at the zone, target T{SB.S['TARGET']}, "
+        f"magic {sdd.magic}, {'ON' if SB.enabled() else 'off'}")
+    s_err = ""
     k_err = l_err = ""
     errors = 0
     first = True
@@ -169,6 +176,14 @@ def cmd_run(a) -> int:
                 if str(e) != k_err:
                     log(f"kronos: {type(e).__name__}: {e}")
                 k_err = str(e)
+            try:                                  # DAVID's S&D trades: never stop V5 either
+                sdd.step(trading, book.account)
+                s_err = ""
+            except Exception as e:
+                if str(e) != s_err:
+                    log(f"sdd: {type(e).__name__}: {e}")
+                    traceback.print_exc()
+                s_err = str(e)
             try:                                  # the /smc page's live quotes: the same, never stops V5
                 LV.step(feed)
                 l_err = ""
@@ -217,6 +232,17 @@ def cmd_kronos(a) -> int:
     return 0
 
 
+def cmd_sdd(a) -> int:
+    if a.state != "status":
+        save_control(sdd=a.state == "on")
+        journal("sdd", on=a.state == "on", by="cli")
+    c = load_control()
+    print(f"S&D David trading {'ON' if SB.enabled() else 'off'} (control.json: {c.get('sdd')}, config default: {SB.S['ENABLED']}); "
+          f"orders also need engine trading {'ON' if c['trading'] else 'off'}; {SB.S['TF']}, target T{SB.S['TARGET']}, "
+          f"symbols {SB.S['SYMBOLS'] if isinstance(SB.S['SYMBOLS'], str) else ', '.join(SB.S['SYMBOLS'])} (+ {', '.join(SB.S.get('SYMBOLS_EXTRA') or [])})")
+    return 0
+
+
 def cmd_mt5(a) -> int:
     term = Terminal(lambda m: print(m, flush=True), journal)
     if a.op != "status":
@@ -250,9 +276,11 @@ def main() -> int:
     fl.add_argument("state", choices=["on", "off", "status", "strict", "test", "profit"])
     kr = sub.add_parser("kronos", help="Kronos' trades (engine/kronos_book.py): on, off, status (control.json overrides config)")
     kr.add_argument("state", choices=["on", "off", "status"])
+    sd = sub.add_parser("sdd", help="DAVID's S&D trades (engine/sdd_book.py): on, off, status (control.json overrides config)")
+    sd.add_argument("state", choices=["on", "off", "status"])
     a = ap.parse_args()
     return {"check": cmd_check, "once": cmd_once, "run": cmd_run, "trading": cmd_trading, "mt5": cmd_mt5, "filters": cmd_filters,
-            "kronos": cmd_kronos}[a.cmd](a)
+            "kronos": cmd_kronos, "sdd": cmd_sdd}[a.cmd](a)
 
 
 if __name__ == "__main__":

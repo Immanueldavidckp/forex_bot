@@ -51,6 +51,7 @@ footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line) 
 </main>
 <footer>pick a tool, then drag on the chart: BOS / CHoCH = the broken level (start at the level, end at the break candle; its ↑/↓ direction is read from the candles) · FVG / supply / demand = the box ·
 swing ▲▼ = one click · support / resistance = drag along the level · trend ↗ ↘ / sideways → = drag over the span the trend covers ·
+fib ↕ = drag from the swing's START to its END (the leg you measure; 0 = the end, 1 = the start; 0.382 / 0.5 / 0.618 drawn to the right) ·
 ✓ region = the span you marked COMPLETELY (teaches the engine what it finds too much of) · ✕ = click a label to remove it ·
 wheel = zoom, drag with ✋ = scroll, double-click = back to now</footer>
 <script>
@@ -60,10 +61,11 @@ const IST_MS = 19800000, TFS = ["M5", "M15", "M30", "H1", "H4"];
 const TF_MS = {M5: 3e5, M15: 9e5, M30: 18e5, H1: 36e5, H4: 144e5};
 const TOOLS = [["pan", "✋"], ["BOS", "BOS"], ["CHoCH", "CHoCH"], ["FVG", "FVG"], ["supply", "supply"], ["demand", "demand"],
   ["swing high", "swing ▲"], ["swing low", "swing ▼"], ["support", "support"], ["resistance", "resistance"],
-  ["up trend", "trend ↗"], ["down trend", "trend ↘"], ["sideways", "sideways →"], ["region", "✓ region"], ["erase", "✕"]];
+  ["up trend", "trend ↗"], ["down trend", "trend ↘"], ["sideways", "sideways →"], ["fib", "fib ↕"], ["region", "✓ region"], ["erase", "✕"]];
+const FIB = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
 const COL = {BOS: "#64b5f6", CHoCH: "#ce93d8", FVG: "#f5c542", supply: "#ff8a80", demand: "#64ffda",
   "swing high": "#ff8a80", "swing low": "#64ffda", support: "#aed581", resistance: "#ffb74d",
-  "up trend": "#66bb6a", "down trend": "#ef5350", sideways: "#90a4ae", region: "#9ccc65", line: "#e6e9ef"};
+  "up trend": "#66bb6a", "down trend": "#ef5350", sideways: "#90a4ae", fib: "#80deea", region: "#9ccc65", line: "#e6e9ef"};
 const SIDED = k => k === "BOS" || k === "CHoCH";
 const LEVEL = k => k === "support" || k === "resistance";
 const TREND = k => k === "up trend" || k === "down trend" || k === "sideways";
@@ -184,6 +186,16 @@ function drawLabel(g, G, l, ghost) {
     g.beginPath(); g.moveTo(Math.min(x0, x1), yy); g.lineTo(Math.max(x0, x1), yy); g.stroke();
     g.setLineDash([]);
     g.fillText(`✎ ${l.kind}${l.side ? (l.side === "buy" ? " ↑" : " ↓") : ""}`, Math.max(x0, x1) + 4, yy - 7);
+  } else if (l.kind === "fib" && l.p1 != null) {
+    // the leg (thin diagonal) + the retracement levels from the leg's end to the right edge: 0 = end, 1 = start
+    const xr = G.W - G.PR, xs = Math.min(x0, x1), dg = Math.abs(l.p0) >= 1000 ? 1 : Math.abs(l.p0) >= 10 ? 3 : 5;
+    g.lineWidth = 1; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(x0, G.y(l.p0)); g.lineTo(x1, G.y(l.p1)); g.stroke(); g.setLineDash([]);
+    FIB.forEach(r => { const pr = l.p1 + r * (l.p0 - l.p1), yy = G.y(pr);
+      g.globalAlpha = (ghost ? 0.6 : 1) * (r === 0.5 || r === 0.618 ? 1 : 0.55); g.lineWidth = r === 0.618 ? 1.6 : 1;
+      g.beginPath(); g.moveTo(xs, yy); g.lineTo(xr, yy); g.stroke();
+      g.fillText(`${r} · ${pr.toFixed(dg)}`, xs + 3, yy - 3); });
+    g.globalAlpha = ghost ? 0.6 : 1; g.lineWidth = 2;
+    g.fillText(`✎ fib ${l.p1 > l.p0 ? "↑ leg" : "↓ leg"}`, Math.max(x0, x1) + 4, G.y(l.p1) + (l.p1 > l.p0 ? -7 : 12));
   } else if (l.kind.startsWith("swing")) {
     const hiS = l.kind === "swing high", yy = G.y(l.p0) + (hiS ? -5 : 5);
     g.beginPath(); g.moveTo(x0, yy); g.lineTo(x0 - 5, yy + (hiS ? -7 : 7)); g.lineTo(x0 + 5, yy + (hiS ? -7 : 7)); g.closePath(); g.stroke();
@@ -203,7 +215,7 @@ function drawLabel(g, G, l, ghost) {
 function renderRows() {
   $("#rows").innerHTML = LABELS.map(l =>
     `<div class="row ${SEL === l.id ? "sel" : ""}" data-id="${l.id}"><i style="background:${COL[l.kind] || "#888"}"></i>` +
-    `${l.kind}${l.side ? (l.side === "buy" ? " ↑" : " ↓") : ""} <span class="muted">${tlab(l.t0)}${l.note ? " · " + l.note.slice(0, 18) : ""}</span>` +
+    `${l.kind}${l.side ? (l.side === "buy" ? " ↑" : " ↓") : ""}${l.kind === "fib" && l.leg ? (l.leg === "up" ? " ↑ leg" : " ↓ leg") : ""} <span class="muted">${tlab(l.t0)}${l.note ? " · " + l.note.slice(0, 18) : ""}</span>` +
     `<span class="x" data-del="${l.id}" title="remove">✕</span></div>`).join("")
     || `<div class="muted" style="padding:8px">nothing drawn yet</div>`;
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = async e => { e.stopPropagation(); await post({op: "del", id: b.dataset.del}); SEL = null; await loadLabels(); draw(); loadScore(); });
