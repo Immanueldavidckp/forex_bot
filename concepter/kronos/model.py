@@ -18,7 +18,11 @@ from model import Kronos, KronosPredictor, KronosTokenizer  # noqa: E402
 COLS = ["open", "high", "low", "close", "volume"]
 
 
-def load(name: str = "NeoQuasar/Kronos-base", device: str = "cuda:0") -> KronosPredictor:
+def load(name: str = "NeoQuasar/Kronos-base", device: str | None = None) -> KronosPredictor:
+    """device None → the GPU when there is one (laptop GTX 1650), else the CPU (Oracle server); KRONOS_DEVICE overrides."""
+    if device is None:
+        import torch
+        device = os.environ.get("KRONOS_DEVICE") or ("cuda:0" if torch.cuda.is_available() else "cpu")
     tok = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
     mdl = Kronos.from_pretrained(name)
     tok.eval()
