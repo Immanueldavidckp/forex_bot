@@ -1,0 +1,12 @@
+# CD: pull main from GitHub once its CI passed (deploy/pull_deploy.sh). Started by forex-deploy.timer.
+# Install on the server:
+#   cp ~/forex/deploy/forex-deploy.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now forex-deploy.timer
+[Unit]
+Description=forex_bot pull-deploy (GitHub main -> ~/forex when CI passed)
+
+[Service]
+Type=oneshot
+ExecStart=%h/forex/deploy/pull_deploy.sh
+StandardOutput=append:%h/forex/engine_data/deploy.log
+StandardError=append:%h/forex/engine_data/deploy.log
