@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"   # same as the Oracle server (Ubuntu 24.04)
+          python-version: "3.13"   # engine/candles.py needs math.fma (3.13+); the Oracle server venv is 3.13 too
       - name: Install
         run: pip install numpy pandas scipy matplotlib pytest
       - name: Tests
