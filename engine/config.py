@@ -216,6 +216,9 @@ KRONOS = {
     # it never loses more than MAX_RISK_USD at the lot traded; the target stays TP_ATR × ATR. 0 = no cap.
     # Replay of the 231 closed trades before this: now +$1.42, with the $2 stop −$16.60 (9 of 11 gold trades stopped)
     "MAX_RISK_USD": 2.0,
+    # David 2026-11-11 "profit should not be below the 1:2 range, it could be more": the target is never under
+    # MIN_RR × the stop — checked before the order and again on the real fill (kronos_book.recheck)
+    "MIN_RR": 2.0,
     # David 2026-10-26 "make it unlimited, it's just a testing": 0 = no cap — every forecast that passes is its own
     # trade, also on a symbol that already has a Kronos trade open (FxPro demo is a hedging account)
     "HOLD_BARS": 8, "MAX_POSITIONS": 0, "MAX_PER_SYMBOL": 0,

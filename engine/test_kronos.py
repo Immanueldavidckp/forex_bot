@@ -141,6 +141,32 @@ def test_decide_stop_widened_to_stops_level():
     wide = {**INFO, "trade_stops_level": 1000}                      # 10.0 × 1.1 margin = 11.0 > 1 × ATR
     d = KB.decide(sig(0.9), rows(), wide, "metal", T0, {"bid": 4000.0, "ask": 4000.3})
     assert d["entry"] - d["sl"] == pytest.approx(11.0)
+    assert d["tp"] - d["entry"] == pytest.approx(22.0)             # David 2026-11-11: never under 2 × the stop (2 ATR = 8)
+
+
+def test_decide_stop_at_most_two_dollars_and_target_at_least_twice(monkeypatch):
+    big = {**INFO, "trade_tick_value": 1.0, "trade_contract_size": 100}   # 0.01 lot: $1 per 1.00 of price → 1 ATR = $4
+    d = KB.decide(sig(0.9), rows(), big, "metal", T0, {"bid": 4000.0, "ask": 4000.3})
+    risk = (d["entry"] - d["sl"]) * KB.money_per_move(big) * KB.lot_for(big)
+    assert d["side"] == "buy" and risk <= 2.0 + 1e-9 and risk == pytest.approx(2.0)
+    assert (d["tp"] - d["entry"]) >= 2.0 * (d["entry"] - d["sl"]) - 1e-9   # 2 ATR = 8.0 = 4 R here: more is fine
+    names = {c["name"] for c in d["checks"]}
+    assert "Money at the stop" in names
+
+
+def test_recheck_after_a_slipped_fill(kb):
+    sent = []
+    kb.fake.sltp = lambda ticket, sl=0.0, tp=0.0: sent.append((ticket, sl, tp)) or {"ok": True}
+    big = {**INFO, "trade_tick_value": 1.0, "trade_contract_size": 100}
+    d = {"side": "buy", "sl": 3998.3, "tp": 4008.3}                 # planned from 4000.3: $2 stop, 8.0 target
+    out = kb.recheck("GOLD", d, big, 4001.3, 7)                     # filled 1.0 worse: stop $3, target 7.0 = 2.3 R
+    assert sent == [(7, 3999.3, 4008.3)] and out["sl"] == 3999.3   # stop pulled in to $2; 7.0 ≥ 2 × 2.0 stays
+    sent.clear()
+    d = {"side": "sell", "sl": 4002.0, "tp": 3996.0}                # planned from 4000.0: 2.0 stop, 4.0 target
+    out = kb.recheck("GOLD", d, big, 3999.0, 8)                     # filled 1.0 worse: stop 3.0 → 2.0, target 3.0 → 4.0
+    assert sent == [(8, 4001.0, 3995.0)] and out["tp"] == 3995.0
+    sent.clear()
+    assert kb.recheck("GOLD", {"side": "buy", "sl": 3998.3, "tp": 4008.3}, big, 4000.3, 9)["sl"] == 3998.3 and not sent
 
 
 # ── the book on a fake MT5 ──

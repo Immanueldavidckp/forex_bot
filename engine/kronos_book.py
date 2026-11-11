@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import math
 import os
 from typing import Dict, List, Optional
 
@@ -95,6 +96,17 @@ def decide(sig: Dict, rows: List[list], info: Dict, market: str, now: int, tick:
     if spread > K["MAX_SPREAD_SL"] * sl_d:
         return {**out, "why": f"spread {spread:g} is over {K['MAX_SPREAD_SL']:.0%} of the stop {sl_d:g}"}
     dg = int(info.get("digits") or 5)
+    # David 2026-11-11: the last gate before the order — the stop risks at most MAX_RISK_USD and the target is at
+    # least MIN_RR × the stop (more is fine, less never). Checked on the prices as they will be sent (rounded).
+    rr_min = K.get("MIN_RR") or 0
+    tp_d = max(tp_d, rr_min * sl_d)
+    pt = 10 ** -dg
+    sl_d, tp_d = max(math.floor(sl_d / pt + 1e-9), 1) * pt, math.ceil(tp_d / pt - 1e-9) * pt   # stop in, target out
+    risk_usd = sl_d * money_per_move(info) * lot_for(info)
+    if K.get("MAX_RISK_USD") and risk_usd > K["MAX_RISK_USD"] + 1e-9:
+        return {**out, "why": f"the stop would risk ${risk_usd:.2f} (max ${K['MAX_RISK_USD']:g})"}
+    if tp_d < rr_min * sl_d - 1e-12:
+        return {**out, "why": f"target {tp_d:g} is under {rr_min:g} × the stop {sl_d:g}"}
     from .trade_checks import chk, g
     checks = [
         chk("Setup", "Kronos paths agreeing", f"{agree:.0%} of {sig.get('paths', K['PATHS'])} paths {'up' if side == 'buy' else 'down'} (P up {p_up:.0%})",
@@ -107,7 +119,9 @@ def decide(sig: Dict, rows: List[list], info: Dict, market: str, now: int, tick:
         chk("Risk", "Stop", (f"{g(sl_d)} = ${K['MAX_RISK_USD']:g} cap (1 ATR = {g(K['SL_ATR'] * a)})" if capped else
                              f"{K['SL_ATR']:g} ATR(M15) = {g(sl_d)}" + (" (stops level)" if sl_d == gap else "")),
             f"{K['SL_ATR']:g} ATR, at most ${K.get('MAX_RISK_USD') or 0:g} at {lot_for(info):g} lot, outside the stops level {g(gap)}", True),
-        chk("Risk", "Target", f"{K['TP_ATR']:g} ATR = {g(tp_d)} ({tp_d / sl_d:.1f} R)", f"{K['TP_ATR']:g} ATR", True),
+        chk("Risk", "Target", f"{g(tp_d)} ({tp_d / sl_d:.2f} R; {K['TP_ATR']:g} ATR = {g(K['TP_ATR'] * a)})",
+            f"{K['TP_ATR']:g} ATR, never under {rr_min:g} × the stop", True),
+        chk("Risk", "Money at the stop", f"${risk_usd:.2f} at {lot_for(info):g} lot", f"≤ ${K.get('MAX_RISK_USD') or 0:g}", True),
         chk("Risk", "Spread vs stop", f"{g(spread)} = {spread / sl_d:.0%} of the stop", f"≤ {K['MAX_SPREAD_SL']:.0%}", True),
     ]
     return {**out, "side": side, "entry": round(entry, dg), "sl": round(entry - sg * sl_d, dg), "tp": round(entry + sg * tp_d, dg),
@@ -283,6 +297,34 @@ class KronosBook:
         with open(DECISIONS_FILE, "a") as f:
             f.write(json.dumps({"symbol": sym, **rec}) + "\n")
 
+    def recheck(self, sym: str, d: Dict, info: Dict, fill: float, ticket) -> Dict:
+        """David 2026-11-11, after the trade is confirmed: measured from the real fill, the stop must risk at most
+        MAX_RISK_USD and the target must be at least MIN_RR × the stop. A fill that slipped breaks one of them → the
+        stop is pulled in (never pushed out) and / or the target pushed out on the ticket. → d with the levels in force."""
+        sg = 1 if d["side"] == "buy" else -1
+        dg = int(info.get("digits") or 5)
+        pt, mpm = 10 ** -dg, money_per_move(info) * lot_for(info)
+        sl_d, tp_d = sg * (fill - d["sl"]), sg * (d["tp"] - fill)
+        new_sl, new_tp = sl_d, tp_d
+        if K.get("MAX_RISK_USD") and mpm > 0 and sl_d * mpm > K["MAX_RISK_USD"] + 1e-9:
+            new_sl = math.floor(K["MAX_RISK_USD"] / mpm / pt + 1e-9) * pt
+        if new_sl <= 0:
+            return d
+        if K.get("MIN_RR") and tp_d < K["MIN_RR"] * new_sl - 1e-12:
+            new_tp = math.ceil(K["MIN_RR"] * new_sl / pt - 1e-9) * pt
+        if new_sl == sl_d and new_tp == tp_d:
+            return d
+        sl, tp = round(fill - sg * new_sl, dg), round(fill + sg * new_tp, dg)
+        res = mt5c.sltp(ticket, sl, tp) if ticket else {"ok": False, "comment": "no ticket"}
+        if not res.get("ok"):
+            log(f"kronos {sym}: fill {fill:g} left risk ${sl_d * mpm:.2f} / {tp_d / sl_d:.2f} R and the fix was refused "
+                f"({res.get('retcode')} {res.get('comment')}) — levels unchanged")
+            journal("kronos_recheck_failed", symbol=sym, ticket=ticket, why=f"{res.get('retcode')} {res.get('comment')}")
+            return d
+        log(f"kronos {sym}: after the fill {fill:g} → SL {sl:g} (${new_sl * mpm:.2f}), TP {tp:g} ({new_tp / new_sl:.2f} R)")
+        journal("kronos_recheck", symbol=sym, ticket=ticket, fill=fill, sl=sl, tp=tp)
+        return {**d, "sl": sl, "tp": tp}
+
     def enter(self, sym: str, sig: Dict, d: Dict, info: Dict) -> str:
         q = lot_for(info)
         tag = _dt.datetime.fromtimestamp(sig["bar_t"] / 1000, _dt.timezone.utc).strftime("%d%H%M")
@@ -296,6 +338,7 @@ class KronosBook:
         pos = next((p for p in self.positions if p["ticket"] == res.get("order")), None) or \
             max((p for p in self.positions if p["symbol"] == sym and p["ticket"] not in mine), key=lambda p: p.get("time_msc", 0), default=None)
         fill = float(pos["price_open"]) if pos else float(res.get("price") or d["entry"])
+        d = self.recheck(sym, d, info, fill, pos["ticket"] if pos else res.get("order"))
         tid = f"{sym}-{sig['bar_t']}"
         opened = now_ms()
         self.trades[tid] = {"id": tid, "symbol": sym, "side": d["side"], "lots": q, "entry": fill, "sl": d["sl"], "tp": d["tp"],
