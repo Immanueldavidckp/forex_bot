@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Strategy Room</title>
 <!-- David 2026-11-12: a strategy's room (/room?s=Kronos). On top: the strategy's version (the commits that changed its
-     files, /api/room) and its controls; then every trade as a chart — in trade, waiting, closed — with entry, stop,
-     target, exit and what the rule looked at (/api/trades, /api/trade/why, /api/trade/bars). Charts draw when they
-     scroll into view. -->
+     files, /api/room) and its controls; then three big boxes — in trade, closed, waiting — each a list of the trades with their details and ONE chart
+     of the selected trade: entry, stop, target, exit and what the rule looked at (/api/trades, /api/trade/why,
+     /api/trade/bars). David 2026-11-12: "only one box for the chart … all the trades in one big box". -->
 <style>
 :root{--bg:#0b0e14;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
 --good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff}
@@ -35,15 +35,25 @@ h2 .muted{text-transform:none;letter-spacing:0;font-weight:400}
 .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .stat .l{color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.stat .v{font-size:20px;font-weight:650}.stat .s{color:var(--ink2);font-size:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:12px}
-@media (max-width:520px){.grid{grid-template-columns:1fr}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.card.won{border-color:#1f5c45}.card.lost{border-color:#5c2a2a}.card.open{border-color:#2d4b8a}.card.wait{border-color:#5c4d1f}
-.ch{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px}
-.ch b{font-size:14px}.ch .r{margin-left:auto}
-canvas{display:block;width:100%;height:250px}
-.cf{padding:6px 12px 8px;color:var(--ink3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.empty{color:var(--ink3);padding:10px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.box.open{border-color:#2d4b8a}.box.closed{border-color:#2f3850}.box.wait{border-color:#5c4d1f}
+.bh{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.bh b{font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+.bb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);min-height:520px}
+@media (max-width:1000px){.bb{grid-template-columns:1fr}}
+.list{overflow:auto;max-height:560px;border-right:1px solid var(--line)}
+@media (max-width:1000px){.list{max-height:340px;border-right:0;border-bottom:1px solid var(--line)}}
+.list table{border-collapse:collapse;width:100%}
+.list th,.list td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:12px}
+.list th{position:sticky;top:0;background:var(--panel2);color:var(--ink3);font-weight:500;z-index:1}
+.list tbody tr{cursor:pointer}.list tbody tr:hover{background:#161c2a}.list tr.sel{background:#1f2a44}
+.list td.r,.list th.r{text-align:right}
+.view{display:flex;flex-direction:column;min-width:0}
+.vh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.vh b{font-size:15px}.vh .nav{margin-left:auto;display:flex;gap:6px}.vh .nav button{padding:3px 10px}
+.view canvas{display:block;width:100%;height:440px;flex:1}
+.vf{padding:6px 12px 10px;color:var(--ink2);font-size:12px;border-top:1px solid var(--line)}
+.empty{color:var(--ink3);padding:14px}
 .filters{display:flex;gap:6px;flex-wrap:wrap}
 </style>
 </head>
@@ -66,19 +76,9 @@ canvas{display:block;width:100%;height:250px}
     </div>
   </section>
   <section class="sum" id="sum"></section>
-  <section>
-    <h2>In trade <span class="muted" id="n-open"></span></h2>
-    <div class="grid" id="open"></div>
-  </section>
-  <section>
-    <h2>Waiting <span class="muted" id="n-wait">(limit orders placed, price not there yet)</span></h2>
-    <div class="grid" id="wait"></div>
-  </section>
-  <section>
-    <h2>Closed <span class="muted" id="n-closed"></span><span class="filters" id="cf"></span></h2>
-    <div class="grid" id="closed"></div>
-    <div style="margin-top:12px"><button id="more" style="display:none">show 12 more</button></div>
-  </section>
+  <section class="box open" id="box-open"></section>
+  <section class="box closed" id="box-closed"></section>
+  <section class="box wait" id="box-wait"></section>
 </main>
 <script>
 const $ = s => document.querySelector(s);
@@ -110,8 +110,7 @@ const RULES = {
 document.title = NAME + " room";
 $("#title").textContent = NAME + " — room";
 
-let TR = null, ROOM = null, CF = "all", SHOWN = 12;
-const charts = new Map();                       // card element → trade (drawn when visible)
+let TR = null, ROOM = null;
 
 async function loadRoom() {
   try { ROOM = await api("/api/room?s=" + encodeURIComponent(NAME)); } catch (e) { ROOM = null; }
@@ -139,44 +138,9 @@ async function loadRoom() {
   $("#settings").innerHTML = Object.entries(st).slice(0, 24).map(([k, v]) => `<span>${esc(k)} <b>${esc(String(v))}</b></span>`).join("");
 }
 
-function card(t, kind) {
-  const won = kind === "closed" && (t.pnl || 0) > 0, lost = kind === "closed" && (t.pnl || 0) < 0;
-  const cls = kind === "open" ? "open" : kind === "wait" ? "wait" : won ? "won" : lost ? "lost" : "";
-  const dg = dgOf(t.entry || 1), f = x => x == null ? "–" : (+x).toFixed(dg);
-  const right = kind === "closed" ? `${pm(t.pnl)} <span class="muted">${esc(t.reason || "")}</span>` : kind === "open" ? `${pm(t.pnl)} <span class="muted">now ${f(t.now)}</span>` : `<span class="muted">limit ${f(t.entry)}</span>`;
-  const when = kind === "closed" ? `${tdt(t.opened_ms)} → ${tdt(t.closed_ms)}` : kind === "open" ? `opened ${tdt(t.opened_ms)}` : `placed ${tdt(t.placed_ms)}`;
-  const el = document.createElement("div");
-  el.className = "card " + cls;
-  el.innerHTML = `<div class="ch num"><b>${esc(t.symbol)}</b><span class="${t.side === "buy" ? "good" : "bad"}">${esc(t.side)}</span>
-      <span>entry ${f(t.entry)} · SL ${f(t.sl)} · TP ${f(t.tp)}${kind === "closed" && t.exit != null ? " · exit " + f(t.exit) : ""}</span><span class="r">${right}</span></div>
-    <canvas></canvas><div class="cf" title="${esc(t.why || "")}">${when} · ${esc(t.why || "")}</div>`;
-  charts.set(el, {t, kind, state: "new"});
-  IO.observe(el);
-  return el;
-}
-
-const IO = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { IO.unobserve(e.target); drawCard(e.target); } }, {rootMargin: "300px"});
-let busy = 0; const queue = [];
-function drawCard(el) { queue.push(el); pump(); }
-async function pump() {
-  while (busy < 3 && queue.length) {
-    const el = queue.shift(), c = charts.get(el); if (!c) continue; busy++;
-    (async () => {
-      const t = c.t, start = t.opened_ms || t.placed_ms || Date.now(), end = c.kind === "closed" ? (t.closed_ms || start) : Date.now();
-      try {
-        const [bars, why] = await Promise.all([
-          api(`/api/trade/bars?sym=${encodeURIComponent(t.symbol)}&tf=M15&from=${start}&to=${end}`),
-          t.has_checks ? api(`/api/trade/why?id=${encodeURIComponent(t.id)}`).catch(() => null) : Promise.resolve(null)]);
-        c.bars = bars.bars || []; c.marks = (why && why.marks) || []; c.start = start; c.end = c.kind === "closed" ? end : null;
-        draw(el, c);
-      } catch (e) { el.querySelector(".cf").textContent = "chart: " + e.message; }
-      busy--; pump();
-    })();
-  }
-}
 const mcol = (c, a) => c && c[0] === "#" ? c : `rgba(${c || "154,164,184"},${a})`;
-function draw(el, c) {
-  const cv = el.querySelector("canvas"), t = c.t, b = c.bars, n = b.length;
+function draw(cv, c) {
+  const t = c.t, b = c.bars, n = b.length;
   const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr;
   const g = cv.getContext("2d"); g.scale(dpr, dpr); g.font = "10px ui-sans-serif,system-ui";
   if (!n) { g.fillStyle = "#667085"; g.fillText("no candles saved for this time", 12, 20); return; }
@@ -234,23 +198,85 @@ function draw(el, c) {
     g.fillText(`${top ? "▲" : "▼"} ${lab} ${p.toFixed(dg)} (off the chart)`, L + 4, top ? T + 10 : H - B - 4); }
 }
 
-function cfShown(r) { return CF === "all" || (CF === "won" ? (r.pnl || 0) > 0 : CF === "lost" ? (r.pnl || 0) < 0 : istDay(r.closed_ms || r.opened_ms || 0) === istDay(Date.now())); }
-function renderClosed() {
-  const C = TR.closed.filter(r => r.strategy === NAME && cfShown(r));
-  const box = $("#closed"); box.innerHTML = "";
-  C.slice(0, SHOWN).forEach(t => box.appendChild(card(t, "closed")));
-  if (!C.length) box.innerHTML = `<div class="empty">no closed trade${CF === "all" ? "" : " in this filter"}</div>`;
-  $("#more").style.display = C.length > SHOWN ? "" : "none";
-  $("#more").textContent = `show 12 more (${C.length - SHOWN} left)`;
-  $("#cf").innerHTML = [["all", "all"], ["today", "today"], ["won", "won"], ["lost", "lost"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${CF === k}">${l}</button>`).join("");
-  document.querySelectorAll("#cf button").forEach(btn => btn.onclick = () => { CF = btn.dataset.f; SHOWN = 12; renderClosed(); });
+// one big box per kind: the list of trades with their details on the left, ONE chart on the right (the selected trade)
+const BOX = {open: {title: "In trade", sel: 0, rows: []}, closed: {title: "Closed", sel: 0, rows: [], f: "all"},
+             wait: {title: "Waiting", sel: 0, rows: []}};
+const R_ = t => { const r = Math.abs((t.entry ?? 0) - (t.sl ?? 0)); return r ? r : null; };
+function rnow(t, px) { const r = R_(t); return px == null || !r ? null : (t.side === "sell" ? -1 : 1) * (px - t.entry) / r; }
+const tds = ms => ms ? new Date(ms + IST_MS).toISOString().slice(5, 16).replace("T", " ") : "–";   // list times: IST, no suffix
+function cols(kind) {
+  const f = (t, x) => x == null ? "–" : (+x).toFixed(dgOf(t.entry || 1));
+  const side = t => `<span class="${t.side === "buy" ? "good" : "bad"}">${esc(t.side)}</span>`;
+  const rr = x => x == null ? "–" : `<span class="${x > 0 ? "good" : x < 0 ? "bad" : ""}">${x.toFixed(2)}</span>`;
+  if (kind === "open") return [["Symbol", t => `<b>${esc(t.symbol)}</b>`], ["Side", side], ["Entry", t => f(t, t.entry), "r"], ["SL", t => f(t, t.sl), "r"],
+    ["TP", t => f(t, t.tp), "r"], ["Now", t => f(t, t.now), "r"], ["P&L", t => pm(t.pnl), "r"], ["R now", t => rr(rnow(t, t.now)), "r"], ["Opened IST", t => tds(t.opened_ms)]];
+  if (kind === "wait") return [["Symbol", t => `<b>${esc(t.symbol)}</b>`], ["Side", side], ["Limit", t => f(t, t.entry), "r"], ["SL", t => f(t, t.sl), "r"],
+    ["TP", t => f(t, t.tp), "r"], ["R:R", t => (t.meta && t.meta.rr != null ? t.meta.rr : "–"), "r"], ["Placed IST", t => tds(t.placed_ms)]];
+  return [["Symbol", t => `<b>${esc(t.symbol)}</b>`], ["Side", side], ["Entry", t => f(t, t.entry), "r"], ["SL", t => f(t, t.sl), "r"], ["TP", t => f(t, t.tp), "r"],
+    ["Exit", t => f(t, t.exit), "r"], ["P&L", t => pm(t.pnl), "r"], ["R", t => rr(t.exit != null ? rnow(t, t.exit) : null), "r"], ["How", t => `<span class="muted">${esc(t.reason || "")}</span>`],
+    ["Opened IST", t => tds(t.opened_ms)], ["Closed IST", t => tds(t.closed_ms)]];
 }
-$("#more").onclick = () => { SHOWN += 12; renderClosed(); };
+const closedShown = r => { const f = BOX.closed.f; return f === "all" || (f === "won" ? (r.pnl || 0) > 0 : f === "lost" ? (r.pnl || 0) < 0 : istDay(r.closed_ms || r.opened_ms || 0) === istDay(Date.now())); };
+function renderBox(kind) {
+  const B = BOX[kind], el = $("#box-" + kind), C = cols(kind), rows = B.rows;
+  const extra = kind === "closed" ? `<span class="filters">${[["all", "all"], ["today", "today"], ["won", "won"], ["lost", "lost"]]
+      .map(([k, l]) => `<button data-f="${k}" aria-pressed="${B.f === k}">${l}</button>`).join("")}</span>` : "";
+  const pnl = rows.reduce((x, r) => x + (r.pnl || 0), 0);
+  const head = `<div class="bh"><b>${B.title}</b><span class="muted">${rows.length} trade${rows.length === 1 ? "" : "s"}${kind !== "wait" && rows.length ? " · " : ""}</span>`
+    + (kind !== "wait" && rows.length ? `<span>${kind === "open" ? "floating" : "P&L"} ${pm(pnl)}</span>` : "") + extra
+    + `<span class="muted" style="margin-left:auto">click a trade to see its chart · ◀ ▶ to step</span></div>`;
+  if (!rows.length) { el.innerHTML = head + `<div class="empty">${kind === "open" ? "no open trade" : kind === "wait" ? "nothing waiting" : "no closed trade in this filter"}</div>`; bindFilters(el); return; }
+  B.sel = Math.min(B.sel, rows.length - 1);
+  el.innerHTML = head + `<div class="bb"><div class="list"><table class="num"><thead><tr>${C.map(([h, , c]) => `<th class="${c || ""}">${h}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map((t, i) => `<tr data-i="${i}" class="${i === B.sel ? "sel" : ""}">${C.map(([, fn, c]) => `<td class="${c || ""}">${fn(t)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="view"><div class="vh"></div><canvas></canvas><div class="vf"></div></div></div>`;
+  el.querySelectorAll("tbody tr").forEach(tr => tr.onclick = () => select(kind, +tr.dataset.i));
+  bindFilters(el);
+  select(kind, B.sel, true);
+}
+function bindFilters(el) { el.querySelectorAll(".filters button").forEach(b => b.onclick = () => { BOX.closed.f = b.dataset.f; BOX.closed.sel = 0; fillRows(); renderBox("closed"); }); }
+async function select(kind, i, keep) {
+  const B = BOX[kind], el = $("#box-" + kind), t = B.rows[i]; if (!t) return;
+  B.sel = i;
+  el.querySelectorAll("tbody tr").forEach(tr => tr.classList.toggle("sel", +tr.dataset.i === i));
+  const tr = el.querySelector(`tbody tr[data-i="${i}"]`); if (tr && !keep) tr.scrollIntoView({block: "nearest"});
+  const dg = dgOf(t.entry || 1), f = x => x == null ? "–" : (+x).toFixed(dg);
+  const right = kind === "closed" ? `${pm(t.pnl)} <span class="muted">${esc(t.reason || "")}</span>` : kind === "open" ? `${pm(t.pnl)} <span class="muted">now ${f(t.now)}</span>` : `<span class="muted">limit ${f(t.entry)}</span>`;
+  el.querySelector(".vh").innerHTML = `<b>${esc(t.symbol)}</b><span class="${t.side === "buy" ? "good" : "bad"}">${esc(t.side)}</span>`
+    + `<span class="num">entry ${f(t.entry)} · SL ${f(t.sl)} · TP ${f(t.tp)}${kind === "closed" && t.exit != null ? " · exit " + f(t.exit) : ""}</span><span class="num">${right}</span>`
+    + `<span class="nav"><button data-d="-1">◀</button><span class="muted">${i + 1} / ${B.rows.length}</span><button data-d="1">▶</button></span>`;
+  el.querySelectorAll(".vh .nav button").forEach(b => b.onclick = () => select(kind, Math.max(0, Math.min(B.rows.length - 1, B.sel + +b.dataset.d))));
+  const when = kind === "closed" ? `${tdt(t.opened_ms)} → ${tdt(t.closed_ms)}` : kind === "open" ? `opened ${tdt(t.opened_ms)}` : `placed ${tdt(t.placed_ms)}`;
+  el.querySelector(".vf").textContent = `${when} · ${t.why || ""}`;
+  const cv = el.querySelector("canvas"), c = {t, kind, marks: []};
+  const start = t.opened_ms || t.placed_ms || Date.now(), end = kind === "closed" ? (t.closed_ms || start) : Date.now();
+  c.start = start; c.end = kind === "closed" ? end : null;
+  const g = cv.getContext("2d"); g.clearRect(0, 0, cv.width, cv.height);
+  const me = B.req = (B.req || 0) + 1;
+  try {
+    const [bars, why] = await Promise.all([
+      api(`/api/trade/bars?sym=${encodeURIComponent(t.symbol)}&tf=M15&from=${start}&to=${end}${t.strategy === "Kronos" ? "&kronos=1" : ""}`),
+      t.has_checks ? api(`/api/trade/why?id=${encodeURIComponent(t.id)}`).catch(() => null) : Promise.resolve(null)]);
+    if (B.req !== me) return;                       // another trade was clicked meanwhile
+    c.bars = bars.bars || []; c.marks = (why && why.marks) || [];
+    B.chart = {cv, c}; draw(cv, c);
+  } catch (e) { el.querySelector(".vf").textContent = "chart: " + e.message; }
+}
+document.addEventListener("keydown", e => {               // ↑ ↓ step through the box the mouse was last in
+  if (!LAST || !["ArrowUp", "ArrowDown"].includes(e.key)) return; const B = BOX[LAST]; if (!B.rows.length) return;
+  e.preventDefault(); select(LAST, Math.max(0, Math.min(B.rows.length - 1, B.sel + (e.key === "ArrowDown" ? 1 : -1))));
+});
+let LAST = null;
+for (const k of Object.keys(BOX)) document.getElementById("box-" + k).addEventListener("mouseenter", () => LAST = k);
 
-let NCLOSED = -1;
+let SIG = "";
+function fillRows() {
+  BOX.open.rows = TR.open.filter(r => r.strategy === NAME);
+  BOX.wait.rows = TR.waiting.filter(r => r.strategy === NAME);
+  BOX.closed.rows = TR.closed.filter(r => r.strategy === NAME && r.pnl != null && closedShown(r));
+}
 async function loadTrades() {
-  try { TR = await api("/api/trades"); } catch (e) { $("#open").innerHTML = `<div class="empty">engine files not readable: ${esc(e.message)}</div>`; return; }
-  for (const [el] of charts) if (!el.isConnected) charts.delete(el);
+  try { TR = await api("/api/trades"); } catch (e) { $("#box-open").innerHTML = `<div class="empty">engine files not readable: ${esc(e.message)}</div>`; return; }
   const O = TR.open.filter(r => r.strategy === NAME), Wt = TR.waiting.filter(r => r.strategy === NAME), C = TR.closed.filter(r => r.strategy === NAME && r.pnl != null);
   const today = istDay(Date.now()), Ct = C.filter(r => istDay(r.closed_ms || r.opened_ms || 0) === today), sum = a => a.reduce((x, r) => x + (r.pnl || 0), 0);
   $("#sum").innerHTML = [
@@ -259,17 +285,26 @@ async function loadTrades() {
     ["Waiting", Wt.length, Wt.length ? "limit orders" : ""],
     ["Since start", pm(sum(C)), `${C.length} closed · ${C.length ? (100 * C.filter(r => r.pnl > 0).length / C.length).toFixed(0) : "–"} % won`],
   ].map(([l, v, s]) => `<div class="stat"><div class="l">${l}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join("");
-  $("#n-open").textContent = `(${O.length})`;
-  $("#n-closed").textContent = `(${C.length}, newest first)`;
-  const ob = $("#open"); ob.innerHTML = ""; O.forEach(t => ob.appendChild(card(t, "open")));
-  if (!O.length) ob.innerHTML = `<div class="empty">no open trade</div>`;
-  const wb = $("#wait"); wb.innerHTML = ""; Wt.forEach(t => wb.appendChild(card(t, "wait")));
-  if (!Wt.length) wb.innerHTML = `<div class="empty">nothing waiting</div>`;
-  if (C.length !== NCLOSED) { NCLOSED = C.length; renderClosed(); }     // closed charts redraw only when a trade closed
+  // keep the trade on screen across refreshes: re-render a box only when its list changed, else just its numbers
+  const keyOf = rows => rows.map(r => r.id + ":" + (r.pnl == null ? "" : r.pnl)).join("|");
+  const prevSel = Object.fromEntries(Object.entries(BOX).map(([k, B]) => [k, B.rows[B.sel] && B.rows[B.sel].id]));
+  fillRows();
+  for (const k of ["open", "closed", "wait"]) {
+    const B = BOX[k], ids = B.rows.map(r => r.id).join("|");
+    if (B.ids === ids && k !== "open") continue;
+    const j = B.rows.findIndex(r => r.id === prevSel[k]); B.sel = j >= 0 ? j : 0;
+    if (B.ids === ids && k === "open") { refreshOpen(); continue; }
+    B.ids = ids; renderBox(k);
+  }
   const ok = await api("/api/overview").catch(() => null);
   $("#status").innerHTML = ok ? (Date.now() - ok.at > 120000 ? '<b class="bad">engine stopped?</b>' : `engine updated ${tdt(ok.at)}`) : "";
 }
-addEventListener("resize", () => { for (const [el, c] of charts) if (c.bars) draw(el, c); });
+function refreshOpen() {                       // same open trades: update P&L / now / R in place, redraw the chart
+  const el = $("#box-open"), C = cols("open");
+  el.querySelectorAll("tbody tr").forEach(tr => { const t = BOX.open.rows[+tr.dataset.i]; if (t) tr.innerHTML = C.map(([, fn, c]) => `<td class="${c || ""}">${fn(t)}</td>`).join(""); });
+  select("open", BOX.open.sel, true);
+}
+addEventListener("resize", () => { for (const B of Object.values(BOX)) if (B.chart && B.chart.cv.isConnected) draw(B.chart.cv, B.chart.c); });
 loadRoom(); loadTrades();
 setInterval(loadRoom, 30000);
 setInterval(loadTrades, 60000);
