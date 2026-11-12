@@ -113,6 +113,11 @@ document.title = NAME + " room";
 $("#title").textContent = NAME + " — room";
 
 let TR = null, ROOM = null;
+// David 2026-11-12: "hereafter show only the version now trading; today's P&L as two things, older version and new".
+// A trade belongs to the version that was live when it OPENED: the new version starts at its commit time.
+const verStart = () => (ROOM && ROOM.latest && Date.parse(ROOM.latest.date)) || 0;
+const isNew = r => (r.opened_ms || r.closed_ms || 0) >= verStart();
+const vName = () => ROOM && ROOM.known ? "v" + ROOM.version : "this version";
 
 async function loadRoom() {
   try { ROOM = await api("/api/room?s=" + encodeURIComponent(NAME)); } catch (e) { ROOM = null; }
@@ -201,7 +206,7 @@ function draw(cv, c) {
 }
 
 // one big box per kind: the list of trades with their details on the left, ONE chart on the right (the selected trade)
-const BOX = {open: {title: "In trade", sel: 0, rows: []}, closed: {title: "Closed", sel: 0, rows: [], f: "all"},
+const BOX = {open: {title: "In trade", sel: 0, rows: []}, closed: {title: "Closed", sel: 0, rows: [], f: "all", ver: true},
              wait: {title: "Waiting", sel: 0, rows: []}};
 const R_ = t => { const r = Math.abs((t.entry ?? 0) - (t.sl ?? 0)); return r ? r : null; };
 function rnow(t, px) { const r = R_(t); return px == null || !r ? null : (t.side === "sell" ? -1 : 1) * (px - t.entry) / r; }
@@ -218,11 +223,12 @@ function cols(kind) {
     ["Exit", t => f(t, t.exit), "r"], ["P&L", t => pm(t.pnl), "r"], ["R", t => rr(t.exit != null ? rnow(t, t.exit) : null), "r"], ["How", t => `<span class="muted">${esc(t.reason || "")}</span>`],
     ["Opened IST", t => tds(t.opened_ms)], ["Closed IST", t => tds(t.closed_ms)]];
 }
-const closedShown = r => { const f = BOX.closed.f; return f === "all" || (f === "won" ? (r.pnl || 0) > 0 : f === "lost" ? (r.pnl || 0) < 0 : istDay(r.closed_ms || r.opened_ms || 0) === istDay(Date.now())); };
+const closedShown = r => { const f = BOX.closed.f; if (BOX.closed.ver && !isNew(r)) return false; return f === "all" || (f === "won" ? (r.pnl || 0) > 0 : f === "lost" ? (r.pnl || 0) < 0 : istDay(r.closed_ms || r.opened_ms || 0) === istDay(Date.now())); };
 function renderBox(kind) {
   const B = BOX[kind], el = $("#box-" + kind), C = cols(kind), rows = B.rows;
   const extra = kind === "closed" ? `<span class="filters">${[["all", "all"], ["today", "today"], ["won", "won"], ["lost", "lost"]]
-      .map(([k, l]) => `<button data-f="${k}" aria-pressed="${B.f === k}">${l}</button>`).join("")}</span>` : "";
+      .map(([k, l]) => `<button data-f="${k}" aria-pressed="${B.f === k}">${l}</button>`).join("")}
+      <button data-ver="1" aria-pressed="${B.ver}" title="only the trades opened since the version now trading went live" style="margin-left:10px">${vName()} only</button><button data-ver="0" aria-pressed="${!B.ver}">all versions</button></span>` : "";
   const pnl = rows.reduce((x, r) => x + (r.pnl || 0), 0);
   const head = `<div class="bh"><b>${B.title}</b><span class="muted">${rows.length} trade${rows.length === 1 ? "" : "s"}${kind !== "wait" && rows.length ? " · " : ""}</span>`
     + (kind !== "wait" && rows.length ? `<span>${kind === "open" ? "floating" : "P&L"} ${pm(pnl)}</span>` : "") + extra
@@ -236,7 +242,7 @@ function renderBox(kind) {
   bindFilters(el);
   select(kind, B.sel, true);
 }
-function bindFilters(el) { el.querySelectorAll(".filters button").forEach(b => b.onclick = () => { BOX.closed.f = b.dataset.f; BOX.closed.sel = 0; fillRows(); renderBox("closed"); }); }
+function bindFilters(el) { el.querySelectorAll(".filters button").forEach(b => b.onclick = () => { if (b.dataset.ver != null) BOX.closed.ver = b.dataset.ver === "1"; else BOX.closed.f = b.dataset.f; BOX.closed.sel = 0; fillRows(); renderBox("closed"); }); }
 async function select(kind, i, keep) {
   const B = BOX[kind], el = $("#box-" + kind), t = B.rows[i]; if (!t) return;
   B.sel = i;
@@ -281,11 +287,14 @@ async function loadTrades() {
   try { TR = await api("/api/trades"); } catch (e) { $("#box-open").innerHTML = `<div class="empty">engine files not readable: ${esc(e.message)}</div>`; return; }
   const O = TR.open.filter(r => r.strategy === NAME), Wt = TR.waiting.filter(r => r.strategy === NAME), C = TR.closed.filter(r => r.strategy === NAME && r.pnl != null);
   const today = istDay(Date.now()), Ct = C.filter(r => istDay(r.closed_ms || r.opened_ms || 0) === today), sum = a => a.reduce((x, r) => x + (r.pnl || 0), 0);
+  const Cn = Ct.filter(isNew), Co = Ct.filter(r => !isNew(r)), Cv = C.filter(isNew);
+  const wl = a => `${a.length} closed · ${a.filter(r => r.pnl > 0).length} won / ${a.filter(r => r.pnl < 0).length} lost`;
   $("#sum").innerHTML = [
-    ["Today P&L", pm(sum(Ct)), `${Ct.length} closed · ${Ct.filter(r => r.pnl > 0).length} won / ${Ct.filter(r => r.pnl < 0).length} lost`],
+    [`Today · ${vName()} (new)`, pm(sum(Cn)), wl(Cn)],
+    ...(Co.length ? [["Today · older version", pm(sum(Co)), wl(Co)]] : []),
     ["In trade", O.length, O.length ? "floating " + money(sum(O)) : ""],
     ["Waiting", Wt.length, Wt.length ? "limit orders" : ""],
-    ["Since start", pm(sum(C)), `${C.length} closed · ${C.length ? (100 * C.filter(r => r.pnl > 0).length / C.length).toFixed(0) : "–"} % won`],
+    [`${vName()} since ${tds(verStart())}`, pm(sum(Cv)), `${Cv.length} closed · ${Cv.length ? (100 * Cv.filter(r => r.pnl > 0).length / Cv.length).toFixed(0) : "–"} % won · all versions ${money(sum(C))}`],
   ].map(([l, v, s]) => `<div class="stat"><div class="l">${l}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join("");
   // keep the trade on screen across refreshes: re-render a box only when its list changed, else just its numbers
   const keyOf = rows => rows.map(r => r.id + ":" + (r.pnl == null ? "" : r.pnl)).join("|");
@@ -331,7 +340,7 @@ async function loadCompare() {
           + `<td class="r">${r.done ? pm(r.layers_pnl - (nn || 0)) : "–"}</td></tr>`; }).join("") || `<tr><td colspan="7" class="empty">no zone yet — the layers start on the next fresh zone</td></tr>`)
     + `</tbody></table></div>`;
 }
-loadRoom(); loadTrades(); loadCompare();
+loadRoom().then(loadTrades); loadCompare();
 setInterval(loadCompare, 60000);
 setInterval(loadRoom, 30000);
 setInterval(loadTrades, 60000);
