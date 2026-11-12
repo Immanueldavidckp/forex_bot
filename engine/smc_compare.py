@@ -33,6 +33,7 @@ import numpy as np
 from . import learn
 from . import fib_reject, fib_trend, order_blocks, sd_backtest, sd_classic, sd_david, smc_marks, supply_demand
 from . import candles, chart_patterns, elliott, indicators, levels, trendlines, volume_profile, wyckoff
+from .config import CHART_EXTRA
 from .major_structure import atr14, major_structure
 from .config import ENGINE, VIEW_DIR
 from .third_party import luxalgo_smc, smc_zones_ref
@@ -56,6 +57,7 @@ def available() -> List[str]:
             syms |= {f[:-5] for f in os.listdir(d) if f.endswith(".json")}
         except FileNotFoundError:
             pass
+    syms |= set(CHART_EXTRA)
     return sorted(syms, key=lambda s: (s not in ("GOLD", "EURUSD"), s != "GOLD", s))
 
 

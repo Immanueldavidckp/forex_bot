@@ -11,7 +11,8 @@
 body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui,sans-serif; height:100vh; display:flex; flex-direction:column }
 header { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line) }
 h1 { font-size:14px; margin:0 8px 0 0; letter-spacing:.08em } h1 a { color:var(--muted); text-decoration:none; font-weight:normal }
-button, select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font:inherit; cursor:pointer }
+button, select, #pick { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font:inherit; cursor:pointer }
+#pick { cursor:text } #pick:focus { outline:1px solid #5b8def }
 button[aria-pressed="false"] { opacity:.45 } #tfs button { padding:4px 7px } #tfs button.on { border-color:#5c6bc0; color:#aab6ff; background:#1a2030; opacity:1 }
 button.l-major { border-color:var(--major) } button.l-new { border-color:#00e676; color:#b9f6ca } button.l-david { border-color:#ffd54f; color:#ffe082; font-weight:600 } button.l-fib { border-color:#ce93d8; color:#e1bee7; font-weight:600 } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
 .muted { color:var(--muted) } .grow { flex:1 }
@@ -39,7 +40,7 @@ table.trades tr.r td { border-bottom:1px solid #1a2030 } tr.sel { background:#2a
 <body>
 <header>
   <h1>V5 SMC COMPARE <a href="/">← dashboard</a> <a href="/kzones">Kronos × zones</a></h1>
-  <select id="pick"></select><span id="tfs"></span>
+  <input id="pick" list="syms" placeholder="search symbol…" title="type to search a symbol (gold, eur, btc…) · Enter takes the first match" autocomplete="off" spellcheck="false" style="width:130px;text-transform:uppercase"><datalist id="syms"></datalist><span id="tfs"></span>
   <button class="l-major" data-layer="major" aria-pressed="true" title="BOS = close beyond the leg's extreme, CHoCH = close beyond the protected swing (the low / high the last BOS came from; after a CHoCH the old trend's top / bottom). Internal breaks are not marked.">BOS / CHoCH</button>
   <button class="l-major" data-layer="ob" aria-pressed="true" title="order blocks of the major BOS / CHoCH: the last opposite candle before the displacement that broke structure (full wick, 50 % line); live = not closed through; the nearest 3 per side, plus breakers (a failed OB price came back to)">OB</button>
   <button class="l-major" data-layer="sd" aria-pressed="false" title="supply / demand — only the VALID zones: the base (1–3 small candles, or David's last opposite candle) before a displacement (body ≥ 1.5 × the 10 before) whose move out closed beyond a major swing (BOS / CHoCH: David's rule), box ≤ 1.5 ATR, left cleanly; score 0–10 = the odds enhancers (shown, never a filter); dashed line = the body edge (entry)">Supply / Demand</button>
@@ -94,6 +95,7 @@ let BARS = "";   // "all" = the whole history (?bars=all)
 let AT = null;   // ?at=<UTC time>: open the chart there
 let SDDO = null;   // /api/sdd: the engine's S&D David orders (engine/sdd_book.py)
 let FIBO = null, FIBBT = null;   // /api/fib: the engine's Fib orders (engine/fib_book.py); /api/fib/backtest: results.json
+let SYMS = [];         // /api/smc/list
 let NEXT_SEL = null;   // a trade clicked in the all-symbols list: select its zone once that chart has loaded
 let SEL = null;   // the one S&D David zone shown alone (its t_break); null = all of them
 let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
@@ -109,7 +111,7 @@ const argb = h => h && h.length === 8 ? `rgba(${parseInt(h.slice(2, 4), 16)},${p
 
 async function loadList() {
   const L = await api("/api/smc/list"), q = new URLSearchParams(location.search);
-  $("#pick").innerHTML = L.map(x => `<option>${x}</option>`).join("");
+  SYMS = L; $("#syms").innerHTML = L.map(x => `<option value="${x}">`).join("");
   SYM = L.includes(q.get("sym")) ? q.get("sym") : L[0] || ""; TF = TF_MS[q.get("tf")] ? q.get("tf") : "M15";
   BARS = q.get("bars") === "all" ? "all" : ""; $("#allbars").setAttribute("aria-pressed", !!BARS);
   for (const [key, val] of [["on", true], ["off", false]])                  // ?on=sdb,mit&off=sd,ob — layers from the link
@@ -355,7 +357,7 @@ function liveBadge() {
   const el = $("#live"); if (!el) return;
   // before the first poll LIVE is simply not fetched yet — that is not the engine being down
   if (LIVE === null && !POLLED) { el.innerHTML = `<span class="muted">connecting…</span>`; return; }
-  if (!liveOn()) { el.innerHTML = `<span class="bear">not live</span> <span class="muted">(live prices come from the V5 engine — it is not running)</span>`; return; }
+  if (!liveOn()) { el.innerHTML = `<span class="bear">not live</span> <span class="muted">(no price from the V5 engine in the last minute)</span>`; return; }
   const tickAge = LIVE.t_ms ? (Date.now() - LIVE.t_ms) / 1000 : null;
   el.innerHTML = `<b class="bull">● LIVE</b> bid <b>${fx(LIVE.bid)}</b> ask ${fx(LIVE.ask)}` +
     (tickAge != null ? ` · tick ${ist(LIVE.t_ms).slice(6)}:${new Date(LIVE.t_ms + IST_MS).toISOString().slice(17, 19)} IST` +
@@ -1536,7 +1538,14 @@ document.querySelectorAll("button[data-layer]").forEach(b => b.onclick = () => {
   LAYER[b.dataset.layer] = !LAYER[b.dataset.layer]; b.setAttribute("aria-pressed", LAYER[b.dataset.layer]); if (D) side(); draw();
   if (b.dataset.layer === "of" && LAYER.of) loadOF(true);
 });
-$("#pick").onchange = () => { SYM = $("#pick").value; pick(); };
+// the symbol box is a search box (David 2026-11-12): type any part of the name; an exact name or Enter opens the chart
+const findSym = v => { v = v.trim().toUpperCase(); if (!v) return null; const al = {XAUUSD: "GOLD", XAU: "GOLD", BTC: "BITCOIN", BTCUSD: "BITCOIN", ETH: "ETHEREUM", ETHUSD: "ETHEREUM"}[v] || v;
+  return SYMS.includes(al) ? al : SYMS.find(x => x.startsWith(v)) || SYMS.find(x => x.includes(v)) || null; };
+const goSym = s => { $("#pick").value = s; if (s !== SYM) { SYM = s; pick(); } $("#pick").blur(); };
+$("#pick").onfocus = () => { $("#pick").value = ""; };                       // empty → the whole list drops down
+$("#pick").onblur = () => { $("#pick").value = SYM; };
+$("#pick").oninput = () => { const v = $("#pick").value.trim().toUpperCase(); if (SYMS.includes(v)) goSym(v); };   // typed in full or clicked in the list
+$("#pick").onkeydown = e => { if (e.key === "Enter") { const s = findSym($("#pick").value); if (s) goSym(s); } else if (e.key === "Escape") $("#pick").blur(); };
 $("#reload").onclick = () => load(true);
 $("#allbars").onclick = () => { BARS = BARS ? "" : "all"; $("#allbars").setAttribute("aria-pressed", !!BARS); pick(); };
 window.addEventListener("resize", () => D && draw());

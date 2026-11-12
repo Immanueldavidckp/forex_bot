@@ -18,6 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FOREX_DIR = os.path.dirname(HERE)
 DATA_DIR = os.path.join(FOREX_DIR, "engine_data")
 VIEW_DIR = os.path.join(DATA_DIR, "view")            # one JSON per symbol: bars + markings for the dashboard
+CHART_EXTRA = ["GOLD"]   # on the /smc page although the V5 engine does not trade them: always read live (live.py)
 LIVE_DIR = os.path.join(DATA_DIR, "live")            # one JSON per symbol a /smc page watches: tick + latest bars (live.py)
 STATE_FILE = os.path.join(DATA_DIR, "state.json")    # setups and the positions that belong to them
 JOURNAL_FILE = os.path.join(DATA_DIR, "journal.jsonl")

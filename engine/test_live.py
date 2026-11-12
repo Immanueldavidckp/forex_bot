@@ -34,6 +34,7 @@ def _dirs(monkeypatch, tmp_path):
     monkeypatch.setattr(live, "LIVE_DIR", str(tmp_path))
     monkeypatch.setattr(live, "WANT_DIR", str(tmp_path / "want"))
     monkeypatch.setattr(live, "HIST_DIR", str(tmp_path / "history"))
+    monkeypatch.setattr(live, "CHART_EXTRA", [])
     monkeypatch.setattr(live, "TICKS", type("NoTicks", (), {"requests": lambda self, *a: []})())
 
 
@@ -48,11 +49,39 @@ def test_only_symbols_asked_for_lately_and_known_are_read(monkeypatch, tmp_path)
     assert set(live.wanted(set(FakeFeed.symbols))) == {"GOLD", "EURUSD"}
 
 
-def test_nobody_watching_means_no_bridge_call(monkeypatch, tmp_path):
+def test_nobody_watching_still_quotes_every_symbol(monkeypatch, tmp_path):
+    """David 2026-11-12 "most of the symbols are not live": the tick of every symbol is read each loop, so a chart
+    is live the moment it opens — its bars follow one loop later"""
     _dirs(monkeypatch, tmp_path)
     fake = FakeMT5()
     monkeypatch.setattr(live, "mt5c", fake)
-    assert live.step(FakeFeed()) == [] and fake.reqs == []
+    assert live.step(FakeFeed()) == []
+    assert [(q["op"], q["symbol"]) for q in fake.reqs[0]] == [("tick", "EURUSD"), ("tick", "GOLD")]
+    d = live.read("EURUSD")
+    assert d["bid"] == 4070.1 and d["t_ms"] == 1_793_250_000_000 and d["bars"] == {} and d["at"]
+    assert live.read("NOTASYMBOL") == {}
+
+
+def test_chart_extra_symbols_are_always_read_with_bars(monkeypatch, tmp_path):
+    """GOLD is no V5 symbol and the server has no saved history of it: CHART_EXTRA keeps its live file (the chart's bars)"""
+    _dirs(monkeypatch, tmp_path)
+    monkeypatch.setattr(live, "CHART_EXTRA", ["GOLD"])
+    fake = FakeMT5()
+    monkeypatch.setattr(live, "mt5c", fake)
+    feed = FakeFeed()
+    feed.symbols = ["EURUSD"]
+    assert live.step(feed) == ["GOLD"]
+    assert [q["op"] for q in fake.reqs[0]] == ["tick"] + ["rates"] * 5 + ["tick"]
+    assert set(live.read("GOLD")["bars"]) == {"H4", "H1", "M30", "M15", "M5"}
+
+
+def test_a_stale_symbol_file_gives_way_to_the_quote(monkeypatch, tmp_path):
+    _dirs(monkeypatch, tmp_path)
+    monkeypatch.setattr(live, "mt5c", FakeMT5())
+    json.dump({"sym": "GOLD", "at": 1000, "t_ms": 900, "bid": 1.0, "ask": 2.0, "bars": {"M15": [[1, 1, 1, 1, 1, 1]]}}, open(tmp_path / "GOLD.json", "w"))
+    live.step(FakeFeed())
+    d = live.read("GOLD")
+    assert d["bid"] == 4070.1 and d["bars"] == {}                    # yesterday's forming bars are not drawn as live
 
 
 def test_one_bridge_call_writes_tick_and_forming_bars(monkeypatch, tmp_path):
@@ -61,15 +90,15 @@ def test_one_bridge_call_writes_tick_and_forming_bars(monkeypatch, tmp_path):
     monkeypatch.setattr(live, "mt5c", fake)
     live.want("GOLD")
     assert live.step(FakeFeed()) == ["GOLD"]
-    assert len(fake.reqs) == 1 and [q["op"] for q in fake.reqs[0]] == ["tick"] + ["rates"] * 5
-    assert {q["tf"]: q["count"] for q in fake.reqs[0][1:]} == live.ENGINE["bars"]     # deep enough to reach the saved history
+    assert len(fake.reqs) == 1 and [q["op"] for q in fake.reqs[0]] == ["tick"] + ["rates"] * 5 + ["tick"]
+    assert {q["tf"]: q["count"] for q in fake.reqs[0][1:6]} == live.ENGINE["bars"]     # deep enough to reach the saved history
     d = live.read("GOLD")
     assert d == json.load(open(tmp_path / "GOLD.json"))
     assert d["sym"] == "GOLD" and d["bid"] == 4070.1 and d["ask"] == 4070.4 and d["t_ms"] == 1_793_250_000_000
     assert set(d["bars"]) == {"H4", "H1", "M30", "M15", "M5"}
     assert d["bars"]["M15"] == [[1_793_249_100_000, 4060.0, 4072.0, 4059.0, 4068.0, 900],
                                 [1_793_250_000_000, 4068.0, 4071.0, 4067.5, 4070.1, 120]]
-    assert live.read("EURUSD") == {}
+    assert live.read("EURUSD")["bars"] == {}                         # not watched: the quote only
 
 
 def test_a_symbol_outside_the_v5_feed_with_a_history_is_read(monkeypatch, tmp_path):
