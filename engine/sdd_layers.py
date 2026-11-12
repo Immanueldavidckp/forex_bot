@@ -17,6 +17,8 @@ them, on its own magic, so every zone has a normal result and a layered result t
             (their own entry); a second target → the last layer's stop goes to the first target
   cancel    waiting layers go when the zone ends (close through A / CHoCH against it), when a layer of the zone took
             its target, or when trading is switched off — the same life as the normal S&D David order
+  slots     the broker allows ORDER_LIMIT (70) pending orders on the account: the layers keep RESERVE free for S&D
+            David / Fib and use the rest on the zones nearest to price; the farthest unfilled sets are given back
 
 engine_data/sdd_layers/state.json: every layer (pending → open → closed / cancelled / skipped) with its zone id
 (= the S&D David order id of that zone), read by the dashboard's trade lists, the S&D layers room and the comparison.
@@ -162,6 +164,10 @@ class SddLayerBook:
             if why:
                 reqs.append({"op": "cancel", "ticket": o["ticket"]})
                 acts.append(("cancel", key, why))
+        cut = self._over_budget(go, zones, [a[1] for a in acts if a[0] == "cancel"])
+        for key, why in cut:
+            reqs.append({"op": "cancel", "ticket": self.orders[key]["ticket"]})
+            acts.append(("cancel", key, why))
         fresh = {zid: sz for zid, sz in zones.items() if sz[1]["live"] and sz[1]["status"] == "fresh"}
         self.why = {k: v for k, v in self.why.items() if k in fresh}
         new_zones = [(zid, sz) for zid, sz in fresh.items() if not self.zone_layers(zid)]
@@ -176,6 +182,7 @@ class SddLayerBook:
         else:
             syms = sorted({fresh[z][0] for z, _ in new_zones} | {fresh[z][0] for z in idle})
             ticks = dict(zip(syms, mt5c.call([{"op": "tick", "symbol": s} for s in syms], timeout=60))) if syms else {}
+            plans = []
             for zid, (s, z) in new_zones:
                 t = (ticks.get(s) or {}).get("result")
                 if not t:
@@ -184,6 +191,15 @@ class SddLayerBook:
                 if "why" in pl:
                     self.why[zid] = pl["why"]
                     continue
+                first = next((L["price"] for L in pl["layers"] if "price" in L), None)
+                plans.append((abs(first - float(t["bid"])) / float(t["bid"]) if first else 9e9, zid, s, z, pl))
+            room = self.budget - len([o for o in self.orders.values() if o["state"] == "pending"]) + len(cut)
+            for dist, zid, s, z, pl in sorted(plans, key=lambda x: x[0]):      # nearest zones first
+                n = sum(1 for L in pl["layers"] if "price" in L)
+                if n > room:
+                    self.why[zid] = f"no free order slot (broker limit {S['ORDER_LIMIT']} pending, {S['RESERVE']} kept for S&D David / Fib)"
+                    continue
+                room -= n
                 for L in pl["layers"]:
                     if "why" in L:
                         self.orders[f"{zid}#L{L['k']}"] = self._record(zid, s, z, L, pl, now, state="skipped", end=L["why"])
@@ -212,7 +228,8 @@ class SddLayerBook:
             if what == "place":
                 zid, s, z, L, pl = x
                 if not ok:
-                    self.orders[key] = self._record(zid, s, z, L, pl, now, state="skipped", end=f"order refused: {err}")
+                    if "10033" not in err:                 # the order limit: no record, the zone may get its layers later
+                        self.orders[key] = self._record(zid, s, z, L, pl, now, state="skipped", end=f"order refused: {err}")
                     journal("sdl_refused", id=key, symbol=s, why=err)
                     log(f"sdd layers {s} L{L['k']}: order refused {err}")
                     continue
@@ -222,6 +239,10 @@ class SddLayerBook:
                     f"({o['rr']}R, risk ${o['risk_usd']})")
             elif what == "cancel":
                 o = self.orders[key]
+                if ok and o.get("slot_cut"):
+                    self.orders.pop(key)               # given back for slots: the zone may get its layers again later
+                    journal("sdl_cancel", id=key, symbol=o["symbol"], why=x)
+                    continue
                 if ok:
                     o.update(state="cancelled", ended_ms=now, end=x)
                     journal("sdl_cancel", id=key, symbol=o["symbol"], why=x)
@@ -235,6 +256,42 @@ class SddLayerBook:
                     o["rr"] = round(abs(x - o["price"]) / abs(o["price"] - o["sl"]), 2) if o["price"] != o["sl"] else o.get("rr")
                 else:
                     o["error"] = f"target move: {err}"
+
+    budget = 0
+
+    def _over_budget(self, go: bool, zones: Dict, cancelling: List[str]) -> List[tuple]:
+        """The account's pending-order slots: everyone else's pending orders + RESERVE come first. → the waiting layer
+        sets to give back (farthest zones first, only zones with nothing filled), as [(key, why)]; sets self.budget."""
+        self.budget = 0
+        if not go:
+            return []
+        r = mt5c.call([{"op": "orders"}], timeout=60)[0]
+        if "result" not in r:
+            return []
+        others = sum(1 for o in r["result"] if o.get("magic") != self.magic)
+        self.budget = max(0, S["ORDER_LIMIT"] - S["RESERVE"] - others)
+        mine = [o for o in self.orders.values() if o["state"] == "pending" and o["key"] not in cancelling]
+        if len(mine) <= self.budget:
+            return []
+        sets: Dict[str, List[Dict]] = {}
+        for o in mine:
+            if not any(x["state"] in ("open", "closed") for x in self.zone_layers(o["zone_id"])):
+                sets.setdefault(o["zone_id"], []).append(o)
+        syms = sorted({v[0]["symbol"] for v in sets.values()})
+        ticks = dict(zip(syms, mt5c.call([{"op": "tick", "symbol": s} for s in syms], timeout=60))) if syms else {}
+        def dist(zid):
+            t = (ticks.get(sets[zid][0]["symbol"]) or {}).get("result")
+            near = min(o["price"] for o in sets[zid]) if sets[zid][0]["side"] == "sell" else max(o["price"] for o in sets[zid])
+            return abs(near - float(t["bid"])) / float(t["bid"]) if t else 9e9
+        out, n = [], len(mine)
+        for zid in sorted(sets, key=dist, reverse=True):          # farthest first
+            if n <= self.budget:
+                break
+            for o in sets[zid]:
+                out.append((o["key"], "order slot given back: the broker allows 70 pending, S&D David / Fib come first"))
+                o["slot_cut"] = True
+            n -= len(sets[zid])
+        return out
 
     def _record(self, zid, s, z, L, pl, now, **kw) -> Dict:
         bars, info = self.main.bars[s], self.main.info[s]

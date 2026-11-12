@@ -266,6 +266,10 @@ SDD_LAYERS = {
     "ENABLED": True,
     "MAGIC": 5050710,
     "TP_FRACS": [0.5, 0.75, 1.0],        # L1, L2, L3: how far from L1 to the leg's extreme each layer's target sits
+    # FxPro demo: at most 70 PENDING orders on the account (limit_orders; positions don't count). On day one the layers
+    # took every free slot (40) and the broker refused the rest with 10033 — S&D David and Fib would have been next. The
+    # layers keep RESERVE slots free for the others and use what is left on the zones nearest to price.
+    "ORDER_LIMIT": 70, "RESERVE": 15,
     "DIR": os.path.join(DATA_DIR, "sdd_layers"),
 }
 

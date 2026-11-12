@@ -55,7 +55,7 @@ def test_no_fvg_or_extreme_places_nothing():
 
 class FakeMT5:
     def __init__(self):
-        self.n, self.orders, self.pos, self.deal_log, self.calls = 1000, {}, {}, {}, []
+        self.n, self.orders, self.pos, self.deal_log, self.calls, self.others = 1000, {}, {}, {}, [], 0
 
     def call(self, reqs, timeout=0):
         out = []
@@ -74,7 +74,8 @@ class FakeMT5:
             elif op in ("modify", "sltp"):
                 out.append({"result": {"ok": True}})
             elif op == "orders":
-                out.append({"result": [{"ticket": t} for t in self.orders]})
+                mine = [{"ticket": t, "magic": q.get("magic", SL.S["MAGIC"])} for t in self.orders]
+                out.append({"result": mine + [{"ticket": -i, "magic": 5050700} for i in range(1, self.others + 1)]})
             elif op == "positions":
                 out.append({"result": list(self.pos.values())})
         return out
@@ -174,3 +175,18 @@ def test_switched_off_takes_the_waiting_layers_back(book, monkeypatch):
     monkeypatch.setattr(SL, "enabled", lambda: False)
     book.step(trading=True, account={})
     assert all(o["state"] == "cancelled" for o in book.orders.values())
+
+
+def test_layers_leave_order_slots_for_the_others(book):
+    book.fake.others = SL.S["ORDER_LIMIT"] - SL.S["RESERVE"] - 2         # room for 2 layers only: a 3-layer set waits
+    new_bar(book)
+    assert not [q for q in book.fake.calls if q["op"] == "pending"]
+    assert "no free order slot" in book.why[next(iter(book.why))]
+
+
+def test_over_budget_gives_back_the_unfilled_set(book):
+    new_bar(book)
+    assert len(book.fake.orders) == 3
+    book.fake.others = SL.S["ORDER_LIMIT"] - SL.S["RESERVE"] - 1         # the others grew: our 3 no longer fit
+    new_bar(book)
+    assert not book.fake.orders and not book.orders                        # cancelled and forgotten (may come back)
