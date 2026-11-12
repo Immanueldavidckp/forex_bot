@@ -17,3 +17,10 @@ runs/
 executor/HALT
 .env
 *.key
+
+# class video research: bulk frames and audio stay local
+engine/research/fib_trend/class_video5/frames/
+engine/research/fib_trend/class_video5/sheet_*.jpg
+engine/research/fib_trend/class_video5/*.wav
+engine/research/fib_trend/class_video5/hi/
+engine/research/fib_trend/class_video5/part5_tx_*.txt

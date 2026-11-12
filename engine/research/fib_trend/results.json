@@ -1,0 +1,1610 @@
+{
+ "made": "2026-11-12",
+ "symbols": [
+  "EURUSD",
+  "GBPUSD",
+  "USDJPY",
+  "USDCHF",
+  "USDCAD",
+  "AUDUSD",
+  "NZDUSD",
+  "EURJPY",
+  "GBPJPY",
+  "EURGBP",
+  "EURCHF",
+  "EURCAD",
+  "GBPCHF",
+  "GBPCAD",
+  "CADCHF",
+  "CADJPY",
+  "CHFJPY",
+  "GOLD"
+ ],
+ "structure_n": 4,
+ "rules": {
+  "trend H1": {
+   "all": {
+    "n": 3986,
+    "won": 1328,
+    "win_pct": 33.3,
+    "gross_r": -509.13,
+    "net_r": -908.1,
+    "per_trade": -0.228,
+    "avg_rr": 1.7
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 206,
+     "won": 76,
+     "win_pct": 36.9,
+     "gross_r": -7.39,
+     "net_r": -19.16,
+     "per_trade": -0.093,
+     "avg_rr": 1.67
+    },
+    "GBPUSD": {
+     "n": 196,
+     "won": 72,
+     "win_pct": 36.7,
+     "gross_r": -9.66,
+     "net_r": -20.7,
+     "per_trade": -0.106,
+     "avg_rr": 1.66
+    },
+    "USDJPY": {
+     "n": 243,
+     "won": 78,
+     "win_pct": 32.1,
+     "gross_r": -38.28,
+     "net_r": -54.77,
+     "per_trade": -0.225,
+     "avg_rr": 1.67
+    },
+    "USDCHF": {
+     "n": 219,
+     "won": 79,
+     "win_pct": 36.1,
+     "gross_r": -19.32,
+     "net_r": -43.44,
+     "per_trade": -0.198,
+     "avg_rr": 1.72
+    },
+    "USDCAD": {
+     "n": 210,
+     "won": 75,
+     "win_pct": 35.7,
+     "gross_r": -17.45,
+     "net_r": -32.31,
+     "per_trade": -0.154,
+     "avg_rr": 1.67
+    },
+    "AUDUSD": {
+     "n": 248,
+     "won": 88,
+     "win_pct": 35.5,
+     "gross_r": -20.64,
+     "net_r": -43.08,
+     "per_trade": -0.174,
+     "avg_rr": 1.71
+    },
+    "NZDUSD": {
+     "n": 236,
+     "won": 77,
+     "win_pct": 32.6,
+     "gross_r": -35.4,
+     "net_r": -68.43,
+     "per_trade": -0.29,
+     "avg_rr": 1.67
+    },
+    "EURJPY": {
+     "n": 252,
+     "won": 89,
+     "win_pct": 35.3,
+     "gross_r": -18.27,
+     "net_r": -36.38,
+     "per_trade": -0.144,
+     "avg_rr": 1.66
+    },
+    "GBPJPY": {
+     "n": 234,
+     "won": 75,
+     "win_pct": 32.1,
+     "gross_r": -36.01,
+     "net_r": -55.2,
+     "per_trade": -0.236,
+     "avg_rr": 1.71
+    },
+    "EURGBP": {
+     "n": 206,
+     "won": 63,
+     "win_pct": 30.6,
+     "gross_r": -38.7,
+     "net_r": -56.72,
+     "per_trade": -0.275,
+     "avg_rr": 1.7
+    },
+    "EURCHF": {
+     "n": 220,
+     "won": 61,
+     "win_pct": 27.7,
+     "gross_r": -58.56,
+     "net_r": -93.55,
+     "per_trade": -0.425,
+     "avg_rr": 1.73
+    },
+    "EURCAD": {
+     "n": 239,
+     "won": 72,
+     "win_pct": 30.1,
+     "gross_r": -55.72,
+     "net_r": -77.33,
+     "per_trade": -0.324,
+     "avg_rr": 1.67
+    },
+    "GBPCHF": {
+     "n": 188,
+     "won": 69,
+     "win_pct": 36.7,
+     "gross_r": 0.82,
+     "net_r": -21.03,
+     "per_trade": -0.112,
+     "avg_rr": 1.72
+    },
+    "GBPCAD": {
+     "n": 185,
+     "won": 56,
+     "win_pct": 30.3,
+     "gross_r": -39.46,
+     "net_r": -57.74,
+     "per_trade": -0.312,
+     "avg_rr": 1.73
+    },
+    "CADCHF": {
+     "n": 243,
+     "won": 74,
+     "win_pct": 30.5,
+     "gross_r": -48.5,
+     "net_r": -107.42,
+     "per_trade": -0.442,
+     "avg_rr": 1.72
+    },
+    "CADJPY": {
+     "n": 235,
+     "won": 89,
+     "win_pct": 37.9,
+     "gross_r": 6.52,
+     "net_r": -22.11,
+     "per_trade": -0.094,
+     "avg_rr": 1.73
+    },
+    "CHFJPY": {
+     "n": 252,
+     "won": 70,
+     "win_pct": 27.8,
+     "gross_r": -68.6,
+     "net_r": -89.13,
+     "per_trade": -0.354,
+     "avg_rr": 1.7
+    },
+    "GOLD": {
+     "n": 174,
+     "won": 65,
+     "win_pct": 37.4,
+     "gross_r": -4.51,
+     "net_r": -9.61,
+     "per_trade": -0.055,
+     "avg_rr": 1.75
+    }
+   },
+   "since": 1529560800000
+  },
+  "trend H2": {
+   "all": {
+    "n": 2146,
+    "won": 714,
+    "win_pct": 33.3,
+    "gross_r": -243.11,
+    "net_r": -421.96,
+    "per_trade": -0.197,
+    "avg_rr": 1.71
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 113,
+     "won": 34,
+     "win_pct": 30.1,
+     "gross_r": -22.06,
+     "net_r": -26.95,
+     "per_trade": -0.238,
+     "avg_rr": 1.73
+    },
+    "GBPUSD": {
+     "n": 114,
+     "won": 37,
+     "win_pct": 32.5,
+     "gross_r": -18.34,
+     "net_r": -23.87,
+     "per_trade": -0.209,
+     "avg_rr": 1.67
+    },
+    "USDJPY": {
+     "n": 138,
+     "won": 46,
+     "win_pct": 33.3,
+     "gross_r": -14.54,
+     "net_r": -21.19,
+     "per_trade": -0.154,
+     "avg_rr": 1.75
+    },
+    "USDCHF": {
+     "n": 131,
+     "won": 46,
+     "win_pct": 35.1,
+     "gross_r": -13.66,
+     "net_r": -25.97,
+     "per_trade": -0.198,
+     "avg_rr": 1.65
+    },
+    "USDCAD": {
+     "n": 120,
+     "won": 43,
+     "win_pct": 35.8,
+     "gross_r": -3.03,
+     "net_r": -9.38,
+     "per_trade": -0.078,
+     "avg_rr": 1.77
+    },
+    "AUDUSD": {
+     "n": 129,
+     "won": 45,
+     "win_pct": 34.9,
+     "gross_r": -11.58,
+     "net_r": -21.02,
+     "per_trade": -0.163,
+     "avg_rr": 1.68
+    },
+    "NZDUSD": {
+     "n": 121,
+     "won": 42,
+     "win_pct": 34.7,
+     "gross_r": -8.86,
+     "net_r": -21.62,
+     "per_trade": -0.179,
+     "avg_rr": 1.69
+    },
+    "EURJPY": {
+     "n": 118,
+     "won": 46,
+     "win_pct": 39.0,
+     "gross_r": 8.87,
+     "net_r": 2.69,
+     "per_trade": 0.023,
+     "avg_rr": 1.69
+    },
+    "GBPJPY": {
+     "n": 107,
+     "won": 40,
+     "win_pct": 37.4,
+     "gross_r": -1.9,
+     "net_r": -9.89,
+     "per_trade": -0.092,
+     "avg_rr": 1.67
+    },
+    "EURGBP": {
+     "n": 113,
+     "won": 38,
+     "win_pct": 33.6,
+     "gross_r": -9.96,
+     "net_r": -19.05,
+     "per_trade": -0.169,
+     "avg_rr": 1.72
+    },
+    "EURCHF": {
+     "n": 120,
+     "won": 30,
+     "win_pct": 25.0,
+     "gross_r": -37.09,
+     "net_r": -54.51,
+     "per_trade": -0.454,
+     "avg_rr": 1.76
+    },
+    "EURCAD": {
+     "n": 119,
+     "won": 44,
+     "win_pct": 37.0,
+     "gross_r": -2.02,
+     "net_r": -10.08,
+     "per_trade": -0.085,
+     "avg_rr": 1.72
+    },
+    "GBPCHF": {
+     "n": 106,
+     "won": 33,
+     "win_pct": 31.1,
+     "gross_r": -18.03,
+     "net_r": -29.77,
+     "per_trade": -0.281,
+     "avg_rr": 1.7
+    },
+    "GBPCAD": {
+     "n": 129,
+     "won": 42,
+     "win_pct": 32.6,
+     "gross_r": -16.49,
+     "net_r": -29.27,
+     "per_trade": -0.227,
+     "avg_rr": 1.73
+    },
+    "CADCHF": {
+     "n": 112,
+     "won": 21,
+     "win_pct": 18.8,
+     "gross_r": -57.18,
+     "net_r": -79.49,
+     "per_trade": -0.71,
+     "avg_rr": 1.72
+    },
+    "CADJPY": {
+     "n": 127,
+     "won": 42,
+     "win_pct": 33.1,
+     "gross_r": -16.83,
+     "net_r": -27.58,
+     "per_trade": -0.217,
+     "avg_rr": 1.67
+    },
+    "CHFJPY": {
+     "n": 124,
+     "won": 40,
+     "win_pct": 32.3,
+     "gross_r": -13.74,
+     "net_r": -25.9,
+     "per_trade": -0.209,
+     "avg_rr": 1.75
+    },
+    "GOLD": {
+     "n": 105,
+     "won": 45,
+     "win_pct": 42.9,
+     "gross_r": 13.33,
+     "net_r": 10.87,
+     "per_trade": 0.104,
+     "avg_rr": 1.69
+    }
+   },
+   "since": 1531836000000
+  },
+  "trend H4": {
+   "all": {
+    "n": 3980,
+    "won": 1321,
+    "win_pct": 33.2,
+    "gross_r": -539.82,
+    "net_r": -840.93,
+    "per_trade": -0.211,
+    "avg_rr": 1.67
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 251,
+     "won": 86,
+     "win_pct": 34.3,
+     "gross_r": -29.82,
+     "net_r": -44.11,
+     "per_trade": -0.176,
+     "avg_rr": 1.68
+    },
+    "GBPUSD": {
+     "n": 260,
+     "won": 103,
+     "win_pct": 39.6,
+     "gross_r": 9.32,
+     "net_r": -2.38,
+     "per_trade": -0.009,
+     "avg_rr": 1.66
+    },
+    "USDJPY": {
+     "n": 271,
+     "won": 102,
+     "win_pct": 37.6,
+     "gross_r": -7.25,
+     "net_r": -23.48,
+     "per_trade": -0.087,
+     "avg_rr": 1.64
+    },
+    "USDCHF": {
+     "n": 258,
+     "won": 81,
+     "win_pct": 31.4,
+     "gross_r": -44.47,
+     "net_r": -60.48,
+     "per_trade": -0.234,
+     "avg_rr": 1.66
+    },
+    "USDCAD": {
+     "n": 258,
+     "won": 77,
+     "win_pct": 29.8,
+     "gross_r": -57.91,
+     "net_r": -75.68,
+     "per_trade": -0.293,
+     "avg_rr": 1.69
+    },
+    "AUDUSD": {
+     "n": 243,
+     "won": 77,
+     "win_pct": 31.7,
+     "gross_r": -42.87,
+     "net_r": -62.95,
+     "per_trade": -0.259,
+     "avg_rr": 1.61
+    },
+    "NZDUSD": {
+     "n": 248,
+     "won": 74,
+     "win_pct": 29.8,
+     "gross_r": -56.36,
+     "net_r": -78.56,
+     "per_trade": -0.317,
+     "avg_rr": 1.63
+    },
+    "EURJPY": {
+     "n": 229,
+     "won": 80,
+     "win_pct": 34.9,
+     "gross_r": -17.26,
+     "net_r": -28.75,
+     "per_trade": -0.126,
+     "avg_rr": 1.68
+    },
+    "GBPJPY": {
+     "n": 225,
+     "won": 77,
+     "win_pct": 34.2,
+     "gross_r": -19.13,
+     "net_r": -38.32,
+     "per_trade": -0.17,
+     "avg_rr": 1.71
+    },
+    "EURGBP": {
+     "n": 244,
+     "won": 71,
+     "win_pct": 29.1,
+     "gross_r": -62.62,
+     "net_r": -90.05,
+     "per_trade": -0.369,
+     "avg_rr": 1.67
+    },
+    "EURCHF": {
+     "n": 220,
+     "won": 54,
+     "win_pct": 24.5,
+     "gross_r": -82.86,
+     "net_r": -105.42,
+     "per_trade": -0.479,
+     "avg_rr": 1.68
+    },
+    "EURCAD": {
+     "n": 155,
+     "won": 50,
+     "win_pct": 32.3,
+     "gross_r": -21.79,
+     "net_r": -32.8,
+     "per_trade": -0.212,
+     "avg_rr": 1.71
+    },
+    "GBPCHF": {
+     "n": 235,
+     "won": 81,
+     "win_pct": 34.5,
+     "gross_r": -20.91,
+     "net_r": -43.38,
+     "per_trade": -0.185,
+     "avg_rr": 1.69
+    },
+    "GBPCAD": {
+     "n": 177,
+     "won": 62,
+     "win_pct": 35.0,
+     "gross_r": -19.18,
+     "net_r": -31.13,
+     "per_trade": -0.176,
+     "avg_rr": 1.66
+    },
+    "CADCHF": {
+     "n": 193,
+     "won": 59,
+     "win_pct": 30.6,
+     "gross_r": -36.34,
+     "net_r": -58.01,
+     "per_trade": -0.301,
+     "avg_rr": 1.67
+    },
+    "CADJPY": {
+     "n": 173,
+     "won": 74,
+     "win_pct": 42.8,
+     "gross_r": 14.94,
+     "net_r": 4.45,
+     "per_trade": 0.026,
+     "avg_rr": 1.61
+    },
+    "CHFJPY": {
+     "n": 230,
+     "won": 78,
+     "win_pct": 33.9,
+     "gross_r": -23.53,
+     "net_r": -46.09,
+     "per_trade": -0.2,
+     "avg_rr": 1.69
+    },
+    "GOLD": {
+     "n": 110,
+     "won": 35,
+     "win_pct": 31.8,
+     "gross_r": -21.78,
+     "net_r": -23.8,
+     "per_trade": -0.216,
+     "avg_rr": 1.64
+    }
+   },
+   "since": 38786400000
+  },
+  "retrace:safety M15": {
+   "all": {
+    "n": 34598,
+    "won": 16382,
+    "win_pct": 47.3,
+    "gross_r": -1568.46,
+    "net_r": -8876.93,
+    "per_trade": -0.257,
+    "avg_rr": 1.08
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 2002,
+     "won": 933,
+     "win_pct": 46.6,
+     "gross_r": -128.5,
+     "net_r": -263.26,
+     "per_trade": -0.131,
+     "avg_rr": 1.02
+    },
+    "GBPUSD": {
+     "n": 1960,
+     "won": 927,
+     "win_pct": 47.3,
+     "gross_r": -98.75,
+     "net_r": -322.33,
+     "per_trade": -0.164,
+     "avg_rr": 1.05
+    },
+    "USDJPY": {
+     "n": 1913,
+     "won": 937,
+     "win_pct": 49.0,
+     "gross_r": -27.32,
+     "net_r": -173.66,
+     "per_trade": -0.091,
+     "avg_rr": 1.03
+    },
+    "USDCHF": {
+     "n": 1999,
+     "won": 912,
+     "win_pct": 45.6,
+     "gross_r": -168.25,
+     "net_r": -648.48,
+     "per_trade": -0.324,
+     "avg_rr": 1.08
+    },
+    "USDCAD": {
+     "n": 1927,
+     "won": 900,
+     "win_pct": 46.7,
+     "gross_r": -117.57,
+     "net_r": -344.69,
+     "per_trade": -0.179,
+     "avg_rr": 1.01
+    },
+    "AUDUSD": {
+     "n": 1987,
+     "won": 927,
+     "win_pct": 46.7,
+     "gross_r": -122.25,
+     "net_r": -550.76,
+     "per_trade": -0.277,
+     "avg_rr": 1.22
+    },
+    "NZDUSD": {
+     "n": 1954,
+     "won": 891,
+     "win_pct": 45.6,
+     "gross_r": -134.83,
+     "net_r": -726.72,
+     "per_trade": -0.372,
+     "avg_rr": 1.07
+    },
+    "EURJPY": {
+     "n": 1910,
+     "won": 897,
+     "win_pct": 47.0,
+     "gross_r": -97.83,
+     "net_r": -317.8,
+     "per_trade": -0.166,
+     "avg_rr": 1.03
+    },
+    "GBPJPY": {
+     "n": 1891,
+     "won": 923,
+     "win_pct": 48.8,
+     "gross_r": -17.93,
+     "net_r": -351.13,
+     "per_trade": -0.186,
+     "avg_rr": 1.03
+    },
+    "EURGBP": {
+     "n": 1878,
+     "won": 910,
+     "win_pct": 48.5,
+     "gross_r": -51.07,
+     "net_r": -517.64,
+     "per_trade": -0.276,
+     "avg_rr": 1.17
+    },
+    "EURCHF": {
+     "n": 1922,
+     "won": 873,
+     "win_pct": 45.4,
+     "gross_r": -163.89,
+     "net_r": -928.16,
+     "per_trade": -0.483,
+     "avg_rr": 1.14
+    },
+    "EURCAD": {
+     "n": 1898,
+     "won": 916,
+     "win_pct": 48.3,
+     "gross_r": -59.29,
+     "net_r": -414.22,
+     "per_trade": -0.218,
+     "avg_rr": 1.06
+    },
+    "GBPCHF": {
+     "n": 1876,
+     "won": 872,
+     "win_pct": 46.5,
+     "gross_r": -118.91,
+     "net_r": -809.21,
+     "per_trade": -0.431,
+     "avg_rr": 1.17
+    },
+    "GBPCAD": {
+     "n": 1900,
+     "won": 914,
+     "win_pct": 48.1,
+     "gross_r": -55.7,
+     "net_r": -611.93,
+     "per_trade": -0.322,
+     "avg_rr": 1.13
+    },
+    "CADCHF": {
+     "n": 1917,
+     "won": 896,
+     "win_pct": 46.7,
+     "gross_r": -96.44,
+     "net_r": -904.79,
+     "per_trade": -0.472,
+     "avg_rr": 1.14
+    },
+    "CADJPY": {
+     "n": 1834,
+     "won": 901,
+     "win_pct": 49.1,
+     "gross_r": -12.81,
+     "net_r": -331.17,
+     "per_trade": -0.181,
+     "avg_rr": 1.03
+    },
+    "CHFJPY": {
+     "n": 1892,
+     "won": 896,
+     "win_pct": 47.4,
+     "gross_r": -87.4,
+     "net_r": -532.04,
+     "per_trade": -0.281,
+     "avg_rr": 1.04
+    },
+    "GOLD": {
+     "n": 1938,
+     "won": 957,
+     "win_pct": 49.4,
+     "gross_r": -9.72,
+     "net_r": -128.95,
+     "per_trade": -0.067,
+     "avg_rr": 1.02
+    }
+   },
+   "since": 1660195800000
+  },
+  "retrace:safety M30": {
+   "all": {
+    "n": 34287,
+    "won": 16204,
+    "win_pct": 47.3,
+    "gross_r": -1274.91,
+    "net_r": -7344.81,
+    "per_trade": -0.214,
+    "avg_rr": 1.15
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 2009,
+     "won": 925,
+     "win_pct": 46.0,
+     "gross_r": -149.18,
+     "net_r": -350.66,
+     "per_trade": -0.175,
+     "avg_rr": 1.05
+    },
+    "GBPUSD": {
+     "n": 1937,
+     "won": 958,
+     "win_pct": 49.5,
+     "gross_r": 10.93,
+     "net_r": -173.0,
+     "per_trade": -0.089,
+     "avg_rr": 1.03
+    },
+    "USDJPY": {
+     "n": 1978,
+     "won": 933,
+     "win_pct": 47.2,
+     "gross_r": -30.78,
+     "net_r": -236.45,
+     "per_trade": -0.12,
+     "avg_rr": 1.12
+    },
+    "USDCHF": {
+     "n": 1905,
+     "won": 919,
+     "win_pct": 48.2,
+     "gross_r": -53.97,
+     "net_r": -413.6,
+     "per_trade": -0.217,
+     "avg_rr": 1.05
+    },
+    "USDCAD": {
+     "n": 1959,
+     "won": 949,
+     "win_pct": 48.4,
+     "gross_r": -36.61,
+     "net_r": -267.03,
+     "per_trade": -0.136,
+     "avg_rr": 1.02
+    },
+    "AUDUSD": {
+     "n": 1998,
+     "won": 932,
+     "win_pct": 46.6,
+     "gross_r": -107.77,
+     "net_r": -374.36,
+     "per_trade": -0.187,
+     "avg_rr": 1.09
+    },
+    "NZDUSD": {
+     "n": 1891,
+     "won": 860,
+     "win_pct": 45.5,
+     "gross_r": -151.3,
+     "net_r": -556.73,
+     "per_trade": -0.294,
+     "avg_rr": 1.04
+    },
+    "EURJPY": {
+     "n": 1962,
+     "won": 926,
+     "win_pct": 47.2,
+     "gross_r": -79.76,
+     "net_r": -324.75,
+     "per_trade": -0.166,
+     "avg_rr": 1.05
+    },
+    "GBPJPY": {
+     "n": 1927,
+     "won": 924,
+     "win_pct": 48.0,
+     "gross_r": -52.89,
+     "net_r": -342.34,
+     "per_trade": -0.178,
+     "avg_rr": 1.29
+    },
+    "EURGBP": {
+     "n": 1794,
+     "won": 853,
+     "win_pct": 47.5,
+     "gross_r": -61.79,
+     "net_r": -358.99,
+     "per_trade": -0.2,
+     "avg_rr": 1.05
+    },
+    "EURCHF": {
+     "n": 1855,
+     "won": 840,
+     "win_pct": 45.3,
+     "gross_r": -140.68,
+     "net_r": -771.71,
+     "per_trade": -0.416,
+     "avg_rr": 1.12
+    },
+    "EURCAD": {
+     "n": 1904,
+     "won": 942,
+     "win_pct": 49.5,
+     "gross_r": 35.95,
+     "net_r": -280.67,
+     "per_trade": -0.147,
+     "avg_rr": 1.07
+    },
+    "GBPCHF": {
+     "n": 1849,
+     "won": 836,
+     "win_pct": 45.2,
+     "gross_r": -152.97,
+     "net_r": -593.44,
+     "per_trade": -0.321,
+     "avg_rr": 1.07
+    },
+    "GBPCAD": {
+     "n": 1809,
+     "won": 834,
+     "win_pct": 46.1,
+     "gross_r": -111.17,
+     "net_r": -502.56,
+     "per_trade": -0.278,
+     "avg_rr": 1.08
+    },
+    "CADCHF": {
+     "n": 1885,
+     "won": 871,
+     "win_pct": 46.2,
+     "gross_r": -116.4,
+     "net_r": -842.34,
+     "per_trade": -0.447,
+     "avg_rr": 1.14
+    },
+    "CADJPY": {
+     "n": 1968,
+     "won": 977,
+     "win_pct": 49.6,
+     "gross_r": 29.53,
+     "net_r": -358.64,
+     "per_trade": -0.182,
+     "avg_rr": 1.05
+    },
+    "CHFJPY": {
+     "n": 1904,
+     "won": 897,
+     "win_pct": 47.1,
+     "gross_r": -78.5,
+     "net_r": -432.93,
+     "per_trade": -0.227,
+     "avg_rr": 1.04
+    },
+    "GOLD": {
+     "n": 1753,
+     "won": 828,
+     "win_pct": 47.2,
+     "gross_r": -27.55,
+     "net_r": -164.62,
+     "per_trade": -0.094,
+     "avg_rr": 2.49
+    }
+   },
+   "since": 1529413200000
+  },
+  "retrace:safety H1": {
+   "all": {
+    "n": 16833,
+    "won": 8127,
+    "win_pct": 48.3,
+    "gross_r": 59.37,
+    "net_r": -1921.91,
+    "per_trade": -0.114,
+    "avg_rr": 1.22
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 955,
+     "won": 450,
+     "win_pct": 47.1,
+     "gross_r": -5.38,
+     "net_r": -65.76,
+     "per_trade": -0.069,
+     "avg_rr": 1.08
+    },
+    "GBPUSD": {
+     "n": 940,
+     "won": 446,
+     "win_pct": 47.4,
+     "gross_r": -14.23,
+     "net_r": -75.91,
+     "per_trade": -0.081,
+     "avg_rr": 1.14
+    },
+    "USDJPY": {
+     "n": 959,
+     "won": 453,
+     "win_pct": 47.2,
+     "gross_r": -36.94,
+     "net_r": -106.96,
+     "per_trade": -0.112,
+     "avg_rr": 1.44
+    },
+    "USDCHF": {
+     "n": 908,
+     "won": 479,
+     "win_pct": 52.8,
+     "gross_r": 67.26,
+     "net_r": -52.45,
+     "per_trade": -0.058,
+     "avg_rr": 1.07
+    },
+    "USDCAD": {
+     "n": 936,
+     "won": 437,
+     "win_pct": 46.7,
+     "gross_r": -52.0,
+     "net_r": -123.27,
+     "per_trade": -0.132,
+     "avg_rr": 1.13
+    },
+    "AUDUSD": {
+     "n": 1002,
+     "won": 489,
+     "win_pct": 48.8,
+     "gross_r": -6.32,
+     "net_r": -95.73,
+     "per_trade": -0.096,
+     "avg_rr": 1.04
+    },
+    "NZDUSD": {
+     "n": 967,
+     "won": 460,
+     "win_pct": 47.6,
+     "gross_r": -31.37,
+     "net_r": -170.62,
+     "per_trade": -0.176,
+     "avg_rr": 1.03
+    },
+    "EURJPY": {
+     "n": 987,
+     "won": 482,
+     "win_pct": 48.8,
+     "gross_r": 28.27,
+     "net_r": -46.46,
+     "per_trade": -0.047,
+     "avg_rr": 1.08
+    },
+    "GBPJPY": {
+     "n": 961,
+     "won": 475,
+     "win_pct": 49.4,
+     "gross_r": 15.12,
+     "net_r": -69.64,
+     "per_trade": -0.072,
+     "avg_rr": 1.11
+    },
+    "EURGBP": {
+     "n": 929,
+     "won": 457,
+     "win_pct": 49.2,
+     "gross_r": -8.46,
+     "net_r": -92.31,
+     "per_trade": -0.099,
+     "avg_rr": 1.02
+    },
+    "EURCHF": {
+     "n": 935,
+     "won": 460,
+     "win_pct": 49.2,
+     "gross_r": -2.48,
+     "net_r": -212.98,
+     "per_trade": -0.228,
+     "avg_rr": 1.1
+    },
+    "EURCAD": {
+     "n": 955,
+     "won": 427,
+     "win_pct": 44.7,
+     "gross_r": -82.73,
+     "net_r": -178.8,
+     "per_trade": -0.187,
+     "avg_rr": 1.04
+    },
+    "GBPCHF": {
+     "n": 892,
+     "won": 439,
+     "win_pct": 49.2,
+     "gross_r": 40.64,
+     "net_r": -91.78,
+     "per_trade": -0.103,
+     "avg_rr": 1.09
+    },
+    "GBPCAD": {
+     "n": 907,
+     "won": 412,
+     "win_pct": 45.4,
+     "gross_r": -50.26,
+     "net_r": -165.65,
+     "per_trade": -0.183,
+     "avg_rr": 1.08
+    },
+    "CADCHF": {
+     "n": 926,
+     "won": 446,
+     "win_pct": 48.2,
+     "gross_r": -5.51,
+     "net_r": -237.83,
+     "per_trade": -0.257,
+     "avg_rr": 1.08
+    },
+    "CADJPY": {
+     "n": 966,
+     "won": 477,
+     "win_pct": 49.4,
+     "gross_r": 127.53,
+     "net_r": -33.16,
+     "per_trade": -0.034,
+     "avg_rr": 1.36
+    },
+    "CHFJPY": {
+     "n": 940,
+     "won": 449,
+     "win_pct": 47.8,
+     "gross_r": -12.8,
+     "net_r": -143.06,
+     "per_trade": -0.152,
+     "avg_rr": 1.08
+    },
+    "GOLD": {
+     "n": 768,
+     "won": 389,
+     "win_pct": 50.7,
+     "gross_r": 89.03,
+     "net_r": 40.46,
+     "per_trade": 0.053,
+     "avg_rr": 3.32
+    }
+   },
+   "since": 1529532000000
+  },
+  "retrace:safety H4": {
+   "all": {
+    "n": 15442,
+    "won": 7753,
+    "win_pct": 50.2,
+    "gross_r": 487.89,
+    "net_r": -608.25,
+    "per_trade": -0.039,
+    "avg_rr": 1.07
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 1047,
+     "won": 474,
+     "win_pct": 45.3,
+     "gross_r": -48.78,
+     "net_r": -106.16,
+     "per_trade": -0.101,
+     "avg_rr": 1.14
+    },
+    "GBPUSD": {
+     "n": 992,
+     "won": 484,
+     "win_pct": 48.8,
+     "gross_r": -11.13,
+     "net_r": -52.18,
+     "per_trade": -0.053,
+     "avg_rr": 1.02
+    },
+    "USDJPY": {
+     "n": 991,
+     "won": 494,
+     "win_pct": 49.8,
+     "gross_r": 66.25,
+     "net_r": -16.96,
+     "per_trade": -0.017,
+     "avg_rr": 1.29
+    },
+    "USDCHF": {
+     "n": 1021,
+     "won": 487,
+     "win_pct": 47.7,
+     "gross_r": -4.27,
+     "net_r": -62.64,
+     "per_trade": -0.061,
+     "avg_rr": 1.09
+    },
+    "USDCAD": {
+     "n": 973,
+     "won": 462,
+     "win_pct": 47.5,
+     "gross_r": -41.43,
+     "net_r": -99.09,
+     "per_trade": -0.102,
+     "avg_rr": 1.02
+    },
+    "AUDUSD": {
+     "n": 914,
+     "won": 478,
+     "win_pct": 52.3,
+     "gross_r": 54.6,
+     "net_r": -13.94,
+     "per_trade": -0.015,
+     "avg_rr": 1.02
+    },
+    "NZDUSD": {
+     "n": 895,
+     "won": 473,
+     "win_pct": 52.8,
+     "gross_r": 88.39,
+     "net_r": 10.18,
+     "per_trade": 0.011,
+     "avg_rr": 1.05
+    },
+    "EURJPY": {
+     "n": 879,
+     "won": 447,
+     "win_pct": 50.9,
+     "gross_r": 21.3,
+     "net_r": -19.54,
+     "per_trade": -0.022,
+     "avg_rr": 1.02
+    },
+    "GBPJPY": {
+     "n": 917,
+     "won": 453,
+     "win_pct": 49.4,
+     "gross_r": 15.88,
+     "net_r": -50.18,
+     "per_trade": -0.055,
+     "avg_rr": 1.04
+    },
+    "EURGBP": {
+     "n": 992,
+     "won": 495,
+     "win_pct": 49.9,
+     "gross_r": 7.54,
+     "net_r": -90.11,
+     "per_trade": -0.091,
+     "avg_rr": 1.04
+    },
+    "EURCHF": {
+     "n": 886,
+     "won": 484,
+     "win_pct": 54.6,
+     "gross_r": 106.33,
+     "net_r": 14.85,
+     "per_trade": 0.017,
+     "avg_rr": 1.07
+    },
+    "EURCAD": {
+     "n": 677,
+     "won": 343,
+     "win_pct": 50.7,
+     "gross_r": 25.47,
+     "net_r": -15.26,
+     "per_trade": -0.023,
+     "avg_rr": 1.05
+    },
+    "GBPCHF": {
+     "n": 900,
+     "won": 483,
+     "win_pct": 53.7,
+     "gross_r": 72.01,
+     "net_r": -4.68,
+     "per_trade": -0.005,
+     "avg_rr": 1.03
+    },
+    "GBPCAD": {
+     "n": 645,
+     "won": 333,
+     "win_pct": 51.6,
+     "gross_r": 51.24,
+     "net_r": 8.86,
+     "per_trade": 0.014,
+     "avg_rr": 1.06
+    },
+    "CADCHF": {
+     "n": 700,
+     "won": 359,
+     "win_pct": 51.3,
+     "gross_r": 33.15,
+     "net_r": -40.31,
+     "per_trade": -0.058,
+     "avg_rr": 1.07
+    },
+    "CADJPY": {
+     "n": 661,
+     "won": 342,
+     "win_pct": 51.7,
+     "gross_r": 43.77,
+     "net_r": 5.86,
+     "per_trade": 0.009,
+     "avg_rr": 1.04
+    },
+    "CHFJPY": {
+     "n": 937,
+     "won": 459,
+     "win_pct": 49.0,
+     "gross_r": -6.28,
+     "net_r": -82.86,
+     "per_trade": -0.088,
+     "avg_rr": 1.03
+    },
+    "GOLD": {
+     "n": 415,
+     "won": 203,
+     "win_pct": 48.9,
+     "gross_r": 13.85,
+     "net_r": 5.92,
+     "per_trade": 0.014,
+     "avg_rr": 1.19
+    }
+   },
+   "since": 38527200000
+  },
+  "retrace:every M30": {
+   "all": {
+    "n": 43131,
+    "won": 20391,
+    "win_pct": 47.3,
+    "gross_r": -1611.97,
+    "net_r": -9181.04,
+    "per_trade": -0.213,
+    "avg_rr": 1.18
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 2466,
+     "won": 1149,
+     "win_pct": 46.6,
+     "gross_r": -157.14,
+     "net_r": -404.69,
+     "per_trade": -0.164,
+     "avg_rr": 1.04
+    },
+    "GBPUSD": {
+     "n": 2417,
+     "won": 1177,
+     "win_pct": 48.7,
+     "gross_r": -28.55,
+     "net_r": -258.21,
+     "per_trade": -0.107,
+     "avg_rr": 1.04
+    },
+    "USDJPY": {
+     "n": 2509,
+     "won": 1196,
+     "win_pct": 47.7,
+     "gross_r": -24.47,
+     "net_r": -281.95,
+     "per_trade": -0.112,
+     "avg_rr": 1.11
+    },
+    "USDCHF": {
+     "n": 2449,
+     "won": 1177,
+     "win_pct": 48.1,
+     "gross_r": -76.47,
+     "net_r": -535.96,
+     "per_trade": -0.219,
+     "avg_rr": 1.06
+    },
+    "USDCAD": {
+     "n": 2509,
+     "won": 1223,
+     "win_pct": 48.7,
+     "gross_r": -21.15,
+     "net_r": -310.77,
+     "per_trade": -0.124,
+     "avg_rr": 1.03
+    },
+    "AUDUSD": {
+     "n": 2545,
+     "won": 1188,
+     "win_pct": 46.7,
+     "gross_r": -117.93,
+     "net_r": -457.4,
+     "per_trade": -0.18,
+     "avg_rr": 1.08
+    },
+    "NZDUSD": {
+     "n": 2419,
+     "won": 1112,
+     "win_pct": 46.0,
+     "gross_r": -165.52,
+     "net_r": -683.17,
+     "per_trade": -0.282,
+     "avg_rr": 1.04
+    },
+    "EURJPY": {
+     "n": 2485,
+     "won": 1171,
+     "win_pct": 47.1,
+     "gross_r": -108.15,
+     "net_r": -418.18,
+     "per_trade": -0.168,
+     "avg_rr": 1.05
+    },
+    "GBPJPY": {
+     "n": 2411,
+     "won": 1156,
+     "win_pct": 47.9,
+     "gross_r": -67.51,
+     "net_r": -415.34,
+     "per_trade": -0.172,
+     "avg_rr": 1.24
+    },
+    "EURGBP": {
+     "n": 2168,
+     "won": 1034,
+     "win_pct": 47.7,
+     "gross_r": -72.7,
+     "net_r": -425.02,
+     "per_trade": -0.196,
+     "avg_rr": 1.05
+    },
+    "EURCHF": {
+     "n": 2296,
+     "won": 1039,
+     "win_pct": 45.3,
+     "gross_r": -181.52,
+     "net_r": -943.85,
+     "per_trade": -0.411,
+     "avg_rr": 1.12
+    },
+    "EURCAD": {
+     "n": 2296,
+     "won": 1126,
+     "win_pct": 49.0,
+     "gross_r": 16.11,
+     "net_r": -358.08,
+     "per_trade": -0.156,
+     "avg_rr": 1.06
+    },
+    "GBPCHF": {
+     "n": 2295,
+     "won": 1047,
+     "win_pct": 45.6,
+     "gross_r": -174.66,
+     "net_r": -717.55,
+     "per_trade": -0.313,
+     "avg_rr": 1.08
+    },
+    "GBPCAD": {
+     "n": 2260,
+     "won": 1040,
+     "win_pct": 46.0,
+     "gross_r": -144.07,
+     "net_r": -621.55,
+     "per_trade": -0.275,
+     "avg_rr": 1.07
+    },
+    "CADCHF": {
+     "n": 2352,
+     "won": 1098,
+     "win_pct": 46.7,
+     "gross_r": -124.19,
+     "net_r": -1023.6,
+     "per_trade": -0.435,
+     "avg_rr": 1.13
+    },
+    "CADJPY": {
+     "n": 2546,
+     "won": 1265,
+     "win_pct": 49.7,
+     "gross_r": 31.82,
+     "net_r": -485.32,
+     "per_trade": -0.191,
+     "avg_rr": 1.05
+    },
+    "CHFJPY": {
+     "n": 2395,
+     "won": 1105,
+     "win_pct": 46.1,
+     "gross_r": -149.94,
+     "net_r": -607.77,
+     "per_trade": -0.254,
+     "avg_rr": 1.07
+    },
+    "GOLD": {
+     "n": 2313,
+     "won": 1088,
+     "win_pct": 47.0,
+     "gross_r": -45.93,
+     "net_r": -232.63,
+     "per_trade": -0.101,
+     "avg_rr": 2.89
+    }
+   },
+   "since": 1529413200000
+  },
+  "retrace:every H4": {
+   "all": {
+    "n": 20143,
+    "won": 10165,
+    "win_pct": 50.5,
+    "gross_r": 793.35,
+    "net_r": -635.92,
+    "per_trade": -0.032,
+    "avg_rr": 1.09
+   },
+   "per_symbol": {
+    "EURUSD": {
+     "n": 1354,
+     "won": 634,
+     "win_pct": 46.8,
+     "gross_r": -24.17,
+     "net_r": -97.6,
+     "per_trade": -0.072,
+     "avg_rr": 1.13
+    },
+    "GBPUSD": {
+     "n": 1299,
+     "won": 641,
+     "win_pct": 49.3,
+     "gross_r": -1.6,
+     "net_r": -54.97,
+     "per_trade": -0.042,
+     "avg_rr": 1.02
+    },
+    "USDJPY": {
+     "n": 1280,
+     "won": 640,
+     "win_pct": 50.0,
+     "gross_r": 78.15,
+     "net_r": -21.39,
+     "per_trade": -0.017,
+     "avg_rr": 1.26
+    },
+    "USDCHF": {
+     "n": 1325,
+     "won": 648,
+     "win_pct": 48.9,
+     "gross_r": 36.61,
+     "net_r": -39.66,
+     "per_trade": -0.03,
+     "avg_rr": 1.1
+    },
+    "USDCAD": {
+     "n": 1242,
+     "won": 603,
+     "win_pct": 48.6,
+     "gross_r": -25.99,
+     "net_r": -105.24,
+     "per_trade": -0.085,
+     "avg_rr": 1.12
+    },
+    "AUDUSD": {
+     "n": 1176,
+     "won": 611,
+     "win_pct": 52.0,
+     "gross_r": 60.46,
+     "net_r": -31.87,
+     "per_trade": -0.027,
+     "avg_rr": 1.11
+    },
+    "NZDUSD": {
+     "n": 1211,
+     "won": 664,
+     "win_pct": 54.8,
+     "gross_r": 195.2,
+     "net_r": 88.05,
+     "per_trade": 0.073,
+     "avg_rr": 1.07
+    },
+    "EURJPY": {
+     "n": 1139,
+     "won": 569,
+     "win_pct": 50.0,
+     "gross_r": 8.13,
+     "net_r": -43.16,
+     "per_trade": -0.038,
+     "avg_rr": 1.02
+    },
+    "GBPJPY": {
+     "n": 1215,
+     "won": 609,
+     "win_pct": 50.1,
+     "gross_r": 33.9,
+     "net_r": -53.49,
+     "per_trade": -0.044,
+     "avg_rr": 1.05
+    },
+    "EURGBP": {
+     "n": 1272,
+     "won": 633,
+     "win_pct": 49.8,
+     "gross_r": 4.44,
+     "net_r": -121.45,
+     "per_trade": -0.095,
+     "avg_rr": 1.04
+    },
+    "EURCHF": {
+     "n": 1154,
+     "won": 614,
+     "win_pct": 53.2,
+     "gross_r": 105.25,
+     "net_r": -13.45,
+     "per_trade": -0.012,
+     "avg_rr": 1.06
+    },
+    "EURCAD": {
+     "n": 881,
+     "won": 448,
+     "win_pct": 50.9,
+     "gross_r": 45.05,
+     "net_r": -8.26,
+     "per_trade": -0.009,
+     "avg_rr": 1.05
+    },
+    "GBPCHF": {
+     "n": 1180,
+     "won": 631,
+     "win_pct": 53.5,
+     "gross_r": 95.21,
+     "net_r": -4.9,
+     "per_trade": -0.004,
+     "avg_rr": 1.04
+    },
+    "GBPCAD": {
+     "n": 843,
+     "won": 429,
+     "win_pct": 50.9,
+     "gross_r": 55.37,
+     "net_r": -1.81,
+     "per_trade": -0.002,
+     "avg_rr": 1.19
+    },
+    "CADCHF": {
+     "n": 906,
+     "won": 456,
+     "win_pct": 50.3,
+     "gross_r": 23.01,
+     "net_r": -71.41,
+     "per_trade": -0.079,
+     "avg_rr": 1.06
+    },
+    "CADJPY": {
+     "n": 880,
+     "won": 458,
+     "win_pct": 52.0,
+     "gross_r": 71.42,
+     "net_r": 20.46,
+     "per_trade": 0.023,
+     "avg_rr": 1.05
+    },
+    "CHFJPY": {
+     "n": 1211,
+     "won": 595,
+     "win_pct": 49.1,
+     "gross_r": -3.58,
+     "net_r": -101.28,
+     "per_trade": -0.084,
+     "avg_rr": 1.04
+    },
+    "GOLD": {
+     "n": 575,
+     "won": 282,
+     "win_pct": 49.0,
+     "gross_r": 36.49,
+     "net_r": 25.54,
+     "per_trade": 0.044,
+     "avg_rr": 1.18
+    }
+   },
+   "since": 38527200000
+  }
+ }
+}

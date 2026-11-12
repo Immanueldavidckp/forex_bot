@@ -33,6 +33,8 @@ BT_DIR = os.path.join(DATA_DIR, "backtest")          # written by engine.backtes
 ACTIONS = {"trading", "cancel_setup", "close_setup", "close_ticket", "mt5", "kronos", "kronos_close"}
 KRONOS_DIR = os.path.join(DATA_DIR, "kronos")
 SDD_STATE = os.path.join(DATA_DIR, "sdd", "state.json")                # engine/sdd_book.py → the /smc trade list
+FIB_STATE = os.path.join(DATA_DIR, "fib", "state.json")                # engine/fib_book.py → the /smc Fib list
+FIB_BT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "research", "fib_trend", "results.json")  # its backtest
 KRONOS_VIEW = os.path.join(KRONOS_DIR, "view.json")              # engine/kronos_book.py → the /kronos page
 MT5_OPS = {"start", "stop", "restart", "login"}
 SYM = re.compile(r"^[A-Za-z0-9._#-]{1,24}$")
@@ -536,6 +538,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._file(PNL_FILE)
         if u.path == "/api/sdd":
             return self._file(SDD_STATE)
+        if u.path == "/api/fib":
+            return self._file(FIB_STATE)
+        if u.path == "/api/fib/backtest":
+            return self._file(FIB_BT)
         if u.path == "/api/kronos/smc":
             sym, tf = q.get("sym", ""), q.get("tf", "M15")
             if not SYM.match(sym) or tf not in TF_MS or not q.get("since", "0").isdigit():

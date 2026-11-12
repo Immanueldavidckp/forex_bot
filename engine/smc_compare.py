@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 
 from . import learn
-from . import order_blocks, sd_backtest, sd_classic, sd_david, smc_marks, supply_demand
+from . import fib_reject, fib_trend, order_blocks, sd_backtest, sd_classic, sd_david, smc_marks, supply_demand
 from . import candles, chart_patterns, elliott, indicators, levels, trendlines, volume_profile, wyckoff
 from .major_structure import atr14, major_structure
 from .config import ENGINE, VIEW_DIR
@@ -107,7 +107,7 @@ def load(sym: str, tf: str, n: int = N_BARS) -> Dict:
     return {"sym": sym, "tf": tf, "bars": [r[:5] for r in rows], "major": major(rows, bars, m, mk), "zones": smc_zones(rows),
             "lux": lux(rows), "levels": prev_day(rows), "v5": learn.detect_rows(rows, tf, sym), "ta": concepts(bars, m, mk, tf),
             "sd": supply_demand.page(bars, m), "sdbt": sd_backtest.saved(sym, tf), "kcbz": kcbz_saved(sym, tf),
-            "sdc": sdc_page(bars, m), "obr": obr_page(bars, m), "sdd": sdd_page(bars, m)}
+            "sdc": sdc_page(bars, m), "obr": obr_page(bars, m), "sdd": sdd_page(bars, m), **fib_page(bars, sym)}
 
 
 
@@ -138,6 +138,31 @@ def sdd_page(bars: List[Dict], m: Dict) -> List[Dict]:
              "status": z["status"], "t_touch": T(z["touch_idx"]), "t_broken": T(z["broken_idx"]),
              "t_superseded": T(z["superseded_idx"]), "t_end": T(z["end_idx"]), "live": z["live"]}
             for z in sd_david.zones(bars, m)]
+
+
+def fib_page(bars: List[Dict], sym: str = "") -> Dict:
+    """the class's Fib rules as they are TRADED (fib_reject.py: the live versions + the reject checklist) on their own
+    swing structure: "fbt" = FIB GO WITH TREND, "fbr" = FIB RETRACEMENT, "fbs" = that structure's BOS / CHoCH. A setup
+    the checklist refuses has status "rejected" (the spread warning needs the live spread: only the engine checks it)."""
+    T = lambda i: _T(bars, i)
+    st = fib_trend.swing_structure(bars, fib_trend.STRUCTURE_N)
+    keep = ("side", "swing", "status", "why", "H", "L", "levels", "entry", "sl", "tp", "rr", "exit", "result", "warnings", "rejected")
+
+    def row(z, **more):
+        d = dict({k: z.get(k) for k in keep}, t_bos=T(z["bos_idx"]), t_h=T(z["h_idx"]), t_l=T(z["l_idx"]),
+                 t_entry=T(z["entry_idx"]), t_exit=T(z["exit_idx"]), t_wend=T(min(z["w_end"], len(bars) - 1)),
+                 live=z["w_end"] >= len(bars), **more)
+        if z.get("rejected"):
+            d["would"] = z["status"]                                # what it did anyway: the checklist's own scorecard
+            d["status"], d["why"] = "rejected", "; ".join(z["warnings"])
+        return d
+
+    tr = [row(z, mark=z.get("mark"), t_choch=T(z["choch_idx"]), t_cross=T(z["cross_idx"]), t_cross_back=T(z["cross_back_idx"]),
+              t_touch=T(z.get("touch_idx"))) for z in fib_reject.judged("trend", sym, bars, st)]
+    rt = [row(z, entry_level=z["entry_level"]) for z in fib_reject.judged("retrace", sym, bars, st)]
+    ev = [{"kind": e["kind"], "side": e["side"], "level": e["level"], "t_level": T(e["level_idx"]), "t": T(e["idx"])}
+          for e in st["events"]]
+    return {"fbt": tr, "fbr": rt, "fbs": ev}
 
 
 def obr_page(bars: List[Dict], m: Dict) -> List[Dict]:

@@ -253,6 +253,29 @@ SDD = {
     "DIR": os.path.join(DATA_DIR, "sdd"),
 }
 
+# ── the class's Fib rules (class video 5, David 2026-11-12: "go with trend and fib retracement ... add that next to
+# the S&D David", then "now update these strategies to the live") — engine/fib_trend.py (rules), engine/fib_reject.py
+# (the LIVE versions + their reject checklist), engine/fib_book.py (orders), /smc layers "Fib trend" / "Fib retr.".
+# As taught, both rules lost (backtest 18 pairs + gold: −0.2 R / trade after the spread). Live are the two versions
+# that stopped losing on 2023–2026 data never used to choose them (engine/research/fib_trend/reject.py):
+#   retrace  every BOS leg: LIMIT at 0.382, stop 0.1 ATR under the swing low, target 2R; rejected on 2+ warnings
+#            (+0.02 R / trade kept, 6,080 trades, t 1.1)
+#   trend    entry as taught (a STOP at the high / low of the candle that touched 0.618, for the next candle only), stop
+#            0.1 ATR under the swing low, target 2R; rejected on any warning (+0.04 R, 1,446 trades, t 1.1)
+# on 1 h and 4 h (2 h was in the test; the engine has no 2 h feed), forex + gold. Small, unproven edges: demo, minimum lot.
+# python3 -m engine.run fib on|off|status (control.json "fib"); orders also need trading ON.
+FIB = {
+    "ENABLED": True,
+    "RULES": [{"id": "retrace-H1", "rule": "retrace", "tf": "H1"}, {"id": "retrace-H4", "rule": "retrace", "tf": "H4"},
+              {"id": "trend-H1", "rule": "trend", "tf": "H1"}, {"id": "trend-H4", "rule": "trend", "tf": "H4"}],
+    "SYMBOLS": ["GOLD", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURJPY", "GBPJPY",
+                "EURGBP", "EURCHF", "EURCAD", "GBPCHF", "GBPCAD", "CADCHF", "CADJPY", "CHFJPY"],
+    "MAGIC": 5050800,
+    "BARS": 3000,
+    "MIN_FREE_MARGIN_PCT": 30,
+    "DIR": os.path.join(DATA_DIR, "fib"),
+}
+
 # ── Kronos × S&D David zones (David 2026-11-07: "run the kronos for 50 candles ... will it touch the BOS supply /
 # demand FVG zone ... not the 2 h one, check the 15m, all the candles, show in the dashboard") ──
 # concepter/kronos/zone_touch.py (GPU, service kronos-zones): for every symbol with a FRESH S&D David zone, Kronos-base

@@ -13,7 +13,7 @@ header { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; padding:
 h1 { font-size:14px; margin:0 8px 0 0; letter-spacing:.08em } h1 a { color:var(--muted); text-decoration:none; font-weight:normal }
 button, select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font:inherit; cursor:pointer }
 button[aria-pressed="false"] { opacity:.45 } #tfs button { padding:4px 7px } #tfs button.on { border-color:#5c6bc0; color:#aab6ff; background:#1a2030; opacity:1 }
-button.l-major { border-color:var(--major) } button.l-new { border-color:#00e676; color:#b9f6ca } button.l-david { border-color:#ffd54f; color:#ffe082; font-weight:600 } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
+button.l-major { border-color:var(--major) } button.l-new { border-color:#00e676; color:#b9f6ca } button.l-david { border-color:#ffd54f; color:#ffe082; font-weight:600 } button.l-fib { border-color:#ce93d8; color:#e1bee7; font-weight:600 } button.l-ta { border-color:#8d6e63 } .sep { color:var(--muted); font-size:11px; margin-left:6px } button.l-zones { border-color:var(--zones) } button.l-lux { border-color:var(--lux) } button.l-v5 { border-color:var(--v5) }
 .muted { color:var(--muted) } .grow { flex:1 }
 #status { padding:5px 12px; border-bottom:1px solid var(--line); color:var(--muted); min-height:27px }
 #status b { color:var(--text); font-weight:600 }
@@ -44,6 +44,8 @@ table.trades tr.r td { border-bottom:1px solid #1a2030 } tr.sel { background:#2a
   <button class="l-major" data-layer="ob" aria-pressed="true" title="order blocks of the major BOS / CHoCH: the last opposite candle before the displacement that broke structure (full wick, 50 % line); live = not closed through; the nearest 3 per side, plus breakers (a failed OB price came back to)">OB</button>
   <button class="l-major" data-layer="sd" aria-pressed="false" title="supply / demand — only the VALID zones: the base (1–3 small candles, or David's last opposite candle) before a displacement (body ≥ 1.5 × the 10 before) whose move out closed beyond a major swing (BOS / CHoCH: David's rule), box ≤ 1.5 ATR, left cleanly; score 0–10 = the odds enhancers (shown, never a filter); dashed line = the body edge (entry)">Supply / Demand</button>
   <button class="l-david" data-layer="sdd" aria-pressed="true" title="DAVID's supply / demand (class video 6): a bull BOS → DEMAND, a bear BOS → SUPPLY (only BOS, not CHoCH). Inside the BOS move, 3 candles A-B-C whose wicks do not touch (the FVG, any size). The zone = candle A, wick to wick: the candle BELOW the gap (demand) / ABOVE the gap (supply), dashed 50 % line. Not valid if the 4th candle fills the gap. Entry = price touches A's wick (solid line); stop beyond candle A.">S&amp;D David</button>
+  <button class="l-fib" data-layer="fbt" aria-pressed="true" title="FIB GO WITH TREND (class video 5) as it is TRADED live (engine/fib_reject.py): trend change (CHoCH) + EMA 9 / 21 cross, the 1st BOS, then the 2nd swing; Fib from the swing high (1) to the running low (0); a candle touches 0.618, the next candle through its high = entry (a stop order). LIVE version: stop 0.1 ATR under the swing low, target 2R, and rejected on any warning (market, session, weekday, spread). Structure = the class's swing structure (pivot 4), drawn dotted.">Fib trend</button>
+  <button class="l-fib" data-layer="fbr" aria-pressed="false" title="FIB RETRACEMENT (class video 5) as it is TRADED live: at every BOS leg, Fib from the swing high (1, moves until the entry) to the previous swing low (0). LIVE version: LIMIT at 0.382, stop 0.1 ATR under the swing low, target 2R, rejected on 2 or more warnings (market, New York session, spread, entry at the expensive end of the 100-candle range, small swing, price stretched from EMA 21, swing 4).">Fib retr.</button>
   <button class="l-new" data-layer="sdc" aria-pressed="false" title="NEW supply / demand, the S&amp;D school's way (Seiden / OTA, research 2026-11-01, engine/sd_classic.py): the BASE (1–6 small-body candles) at the ORIGIN of a leg before a strong move away; near edge = the base's body, far edge = its wick; solid = the origin zone of a leg, the pauses inside a leg are 'continuation' (button +cont.); BOS ✓ = its move broke structure (a strength point, not required by this school)">S&amp;D new</button>
   <button class="l-new" data-layer="sdcc" aria-pressed="false" title="also the continuation zones of the new supply / demand: pauses inside a leg (RBR / DBD …), lower grade">+cont.</button>
   <button class="l-new" data-layer="obr" aria-pressed="false" title="NEW order blocks, the ICT / SMC-indicator way (research 2026-11-01, engine/order_blocks.py): ONE down candle (bullish) / up candle (bearish) — at the extreme of the leg that broke structure by close, blended with the same-colour candles right before it; full-range box, dashed = the open (ICT entry), dotted = 50 % of the body (mean threshold); needs a displacement">OB new</button>
@@ -91,10 +93,11 @@ const C = {major: "#4dd0e1", mBOS: "#b388ff", mCHoCH: "#ff5252", bull: "#26a69a"
 let BARS = "";   // "all" = the whole history (?bars=all)
 let AT = null;   // ?at=<UTC time>: open the chart there
 let SDDO = null;   // /api/sdd: the engine's S&D David orders (engine/sdd_book.py)
+let FIBO = null, FIBBT = null;   // /api/fib: the engine's Fib orders (engine/fib_book.py); /api/fib/backtest: results.json
 let NEXT_SEL = null;   // a trade clicked in the all-symbols list: select its zone once that chart has loaded
 let SEL = null;   // the one S&D David zone shown alone (its t_break); null = all of them
 let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
-const LAYER = {major: true, ob: true, sd: false, sdd: true, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, liq: true, fvg: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
+const LAYER = {major: true, ob: true, sd: false, sdd: true, fbt: true, fbr: false, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, liq: true, fvg: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
   sess: false, cdl: false, cdlall: false, tl: false, cp: false, fib: false, vwap: false, osc: false, vp: false, wy: false, ew: false, of: false};   // default: the SMC row only
 
 async function api(p) { const r = await fetch(p); if (!r.ok) throw new Error(p + " " + r.status); return r.json(); }
@@ -118,7 +121,7 @@ async function loadList() {
   $("#tfs").querySelectorAll("button").forEach(b => b.onclick = () => { TF = b.dataset.tf; pick(); });
 }
 function pick() {
-  SEL = null;
+  SEL = null; FSEL = null;
   $("#tfs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tf === TF));
   history.replaceState(null, "", `?sym=${encodeURIComponent(SYM)}&tf=${TF}` + (BARS ? "&bars=all" : "")); load(false); pollLive();
 }
@@ -143,6 +146,8 @@ async function load(keepView) {
 let ST = null;
 async function loadStatus() {
   try { SDDO = await (await fetch("/api/sdd", {cache: "no-store"})).json(); } catch (e) { SDDO = null; }
+  try { FIBO = await (await fetch("/api/fib", {cache: "no-store"})).json(); } catch (e) { FIBO = null; }
+  if (!FIBBT) try { FIBBT = await (await fetch("/api/fib/backtest")).json(); } catch (e) { FIBBT = null; }
   if (D) side();                                   // the order column at once (/api/status can take a few seconds)
   try { ST = await (await fetch(`/api/status?sym=${encodeURIComponent(SYM)}`, {cache: "no-store"})).json(); }
   catch (e) { ST = null; return; }
@@ -226,9 +231,15 @@ function side() {
         [0, 1, 2].map(k => `<td class="tp">${T[k] ? fx(T[k].price) + `<br><span class="muted">${T[k].rr}R</span>` : "–"}</td>`).join("") +
         `<td class="${stCls(z)}">${z.status}</td>${ordCell(z)}</tr>`;
     }).join("") + (n ? "" : `<tr><td class="muted" colspan="9">no valid zone on this chart</td></tr>`) + `</table>`;
+  h += sideFib();
   const sc = $("#side").scrollTop; $("#side").innerHTML = h; $("#side").scrollTop = sc;
+  $("#side").querySelectorAll("tr.fr").forEach(tr => tr.onclick = () => {   // a Fib setup → the chart moves to it
+    const k = tr.dataset.k; FSEL = FSEL === k ? null : k;
+    if (FSEL) { const i0 = idxOf(+tr.dataset.t0), i1 = idxOf(+tr.dataset.t1); VP = {a: i0 - 30, b: Math.max(i1, i0 + 30) + 30}; }
+    side(); draw();
+  });
   const all = $("#sddall"); if (all) all.onclick = () => { SEL = null; side(); draw(); };
-  $("#side").querySelectorAll("tr.r").forEach(tr => tr.onclick = () => {
+  $("#side").querySelectorAll("tr.r:not(.fr):not(.o)").forEach(tr => tr.onclick = () => {
     const k = +tr.dataset.k;
     if (SEL === k) { SEL = null; side(); draw(); return; }
     focusZone(k); side(); draw();
@@ -321,7 +332,7 @@ function sideDetails() {
     <h3>zones (newest)</h3><table>${s.v5.zones.slice().reverse().map(z => row(z.t, [`<span class="${sideCls(z.side === "buy" ? "bull" : "bear")}">${z.kind}</span>`, `${fx(z.bottom)} – ${fx(z.top)}`, ist(z.t)])).join("") || `<tr><td class="muted">none</td></tr>`}</table>`;
   if (LAYER.zones || LAYER.lux) h += `<div class="note">SMC Zones runs here with the author's Python reference (it matched the MT5 indicator bar for bar on our data). LuxAlgo is a Python port that drew exactly what the MT5 indicator drew on our bars. Both run here on the dashboard; nothing runs in MT5.</div>`;
   $("#side").innerHTML = stratPanel() + h;
-  $("#side").querySelectorAll("tr.r").forEach(tr => tr.onclick = () => {
+  $("#side").querySelectorAll("tr.r:not(.fr):not(.o)").forEach(tr => tr.onclick = () => {
     if (tr.dataset.sym) { if (tr.dataset.sym !== SYM) { SYM = tr.dataset.sym; $("#pick").value = SYM; pick(); } return; }
     jump(+tr.dataset.t);
   });
@@ -454,6 +465,7 @@ function draw() {
   if (LAYER.sdbt && D.sdbt) drawSDBT(g, G, vis);
   if (LAYER.kcbz && D.kcbz) drawKCBZ(g, G, vis);
   if (LAYER.sdd && D.sdd) drawSDD(g, G, vis);
+  if ((LAYER.fbt || LAYER.fbr) && D.fbs) drawFibRules(g, G, vis);
   if (LAYER.sdc && D.sdc) drawSDC(g, G, vis);
   if (LAYER.obr && D.obr) drawOBR(g, G, vis);
   if (LAYER.strat) drawStrategy(g, G);
@@ -846,6 +858,106 @@ function drawOBR(g, G, vis) {
     g.fillText(`${o.side === "bull" ? "Bull" : "Bear"} OB${o.flip ? " → " + o.flip : ""} · ${o.score}/10`, Math.max(xa, G.PL) + 3, o.side === "bull" ? G.y(o.top) - 4 : G.y(o.bottom) + 10);
   }
   g.restore();
+}
+// ── the class's Fib rules (engine/fib_trend.py, class video 5): "Fib trend" = FIB GO WITH TREND, "Fib retr." = FIB RETRACEMENT ──
+let FSEL = null;   // the one Fib setup shown alone ("t" + t_bos or "r" + t_bos); null = all of them
+const FIBC = {fbt: "#ce93d8", fbr: "#4dd0e1"};
+const fibKey = (k, z) => k + z.t_bos;
+const fibDone = z => ["won", "lost", "open"].includes(z.status);
+const fibLive = z => z.live && !["no trade", "swing forming", "rejected"].includes(z.status);
+function fibTip(k, z) {
+  const b = z.side === "buy", T = k === "fbt";
+  return `${T ? "FIB GO WITH TREND" : "FIB RETRACEMENT"} · ${b ? "BUY" : "SELL"} · swing ${z.swing} · ${z.status}${z.why ? " — " + z.why : ""}` +
+    (z.status === "rejected" && z.would ? `\nwithout the checklist it would be: ${z.would}${z.result != null ? " " + (z.result > 0 ? "+" : "") + z.result + "R" : ""}` : "") +
+    (z.status !== "rejected" && z.warnings && z.warnings.length ? `\n1 warning (not enough to reject): ${z.warnings.join("; ")}` : "") +
+    (T ? `\nCHoCH ${ist(z.t_choch)} · EMA 9/21 cross ${z.t_cross ? ist(z.t_cross) : "–"}${z.t_cross_back ? " · crossed back " + ist(z.t_cross_back) : ""}` : "") +
+    `\nBOS ${ist(z.t_bos)} · Fib 1 = ${fx(z.H)} (${ist(z.t_h)}) → 0 = ${z.L == null ? "–" : fx(z.L) + " (" + ist(z.t_l) + ")"}` +
+    (z.levels ? `\n${T ? "0.618 " + fx(z.levels["0.618"]) : "limit 0.382 " + fx(z.levels["0.382"])} · stop ${fx(z.sl)} · target 2R ${fx(z.tp)}` : "") +
+    (z.t_touch ? `\n0.618 touched ${ist(z.t_touch)}, its ${b ? "high" : "low"} ${fx(z.mark)}` : "") +
+    (z.t_entry ? `\nentry ${fx(z.entry)} at ${ist(z.t_entry)} (${z.rr}R)` : "") + (z.t_exit ? ` → ${z.status === "won" ? "target" : "stop"} ${ist(z.t_exit)} · ${z.result > 0 ? "+" : ""}${z.result}R` : "");
+}
+function drawFibRules(g, G, vis) {
+  g.save(); g.font = "10px ui-monospace,monospace";
+  if (D.fbs && (LAYER.fbt || LAYER.fbr)) for (const e of D.fbs) {        // the class's swing structure, dotted
+    if (!vis(e.t_level, e.t)) continue;
+    hline(g, G, e.t_level, e.t, e.level, e.kind === "CHoCH" ? "rgba(255,82,82,.55)" : "rgba(206,147,216,.45)", [1, 3],
+      e.kind === "CHoCH" ? "choch" : "bos", `Fib structure (pivot 4): ${e.kind} ${e.side} through ${fx(e.level)} at ${ist(e.t)}`, e.side === "sell");
+  }
+  for (const k of ["fbt", "fbr"]) {
+    if (!LAYER[k] || !D[k]) continue;
+    const col = FIBC[k];
+    for (const z of D[k]) {
+      const key = fibKey(k, z);
+      if (FSEL != null ? FSEL !== key : !(fibDone(z) || fibLive(z))) continue;   // the list's other rows: click one to draw it
+      if (!z.levels) continue;
+      const t0 = Math.min(z.t_h, z.t_l), t1 = z.t_exit || (z.live ? null : z.t_wend);
+      if (!vis(t0, t1)) continue;
+      const x0 = Math.max(G.xt(t0), G.PL), x1 = t1 == null ? G.W - G.PR : G.xt(t1), tip = fibTip(k, z);
+      const LV = k === "fbt" ? ["0", "0.382", "0.5", "0.618", "1"] : ["0", "0.382", "0.5", "0.618", "1"];
+      for (const [p, c, txt] of [[z.sl, "#ff5252", "stop"], [z.tp, "#00e676", "target 2R"]]) {      // the live stop / target
+        if (p == null) continue;
+        const y = G.y(p); g.globalAlpha = .95; g.strokeStyle = c; g.setLineDash([6, 3]); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
+        g.fillStyle = c; g.textAlign = "right"; g.fillText(`${txt} ${fx(p)}`, Math.min(x1, G.W - G.PR) - 2, y - 2);
+      }
+      for (const f of LV) {
+        const p = z.levels[f], y = G.y(p), gold = f === (k === "fbt" ? "0.618" : "0.382"), red = false, tgt = false;
+        g.globalAlpha = gold || red || tgt ? .95 : .45;
+        g.strokeStyle = gold ? "#ffd54f" : red ? "#ff5252" : tgt ? "#00e676" : col; g.lineWidth = gold ? 1.5 : 1;
+        g.setLineDash(f === "0" || f === "1" ? [] : [3, 3]); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
+        g.fillStyle = g.strokeStyle; g.textAlign = "right"; g.fillText(`${f} ${fx(p)}`, Math.min(x1, G.W - G.PR) - 2, y - 2);
+        HITS.push({x0, x1, y0: y - 4, y1: y + 4, tip, area: 0});
+      }
+      g.globalAlpha = 1; g.lineWidth = 1; g.textAlign = "left";
+      // the swing: 1 → 0 diagonal, as his TradingView tool draws it
+      g.strokeStyle = col; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(G.xt(z.t_h), G.y(z.H)); g.lineTo(G.xt(z.t_l), G.y(z.L)); g.stroke(); g.setLineDash([]);
+      g.fillStyle = col; g.font = "bold 10px system-ui,sans-serif";
+      g.fillText(`${k === "fbt" ? "FIB TREND" : "FIB RETR."} ${z.side === "buy" ? "BUY" : "SELL"} · swing ${z.swing} · ${z.status}${z.result != null ? " " + (z.result > 0 ? "+" : "") + z.result + "R" : ""}`,
+        x0 + 3, z.side === "buy" ? G.y(z.levels["0"]) + 12 : G.y(z.levels["0"]) - 5);
+      g.font = "10px ui-monospace,monospace";
+      if (z.mark != null && z.live && !z.t_entry) {                                      // the waiting stop at the touch candle
+        const y = G.y(z.mark); g.strokeStyle = "#ffe082"; g.setLineDash([6, 3]); g.beginPath(); g.moveTo(G.xt(z.t_touch), y); g.lineTo(G.W - G.PR, y); g.stroke(); g.setLineDash([]);
+        g.fillStyle = "#ffe082"; g.fillText(`${z.side === "buy" ? "buy" : "sell"} stop ${fx(z.mark)}`, G.xt(z.t_touch) + 3, y - 3);
+      }
+      for (const [t, p, c, up] of [[z.t_entry, z.entry, "#ffe082", z.side === "buy"], [z.t_exit, z.exit, z.status === "won" ? "#00e676" : "#ff1744", z.side !== "buy"]]) {
+        if (t == null || p == null) continue;
+        const x = G.xt(t), y = G.y(p), d = up ? 1 : -1;
+        g.fillStyle = c; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 5, y + 9 * d); g.lineTo(x + 5, y + 9 * d); g.closePath(); g.fill();
+        HITS.push({x0: x - 6, x1: x + 6, y0: y - 10, y1: y + 10, tip, area: 0});
+      }
+    }
+  }
+  g.restore();
+}
+function sideFib() {
+  if (!LAYER.fbt && !LAYER.fbr) return "";
+  const R = [];
+  for (const k of ["fbt", "fbr"]) if (LAYER[k]) for (const z of D[k] || []) R.push([k, z]);
+  R.sort((a, b) => b[1].t_bos - a[1].t_bos);
+  const done = R.filter(([, z]) => z.status === "won" || z.status === "lost"), won = done.filter(([, z]) => z.status === "won").length;
+  const net = done.reduce((a, [, z]) => a + z.result, 0);
+  const bt = FIBBT && FIBBT.rules ? Object.entries(FIBBT.rules).filter(([k]) => (LAYER.fbt && k.startsWith("trend")) || (LAYER.fbr && k.startsWith("retrace:safety")))
+    .map(([k, v]) => `${k.replace("retrace:safety", "retr.")} ${v.all.n} trades · ${v.all.win_pct}% won · <b class="${v.all.per_trade >= 0 ? "tp" : "sl"}">${v.all.per_trade}R</b>/trade after spread`).join("<br>") : "";
+  const O = FIBO ? Object.values(FIBO.orders || {}) : [], cl = O.filter(o => o.state === "closed");
+  const eng = !FIBO ? "engine state not written yet (the engine has not run the Fib book)" :
+    `engine ${FIBO.on && FIBO.trading ? '<b class="tp">trading</b>' : '<b class="sl">NOT trading</b>'} (python3 -m engine.run fib on|off) · ` +
+    `${Object.entries(FIBO.rules || {}).map(([r, c]) => r + " " + c.tf).join(", ")} · magic ${FIBO.magic} · open ${O.filter(o => o.state === "open").length} · ` +
+    `waiting ${O.filter(o => o.state === "pending").length} · closed ${cl.length} · net $${cl.reduce((a, o) => a + (o.pnl_usd || 0), 0).toFixed(2)}`;
+  const stC = z => z.status === "won" ? "tp" : z.status === "lost" ? "sl" : ["no trade", "rejected"].includes(z.status) ? "muted" : "en";
+  const rej = R.filter(([, z]) => z.status === "rejected" && z.result != null), rejR = rej.reduce((a, [, z]) => a + z.result, 0);
+  return `<h2 style="color:#e1bee7;margin-top:14px">FIB (class video 5) — THIS CHART</h2>` +
+    `<div class="note">${R.length} setups on ${SYM} ${TF}, newest first · ${done.length} traded here: won ${won}, lost ${done.length - won}, ` +
+    `<b class="${net >= 0 ? "tp" : "sl"}">${net >= 0 ? "+" : ""}${net.toFixed(2)}R</b> before costs. The reject checklist refused ${rej.length} more, ` +
+    `which would have made <b class="${rejR >= 0 ? "tp" : "sl"}">${rejR >= 0 ? "+" : ""}${rejR.toFixed(2)}R</b>. Click one to draw only it (with its reason).` +
+    `<br><b>live versions</b>: retr. = limit 0.382, stop under the swing low, 2R, rejected on 2+ warnings · trend = entry as taught, same stop, 2R, rejected on any warning. ` +
+    `Backtest 2023–2026 (unseen): retr. +0.02 R / trade (6,080 trades), trend +0.04 R (1,446) after spread: small, unproven.` +
+    `${bt ? `<br><span class="muted">as taught (18 pairs + gold, ${FIBBT.made}): ${bt.replace(/<br>/g, " · ")}</span>` : ""}<br>${eng}</div>` +
+    `<table class="trades"><tr class="hd"><td>rule · BOS</td><td>status</td><td>entry</td><td>SL</td><td>TP</td><td>R</td></tr>` +
+    R.slice(0, 60).map(([k, z]) => `<tr class="r fr${FSEL === fibKey(k, z) ? " sel" : ""}" data-k="${fibKey(k, z)}" data-t0="${Math.min(z.t_h, z.t_l || z.t_h)}" data-t1="${z.t_exit || z.t_wend}" title="${fibTip(k, z).replace(/"/g, "&quot;")}">` +
+      `<td><span style="color:${FIBC[k]}">${k === "fbt" ? "trend" : "retr."} ${z.side === "buy" ? "BUY" : "SELL"} s${z.swing}</span><br><span class="muted">${ist(z.t_bos)}</span></td>` +
+      `<td class="${stC(z)}">${z.status}${z.status === "rejected" && z.would && z.result != null ? ` <span class="${z.result > 0 ? "tp" : "sl"}">(${z.result > 0 ? "+" : ""}${z.result})</span>` : ""}${z.why ? `<br><span class="muted" style="font-size:10px">${z.why}</span>` : ""}</td>` +
+      `<td class="en">${z.entry != null && z.t_entry ? fx(z.entry) : z.mark != null && z.live ? "stop " + fx(z.mark) : z.entry_level != null && z.live ? "limit " + fx(z.entry_level) : "–"}</td>` +
+      `<td class="sl">${fx(z.sl)}</td><td class="tp">${fx(z.tp)}</td><td>${z.status === "rejected" ? "–" : z.result != null ? `<b class="${z.result > 0 ? "tp" : "sl"}">${z.result > 0 ? "+" : ""}${z.result}</b>` : z.rr != null ? `<span class="muted">${z.rr}</span>` : "–"}</td></tr>`).join("") +
+    (R.length ? "" : `<tr><td class="muted" colspan="6">no Fib setup on this chart</td></tr>`) + `</table>`;
 }
 // ── DAVID's supply / demand (engine/sd_david.py) ──
 const DVC = {demand: ["76,175,80", "#66bb6a"], supply: ["239,83,80", "#ef5350"]};
