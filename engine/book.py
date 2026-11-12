@@ -688,6 +688,10 @@ class Book:
             save_control(kronos=bool(c.get("on")))
             journal("kronos", on=bool(c.get("on")), by="dashboard")
             log(f"dashboard: kronos trading {'ON' if c.get('on') else 'OFF'}")
+        elif a in ("sdd", "fib"):                   # David 2026-11-12: a strategy room's on / off (control.json)
+            save_control(**{a: bool(c.get("on"))})
+            journal(a, on=bool(c.get("on")), by="dashboard")
+            log(f"dashboard: {a} trading {'ON' if c.get('on') else 'OFF'}")
         elif a == "mt5":
             self.mt5_ops.append(str(c.get("op")))
             journal("mt5_command", op=c.get("op"), by="dashboard")

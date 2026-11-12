@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Strategy Room</title>
+<!-- David 2026-11-12: a strategy's room (/room?s=Kronos). On top: the strategy's version (the commits that changed its
+     files, /api/room) and its controls; then every trade as a chart — in trade, waiting, closed — with entry, stop,
+     target, exit and what the rule looked at (/api/trades, /api/trade/why, /api/trade/bars). Charts draw when they
+     scroll into view. -->
+<style>
+:root{--bg:#0b0e14;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
+--good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.num{font-variant-numeric:tabular-nums}a{color:var(--accent)}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.muted{color:var(--ink3)}
+button,.btn{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 12px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.btn:hover{border-color:var(--accent)}button.arm{background:#5a2a2e;color:#fff}button[aria-pressed=true]{background:#1f2a44;border-color:var(--accent)}
+.toggle.on{background:#123a2c;border-color:var(--good);color:var(--good)}.toggle.off{color:var(--warn)}
+header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.96);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+h1{font-size:16px;margin:0}
+main{padding:16px;display:flex;flex-direction:column;gap:18px;max-width:1600px;margin:0 auto}
+h2{font-size:12px;letter-spacing:.1em;color:var(--ink2);margin:0 0 10px;text-transform:uppercase;font-weight:600;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h2 .muted{text-transform:none;letter-spacing:0;font-weight:400}
+.top{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px}
+@media (max-width:900px){.top{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.panel h3{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.ver{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}.ver b{font-size:22px}
+.hist{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink2)}
+.hist code{color:var(--accent);margin-right:6px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;font-size:12px;color:var(--ink2)}
+.kv b{color:var(--ink);font-weight:500}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat .l{color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.stat .v{font-size:20px;font-weight:650}.stat .s{color:var(--ink2);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:12px}
+@media (max-width:520px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card.won{border-color:#1f5c45}.card.lost{border-color:#5c2a2a}.card.open{border-color:#2d4b8a}.card.wait{border-color:#5c4d1f}
+.ch{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.ch b{font-size:14px}.ch .r{margin-left:auto}
+canvas{display:block;width:100%;height:250px}
+.cf{padding:6px 12px 8px;color:var(--ink3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{color:var(--ink3);padding:10px}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header>
+  <a href="/">← Floor</a>
+  <h1 id="title">Strategy room</h1>
+  <span id="status" class="muted"></span>
+</header>
+<main>
+  <section class="top">
+    <div class="panel">
+      <h3>Version</h3>
+      <div id="version" class="muted">loading…</div>
+    </div>
+    <div class="panel">
+      <h3>Controls</h3>
+      <div class="ctl" id="controls"></div>
+      <div class="kv num" id="settings"></div>
+    </div>
+  </section>
+  <section class="sum" id="sum"></section>
+  <section>
+    <h2>In trade <span class="muted" id="n-open"></span></h2>
+    <div class="grid" id="open"></div>
+  </section>
+  <section>
+    <h2>Waiting <span class="muted" id="n-wait">(limit orders placed, price not there yet)</span></h2>
+    <div class="grid" id="wait"></div>
+  </section>
+  <section>
+    <h2>Closed <span class="muted" id="n-closed"></span><span class="filters" id="cf"></span></h2>
+    <div class="grid" id="closed"></div>
+    <div style="margin-top:12px"><button id="more" style="display:none">show 12 more</button></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = x => x == null ? "–" : (x < 0 ? "−$" : "$") + Math.abs(+x).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const pm = x => x == null ? "–" : `<span class="${x > 0 ? "good" : x < 0 ? "bad" : ""}">${x > 0 ? "+" : ""}${money(x)}</span>`;
+const IST_MS = 19800000;
+const tdt = ms => ms ? new Date(ms + IST_MS).toISOString().slice(5, 16).replace("T", " ") + " IST" : "–";
+const istDay = ms => Math.floor((ms + IST_MS) / 86400000);
+const dgOf = p => Math.abs(p) >= 1000 ? 2 : Math.abs(p) >= 10 ? 3 : 5;
+async function api(path, opts) { const r = await fetch(path, {cache: "no-store", ...(opts || {})}); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+async function cmd(body) { return api("/api/cmd", {method: "POST", headers: {"Content-Type": "application/json", "X-V5": "1"}, body: JSON.stringify(body)}); }
+function armed(btn, label, action) {
+  btn.onclick = async () => {
+    if (btn.dataset.armed) { btn.disabled = true; btn.textContent = "sent…"; try { await action(); } finally { setTimeout(loadRoom, 2500); } return; }
+    btn.dataset.armed = 1; const old = btn.textContent; btn.textContent = label; btn.classList.add("arm");
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; btn.classList.remove("arm"); }, 3000);
+  };
+}
+
+const NAME = new URLSearchParams(location.search).get("s") || "Kronos";
+const RULES = {
+  "V5 engine": "V5 SMC engine — structure, setups and layered entries; structure filters and the profile from the control file; minimum lot.",
+  "S&D David": "David's class video 6 zone: candle A of the first A-B-C gap after a BOS · limit order at A's wick · stop beyond A · target T1 (Fib 0.618) · M15 · minimum lot.",
+  "Kronos": "Kronos-base, 16 paths × 8 M15 bars · ≥ 75 % of the paths on one side · with the M15 BOS / CHoCH trend · a buy only in the pullback (≤ 60 % of the leg) · stop 1 ATR, at most $2 · target ≥ 2 × the stop · out after 8 bars.",
+  "Claude": "Claude's crypto desk: H1 trend pullback / momentum (TP 2 R / 1.5 R) + the Kronos scalp · one trade per symbol · 0.01 lot · no new entries below −$40 a day · exits by the watcher (break-even at +1 R, trail at +1.5 R, 12 h).",
+  "Fib trend": "The class's Fib rules (class video 5): Retracement + Go With Trend, with a reject checklist.",
+};
+document.title = NAME + " room";
+$("#title").textContent = NAME + " — room";
+
+let TR = null, ROOM = null, CF = "all", SHOWN = 12;
+const charts = new Map();                       // card element → trade (drawn when visible)
+
+async function loadRoom() {
+  try { ROOM = await api("/api/room?s=" + encodeURIComponent(NAME)); } catch (e) { ROOM = null; }
+  const v = $("#version");
+  if (!ROOM || !ROOM.known) { v.innerHTML = `<span class="muted">no version record for this strategy yet</span>`; }
+  else {
+    const L = ROOM.latest || {};
+    v.innerHTML = `<div class="ver"><b>v${ROOM.version}</b><span>commit <code>${esc(L.commit || "–")}</code> · ${esc((L.date || "").slice(0, 16).replace("T", " "))}</span></div>
+      <div style="margin-top:4px">${esc(L.subject || "")}</div>
+      <div class="muted" style="margin-top:8px;font-size:12px">Rule now: ${esc(RULES[NAME] || "")}</div>
+      <ul class="hist">${(ROOM.history || []).slice(1).map(h => `<li><code>${esc(h.commit)}</code>${esc(h.date.slice(0, 10))} · ${esc(h.subject)}</li>`).join("")}</ul>
+      <div class="muted" style="margin-top:6px;font-size:11px">version = how many commits changed ${esc((ROOM.files || []).join(", "))}</div>`;
+  }
+  const c = $("#controls");
+  if (ROOM && ROOM.control) {
+    c.innerHTML = `<button id="room-toggle" class="toggle ${ROOM.on ? "on" : "off"}">${ROOM.on ? `${esc(NAME)} trading ON — click to stop` : `${esc(NAME)} OFF — click to trade`}</button>
+      <span class="muted">orders also need engine trading: ${ROOM.trading ? '<b class="good">ON</b>' : '<b class="warn">OFF</b>'}</span>`;
+    armed($("#room-toggle"), ROOM.on ? `confirm: stop ${NAME}` : `confirm: start ${NAME}`, () => cmd({action: ROOM.control, on: !ROOM.on}));
+  } else if (NAME === "V5 engine") {
+    c.innerHTML = `<span>engine trading ${ROOM && ROOM.trading ? '<b class="good">ON</b>' : '<b class="warn">OFF</b>'}</span><span class="muted">the V5 engine follows the main trading switch in the owner's office</span>`;
+  } else if (NAME === "Claude") {
+    c.innerHTML = `<span class="warn">no switch: Claude's scripts run from a Claude session (claude_night.sh, claude_crypto watch, claude_kscalp)</span>`;
+  } else c.innerHTML = `<span class="muted">no controls</span>`;
+  const st = (ROOM && ROOM.settings) || {};
+  $("#settings").innerHTML = Object.entries(st).slice(0, 24).map(([k, v]) => `<span>${esc(k)} <b>${esc(String(v))}</b></span>`).join("");
+}
+
+function card(t, kind) {
+  const won = kind === "closed" && (t.pnl || 0) > 0, lost = kind === "closed" && (t.pnl || 0) < 0;
+  const cls = kind === "open" ? "open" : kind === "wait" ? "wait" : won ? "won" : lost ? "lost" : "";
+  const dg = dgOf(t.entry || 1), f = x => x == null ? "–" : (+x).toFixed(dg);
+  const right = kind === "closed" ? `${pm(t.pnl)} <span class="muted">${esc(t.reason || "")}</span>` : kind === "open" ? `${pm(t.pnl)} <span class="muted">now ${f(t.now)}</span>` : `<span class="muted">limit ${f(t.entry)}</span>`;
+  const when = kind === "closed" ? `${tdt(t.opened_ms)} → ${tdt(t.closed_ms)}` : kind === "open" ? `opened ${tdt(t.opened_ms)}` : `placed ${tdt(t.placed_ms)}`;
+  const el = document.createElement("div");
+  el.className = "card " + cls;
+  el.innerHTML = `<div class="ch num"><b>${esc(t.symbol)}</b><span class="${t.side === "buy" ? "good" : "bad"}">${esc(t.side)}</span>
+      <span>entry ${f(t.entry)} · SL ${f(t.sl)} · TP ${f(t.tp)}${kind === "closed" && t.exit != null ? " · exit " + f(t.exit) : ""}</span><span class="r">${right}</span></div>
+    <canvas></canvas><div class="cf" title="${esc(t.why || "")}">${when} · ${esc(t.why || "")}</div>`;
+  charts.set(el, {t, kind, state: "new"});
+  IO.observe(el);
+  return el;
+}
+
+const IO = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { IO.unobserve(e.target); drawCard(e.target); } }, {rootMargin: "300px"});
+let busy = 0; const queue = [];
+function drawCard(el) { queue.push(el); pump(); }
+async function pump() {
+  while (busy < 3 && queue.length) {
+    const el = queue.shift(), c = charts.get(el); if (!c) continue; busy++;
+    (async () => {
+      const t = c.t, start = t.opened_ms || t.placed_ms || Date.now(), end = c.kind === "closed" ? (t.closed_ms || start) : Date.now();
+      try {
+        const [bars, why] = await Promise.all([
+          api(`/api/trade/bars?sym=${encodeURIComponent(t.symbol)}&tf=M15&from=${start}&to=${end}`),
+          t.has_checks ? api(`/api/trade/why?id=${encodeURIComponent(t.id)}`).catch(() => null) : Promise.resolve(null)]);
+        c.bars = bars.bars || []; c.marks = (why && why.marks) || []; c.start = start; c.end = c.kind === "closed" ? end : null;
+        draw(el, c);
+      } catch (e) { el.querySelector(".cf").textContent = "chart: " + e.message; }
+      busy--; pump();
+    })();
+  }
+}
+const mcol = (c, a) => c && c[0] === "#" ? c : `rgba(${c || "154,164,184"},${a})`;
+function draw(el, c) {
+  const cv = el.querySelector("canvas"), t = c.t, b = c.bars, n = b.length;
+  const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr); g.font = "10px ui-sans-serif,system-ui";
+  if (!n) { g.fillStyle = "#667085"; g.fillText("no candles saved for this time", 12, 20); return; }
+  const idx = ms => { let i = 0; while (i < n - 1 && b[i + 1][0] * 1000 <= ms) i++; return i; };
+  const i0 = idx(c.start), i1 = c.end ? idx(c.end) : n - 1;
+  const a = Math.max(0, i0 - 30), z = Math.min(n - 1, Math.max(i1 + 10, a + 50));
+  const L = 6, R = 64, T = 8, B = 18, sw = (W - L - R) / (z - a + 1), X = i => L + (i - a + .5) * sw;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = a; i <= z; i++) { lo = Math.min(lo, b[i][3]); hi = Math.max(hi, b[i][2]); }
+  const cr = Math.max(hi - lo, 1e-12), far = p => p > hi + 1.5 * cr || p < lo - 1.5 * cr;
+  for (const p of [t.entry, t.sl, t.tp, t.exit]) if (p != null && !far(p)) { lo = Math.min(lo, p); hi = Math.max(hi, p); }
+  for (const m of c.marks) for (const p of (m.type === "box" ? [m.top, m.bottom] : m.type === "line" ? [m.price] : m.type === "path" ? m.p : []))
+    if (p != null && isFinite(p) && !far(p)) { lo = Math.min(lo, p); hi = Math.max(hi, p); }
+  const pad = (hi - lo) * .06 || 1; lo -= pad; hi += pad;
+  const Y = p => T + (hi - p) / (hi - lo) * (H - T - B), dg = dgOf(t.entry || b[n - 1][4]);
+  const xt = ms => { const s = ms / 1000; let k = idx(ms); return X(k) + Math.min(1, Math.max(0, (s - b[k][0]) / 900)) * sw - sw / 2; };
+  g.fillStyle = "#667085";
+  for (let k = 0; k <= 4; k++) { const p = lo + (hi - lo) * k / 4, y = Y(p); g.strokeStyle = "#171c28"; g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke(); g.fillText(p.toFixed(dg), W - R + 4, y + 3); }
+  const every = Math.max(1, Math.round(90 / sw));
+  for (let i = a; i <= z; i++) if (!((i - a) % every)) g.fillText(new Date(b[i][0] * 1000 + IST_MS).toISOString().slice(11, 16), X(i) - 12, H - 5);
+  g.save(); g.beginPath(); g.rect(L, T, W - L - R, H - T - B); g.clip();
+  const xs = c.start ? xt(c.start) : L, xe = c.end ? xt(c.end) : W - R;
+  for (const k of c.marks) {                     // what the rule looked at: zones, levels, the Kronos fan
+    if (k.type === "box") { const xa = k.t0 ? xt(k.t0) : L, xb = k.t1 ? xt(k.t1) : xe; g.fillStyle = mcol(k.color, .15); g.fillRect(xa, Y(k.top), Math.max(1, xb - xa), Math.max(1, Y(k.bottom) - Y(k.top)));
+      g.fillStyle = mcol(k.color, 1); g.fillText(k.label || "", Math.max(xa, L) + 3, Y(k.top) - 3); }
+    else if (k.type === "line") { const xa = k.t0 ? xt(k.t0) : L, xb = k.t1 ? xt(k.t1) : xe; g.strokeStyle = g.fillStyle = mcol(k.color, .85); g.setLineDash(k.dash || []);
+      g.beginPath(); g.moveTo(xa, Y(k.price)); g.lineTo(Math.max(xb, xa + 20), Y(k.price)); g.stroke(); g.setLineDash([]); g.fillText(k.label || "", Math.max(xa, L) + 3, Y(k.price) - 3); }
+    else if (k.type === "path" && k.t && k.t.length) { const px = k.t.map(xt);
+      if (k.band) { g.fillStyle = "rgba(179,136,255,.13)"; g.beginPath(); k.band[1].forEach((p, i) => i ? g.lineTo(px[i], Y(p)) : g.moveTo(px[i], Y(p))); for (let i = k.band[0].length - 1; i >= 0; i--) g.lineTo(px[i], Y(k.band[0][i])); g.closePath(); g.fill(); }
+      g.strokeStyle = mcol(k.color, 1); g.lineWidth = 1.6; g.beginPath(); k.p.forEach((p, i) => i ? g.lineTo(px[i], Y(p)) : g.moveTo(px[i], Y(p))); g.stroke(); g.lineWidth = 1; }
+  }
+  const m = t.meta || {};
+  if (!c.marks.length && m.zone && m.zone_top != null && m.t_a) {          // S&D David: the zone (candle A)
+    const rgb = m.zone === "demand" ? "76,175,80" : "239,83,80", xa = xt(m.t_a);
+    g.fillStyle = `rgba(${rgb},.2)`; g.fillRect(xa, Y(m.zone_top), Math.max(1, xe - xa), Math.max(1, Y(m.zone_bottom) - Y(m.zone_top)));
+    g.fillStyle = `rgba(${rgb},1)`; g.fillText(m.zone.toUpperCase() + " · candle A", Math.max(xa, L) + 3, Y(m.zone_top) - 3);
+  }
+  const cw = Math.max(1, sw * .66);
+  for (let i = a; i <= z; i++) { const q = b[i]; g.strokeStyle = g.fillStyle = q[4] >= q[1] ? "#26a69a" : "#ef5350";
+    g.beginPath(); g.moveTo(X(i), Y(q[2])); g.lineTo(X(i), Y(q[3])); g.stroke();
+    const y1 = Y(Math.max(q[1], q[4])), y2 = Y(Math.min(q[1], q[4])); g.fillRect(X(i) - cw / 2, y1, cw, Math.max(1, y2 - y1)); }
+  g.font = "bold 10px ui-sans-serif,system-ui";
+  for (const [lab, p, col, dash] of [["entry", t.entry, "#e6e9ef", []], ["SL", t.sl, "#ef5350", [5, 4]], ["TP", t.tp, "#66bb6a", [5, 4]]]) {
+    if (p == null || far(p)) continue; const y = Y(p);
+    g.strokeStyle = g.fillStyle = col; g.setLineDash(dash); g.beginPath(); g.moveTo(xs, y); g.lineTo(Math.max(xe, xs + 30), y); g.stroke(); g.setLineDash([]);
+    g.fillText(lab, Math.max(xs, L) + 3, y - 3);
+  }
+  if (c.start) { g.strokeStyle = "rgba(230,233,239,.25)"; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(xs, T); g.lineTo(xs, H - B); g.stroke(); g.setLineDash([]); }
+  if (c.kind === "closed" && t.exit != null && c.end) { const px = xt(c.end), py = Y(t.exit), col = (t.pnl || 0) >= 0 ? "#3ddc97" : "#ff6b6b";
+    g.strokeStyle = col; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(xs, Y(t.entry)); g.lineTo(px, py); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col; g.beginPath(); g.arc(px, py, 4, 0, 7); g.fill(); }
+  g.restore();
+  for (const [lab, p, col] of [["SL", t.sl, "#ef5350"], ["TP", t.tp, "#66bb6a"]]) {      // off the scale: a tag at the edge
+    if (p == null || !far(p)) continue; const top = p > hi; g.fillStyle = col; g.font = "bold 10px ui-sans-serif,system-ui";
+    g.fillText(`${top ? "▲" : "▼"} ${lab} ${p.toFixed(dg)} (off the chart)`, L + 4, top ? T + 10 : H - B - 4); }
+}
+
+function cfShown(r) { return CF === "all" || (CF === "won" ? (r.pnl || 0) > 0 : CF === "lost" ? (r.pnl || 0) < 0 : istDay(r.closed_ms || r.opened_ms || 0) === istDay(Date.now())); }
+function renderClosed() {
+  const C = TR.closed.filter(r => r.strategy === NAME && cfShown(r));
+  const box = $("#closed"); box.innerHTML = "";
+  C.slice(0, SHOWN).forEach(t => box.appendChild(card(t, "closed")));
+  if (!C.length) box.innerHTML = `<div class="empty">no closed trade${CF === "all" ? "" : " in this filter"}</div>`;
+  $("#more").style.display = C.length > SHOWN ? "" : "none";
+  $("#more").textContent = `show 12 more (${C.length - SHOWN} left)`;
+  $("#cf").innerHTML = [["all", "all"], ["today", "today"], ["won", "won"], ["lost", "lost"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${CF === k}">${l}</button>`).join("");
+  document.querySelectorAll("#cf button").forEach(btn => btn.onclick = () => { CF = btn.dataset.f; SHOWN = 12; renderClosed(); });
+}
+$("#more").onclick = () => { SHOWN += 12; renderClosed(); };
+
+let NCLOSED = -1;
+async function loadTrades() {
+  try { TR = await api("/api/trades"); } catch (e) { $("#open").innerHTML = `<div class="empty">engine files not readable: ${esc(e.message)}</div>`; return; }
+  for (const [el] of charts) if (!el.isConnected) charts.delete(el);
+  const O = TR.open.filter(r => r.strategy === NAME), Wt = TR.waiting.filter(r => r.strategy === NAME), C = TR.closed.filter(r => r.strategy === NAME && r.pnl != null);
+  const today = istDay(Date.now()), Ct = C.filter(r => istDay(r.closed_ms || r.opened_ms || 0) === today), sum = a => a.reduce((x, r) => x + (r.pnl || 0), 0);
+  $("#sum").innerHTML = [
+    ["Today P&L", pm(sum(Ct)), `${Ct.length} closed · ${Ct.filter(r => r.pnl > 0).length} won / ${Ct.filter(r => r.pnl < 0).length} lost`],
+    ["In trade", O.length, O.length ? "floating " + money(sum(O)) : ""],
+    ["Waiting", Wt.length, Wt.length ? "limit orders" : ""],
+    ["Since start", pm(sum(C)), `${C.length} closed · ${C.length ? (100 * C.filter(r => r.pnl > 0).length / C.length).toFixed(0) : "–"} % won`],
+  ].map(([l, v, s]) => `<div class="stat"><div class="l">${l}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join("");
+  $("#n-open").textContent = `(${O.length})`;
+  $("#n-closed").textContent = `(${C.length}, newest first)`;
+  const ob = $("#open"); ob.innerHTML = ""; O.forEach(t => ob.appendChild(card(t, "open")));
+  if (!O.length) ob.innerHTML = `<div class="empty">no open trade</div>`;
+  const wb = $("#wait"); wb.innerHTML = ""; Wt.forEach(t => wb.appendChild(card(t, "wait")));
+  if (!Wt.length) wb.innerHTML = `<div class="empty">nothing waiting</div>`;
+  if (C.length !== NCLOSED) { NCLOSED = C.length; renderClosed(); }     // closed charts redraw only when a trade closed
+  const ok = await api("/api/overview").catch(() => null);
+  $("#status").innerHTML = ok ? (Date.now() - ok.at > 120000 ? '<b class="bad">engine stopped?</b>' : `engine updated ${tdt(ok.at)}`) : "";
+}
+addEventListener("resize", () => { for (const [el, c] of charts) if (c.bars) draw(el, c); });
+loadRoom(); loadTrades();
+setInterval(loadRoom, 30000);
+setInterval(loadTrades, 60000);
+</script>
+</body>
+</html>

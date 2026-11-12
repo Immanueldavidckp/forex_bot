@@ -126,21 +126,22 @@ function armed(btn, label, action) {                      // two-step buttons: f
 
 // the rooms: who works there (the employee), what it answers to (the manager = its rule), where Enter goes
 const ROOMS = {
-  "V5 engine": {c: "--v5", door: "Room 1", enter: "/desk?s=V5%20engine",
+  "V5 engine": {c: "--v5", door: "Room 1", enter: "/room?s=V5%20engine",
     staff: [["Employee", "V5 SMC engine — structure, setups, layered entries"], ["Manager", "structure filters on · profile from the control file · minimum lot"]]},
-  "S&D David": {c: "--sd", door: "Room 2", enter: "/smc",
+  "S&D David": {c: "--sd", door: "Room 2", enter: "/room?s=S%26D%20David",
     staff: [["Employee", "David's supply / demand zone finder (class video 6 rule)"], ["Manager", "limit at candle A's wick · stop beyond A · target T1 · minimum lot"]]},
-  "Kronos": {c: "--kr", door: "Room 3", enter: "/kronos",
+  "Kronos": {c: "--kr", door: "Room 3", enter: "/room?s=Kronos",
     staff: [["Employee", "Kronos-base forecaster — 16 symbols, M15, 16 paths"], ["Manager", "≥ 75 % paths · with the M15 BOS / CHoCH trend · buys only in the pullback · stop ≤ $2 · target ≥ 1:2"]]},
-  "Claude": {c: "--cl", door: "Room 4", enter: "/desk?s=Claude",
+  "Claude": {c: "--cl", door: "Room 4", enter: "/room?s=Claude",
     staff: [["Employee", "Claude's crypto desk — H1 trend pullback + Kronos scalp"], ["Manager", "one trade per symbol · 0.01 lot · no new entries below −$40 a day"]]},
 };
-const NEW_ROOM = n => ({c: "--fib", door: "New room", enter: "/desk?s=" + encodeURIComponent(n), staff: [["Employee", n], ["Manager", "its own rule"]]});
+const NEW_ROOM = n => ({c: "--fib", door: "New room", enter: "/room?s=" + encodeURIComponent(n), staff: [["Employee", n], ["Manager", "its own rule"]]});
 const TOOLS = [
   {name: "Trading desk", c: "--tool", enter: "/desk", about: "Every trade of every strategy in one list — click a trade for its entry, stop and target on the candles, and the checklist it passed. The V5 setups and charts."},
   {name: "Backtest", c: "--tool", enter: "/backtest", about: "The V5 engine replayed on past candles: every setup, its result and its chart."},
   {name: "Learn", c: "--tool", enter: "/learn", about: "Draw the structure as it should be (BOS, CHoCH, FVG, supply / demand, fib) — the engine is trained from your drawings."},
   {name: "SMC", c: "--tool", enter: "/smc", about: "The SMC concept table and charts: S&D David zones, BOS / CHoCH, FVG, order flow — and the S&D trade list."},
+  {name: "Kronos page", c: "--tool", enter: "/kronos", about: "Kronos' live forecaster: every symbol's forecast fan, the decisions it made and why, the GPU / CPU status."},
   {name: "Kronos × zones", c: "--tool", enter: "/kzones", about: "Kronos' 50-candle forecast for each fresh S&D David zone: will price touch it? With its scoreboard."},
 ];
 

@@ -30,7 +30,7 @@ from .config import COMMANDS_FILE, DATA_DIR, HERE, OVERVIEW_FILE, VIEW_DIR, PNL_
 
 BT_DIR = os.path.join(DATA_DIR, "backtest")          # written by engine.backtest / bt_report / bt_charts
 
-ACTIONS = {"trading", "cancel_setup", "close_setup", "close_ticket", "mt5", "kronos", "kronos_close"}
+ACTIONS = {"trading", "cancel_setup", "close_setup", "close_ticket", "mt5", "kronos", "kronos_close", "sdd", "fib"}
 KRONOS_DIR = os.path.join(DATA_DIR, "kronos")
 SDD_STATE = os.path.join(DATA_DIR, "sdd", "state.json")                # engine/sdd_book.py → the /smc trade list
 FIB_STATE = os.path.join(DATA_DIR, "fib", "state.json")                # engine/fib_book.py → the /smc Fib list
@@ -40,7 +40,7 @@ MT5_OPS = {"start", "stop", "restart", "login"}
 SYM = re.compile(r"^[A-Za-z0-9._#-]{1,24}$")
 SETUP_ID = re.compile(r"^[A-Za-z0-9._#-]{1,24}-(M5|M15|M30|H1|H4)-[DS]-\d{6,12}$")
 # --public: the control buttons are hidden (the server refuses the POSTs anyway)
-PUBLIC_CSS = (b"<style>#trading,#mt5-restart,#mt5-stop,#mt5-start,[data-close],[data-ticket],[data-cancel],"
+PUBLIC_CSS = (b"<style>#trading,#room-toggle,#mt5-restart,#mt5-stop,#mt5-start,[data-close],[data-ticket],[data-cancel],"
               b"[data-closeset]{display:none!important}</style>")
 # the learn page on the public copy: anyone with the link may LOOK, but drawing needs the secret key in the
 # URL (?key=...) — the labels are training ground truth, and the tunnel link may travel (2026-10-25)
@@ -302,6 +302,49 @@ def _read_json(path):
         return {}
 
 
+# ── a strategy's room (David 2026-11-12: "above the room show the version ... and controls for that") ──
+# the files that ARE the strategy: its version = how many commits changed them, the latest one first
+ROOMS = {
+    "V5 engine": {"files": ["engine/strategy.py", "engine/book.py", "engine/filters.py"], "config": "STRATEGY", "control": None},
+    "S&D David": {"files": ["engine/sdd_book.py", "engine/sd_david.py"], "config": "SDD", "control": "sdd"},
+    "Kronos": {"files": ["engine/kronos_book.py", "concepter/kronos/signals.py"], "config": "KRONOS", "control": "kronos"},
+    "Claude": {"files": ["engine/tools/claude_crypto.py", "engine/tools/claude_kscalp.py", "engine/tools/claude_night.sh"],
+               "config": None, "control": None},
+    "Fib trend": {"files": ["engine/fib_book.py", "engine/fib_trend.py"], "config": "FIB", "control": "fib"},
+}
+_ROOM_GIT: Dict = {}
+
+
+def room_info(name: str) -> bytes:
+    import subprocess
+    import time as _t
+    from . import config as CF
+    r = ROOMS.get(name)
+    if r is None:
+        return json.dumps({"name": name, "known": False}).encode()
+    root = os.path.dirname(HERE)
+    hit = _ROOM_GIT.get(name)
+    if not hit or _t.time() - hit[0] > 120:
+        try:
+            out = subprocess.run(["git", "-C", root, "log", "--format=%h%x09%cI%x09%s", "--", *r["files"]],
+                                 capture_output=True, text=True, timeout=10).stdout.strip().splitlines()
+        except Exception:
+            out = []
+        hist = [dict(zip(("commit", "date", "subject"), x.split("\t", 2))) for x in out if x.count("\t") >= 2]
+        _ROOM_GIT[name] = hit = (_t.time(), hist)
+    hist = hit[1]
+    ctl = CF.load_control()
+    cfg = getattr(CF, r["config"], None) if r["config"] else None
+    settings = {k: v for k, v in (cfg or {}).items()
+                if isinstance(v, (int, float, bool, str)) and k not in ("DIR",) and len(str(v)) <= 60}
+    on = None
+    if r["control"]:
+        on = bool(ctl.get(r["control"], (cfg or {}).get("ENABLED", False)))
+    return json.dumps({"name": name, "known": True, "version": len(hist), "latest": hist[0] if hist else None,
+                       "history": hist[:8], "files": r["files"], "control": r["control"], "on": on,
+                       "trading": bool(ctl.get("trading")), "settings": settings}).encode()
+
+
 def trades_all() -> bytes:
     d = _trade_rows()
     for k in ("open", "closed", "waiting"):        # the checklist + chart marks go out per trade (/api/trade/why)
@@ -506,6 +549,14 @@ class Handler(BaseHTTPRequestHandler):
             if self.public:
                 html = html.replace(b"</head>", PUBLIC_CSS + b"</head>", 1)
             return self._send(200, html, "text/html; charset=utf-8")
+        if u.path == "/room":                # one strategy's room: version + controls, then every trade as a chart
+            with open(os.path.join(HERE, "room.html"), "rb") as f:
+                html = f.read()
+            if self.public:
+                html = html.replace(b"</head>", PUBLIC_CSS + b"</head>", 1)
+            return self._send(200, html, "text/html; charset=utf-8")
+        if u.path == "/api/room":
+            return self._send(200, room_info(q.get("s", "")))
         if u.path == "/api/overview":
             if not self.public:
                 return self._file(OVERVIEW_FILE)
@@ -686,7 +737,7 @@ class Handler(BaseHTTPRequestHandler):
         if c.get("action") not in ACTIONS:
             return self._send(400, b'{"error":"unknown action"}')
         clean = {"action": c["action"]}
-        if c["action"] in ("trading", "kronos"):
+        if c["action"] in ("trading", "kronos", "sdd", "fib"):
             clean["on"] = bool(c.get("on"))
         elif c["action"] == "mt5":
             if c.get("op") not in MT5_OPS:
