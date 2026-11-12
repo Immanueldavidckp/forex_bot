@@ -83,7 +83,7 @@ table.trades tr.r td { border-bottom:1px solid #1a2030 } tr.sel { background:#2a
   <div id="split" title="drag left / right to make the list wider or narrower"></div>
   <aside id="side"></aside>
 </main>
-<footer>times IST · wheel = zoom · drag = scroll · double-click = back to now · hover a zone or line for its numbers · click a trade on the right to show only that one (click again = all) · drag the bar left of the list to resize it · everything is computed here from our own bars, nothing runs in MT5 ·
+<footer>times IST · wheel in the chart = candle width · drag or wheel on the price axis (right) = candle height · drag = move · double-click = normal view again · hover a zone or line for its numbers · click a trade on the right to show only that one (click again = all) · drag the bar left of the list to resize it · everything is computed here from our own bars, nothing runs in MT5 ·
 SMC Zones © Allan Niñal (PolyForm Noncommercial) · LuxAlgo SMC © LuxAlgo, MQL5 port by I. Ladjohounlou (CC BY-NC-SA 4.0)</footer>
 <script>
 "use strict";
@@ -98,6 +98,7 @@ let FIBO = null, FIBBT = null;   // /api/fib: the engine's Fib orders (engine/fi
 let SYMS = [];         // /api/smc/list
 let NEXT_SEL = null;   // a trade clicked in the all-symbols list: select its zone once that chart has loaded
 let SEL = null;   // the one S&D David zone shown alone (its t_break); null = all of them
+let YS = null;          // the price scale set by hand {lo, hi} (drag / wheel on the price axis); null = fitted to the candles on screen
 let D = null, SYM = "", TF = "", VP = null, DRAG = null, HITS = [], LIVE = null, LOADED = 0, POLLED = false;   // LIVE: /api/smc/live (engine/live.py)
 const LAYER = {major: true, ob: true, sd: false, sdd: true, fbt: true, fbr: false, sdbt: false, kcbz: false, sdc: false, sdcc: false, obr: false, liq: true, fvg: true, strat: true, zones: false, lux: false, v5: false, internal: false, mit: false,
   sess: false, cdl: false, cdlall: false, tl: false, cp: false, fib: false, vwap: false, osc: false, vp: false, wy: false, ew: false, of: false};   // default: the SMC row only
@@ -132,7 +133,7 @@ async function load(keepView) {
   $("#status").textContent = `computing ${SYM} ${TF}${BARS ? " — the whole history, the first time takes ~30 s" : ""}…`;
   D = await api(`/api/smc?sym=${encodeURIComponent(SYM)}&tf=${TF}` + (BARS ? "&bars=all" : "")); LOADED = Date.now();
   if (D.error) { $("#status").textContent = D.error; $("#side").innerHTML = ""; D = null; draw(); return; }
-  if (!keepView) VP = null;
+  if (!keepView) { VP = null; YS = null; }
   if (NEXT_SEL != null) { const k = NEXT_SEL; NEXT_SEL = null; focusZone(k); }
   if (!keepView && AT != null && D.bars.length) { const i = idxOf(AT); VP = {a: i - 100, b: i + 60}; AT = null; }
   const s = D.summary, age = Math.round((Date.now() - s.t_last) / 60000);
@@ -390,6 +391,7 @@ function geo() {
   liveBars().forEach((b, k) => { const i = N + k; if (i >= VP.a - 0.5 && i <= VP.b + 0.5) { lo = Math.min(lo, b[3]); hi = Math.max(hi, b[2]); } });
   if (!isFinite(lo)) { lo = 0; hi = 1; }
   const span = (hi - lo) || 1; lo -= span * 0.06; hi += span * 0.06;
+  if (YS) { lo = YS.lo; hi = YS.hi; }                           // David 2026-11-13: the price axis works like TradingView's
   const OSC = (LAYER.osc ? 150 : 0) + (LAYER.of ? 140 : 0);     // RSI + MACD panes, then delta + CVD, under the price
   return {W, H, PR, PT, PB, PL, N, cw, lo, hi, iA, iB, OSC, yBot: H - PB - OSC,
     xi: i => PL + (i - VP.a + 0.5) * cw, xt: t => PL + (idxOf(t) - VP.a + 0.5) * cw,
@@ -1512,9 +1514,17 @@ function sideTA(row) {
 
 // ── interaction ──
 const OV = $("#ov"), TIP = $("#tip");
+// like TradingView (David 2026-11-13): drag or wheel ON THE PRICE AXIS (right) = candle height; wheel in the chart =
+// candle width; drag in the chart = move (up / down too once the height was set by hand); double-click = fitted again
+const onAxis = x => window._G && x > window._G.W - window._G.PR;
+const yScale = (lo, hi, k, mid) => { if (mid == null) mid = (lo + hi) / 2; const h = Math.max((hi - lo) * k, 1e-9); YS = {lo: mid - (mid - lo) / (hi - lo) * h, hi: mid + (hi - mid) / (hi - lo) * h}; };
 OV.addEventListener("mousemove", e => {
   const r = OV.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-  if (DRAG) { const G = window._G; const sh = (DRAG.x - e.clientX) / G.cw; VP = {a: DRAG.a + sh, b: DRAG.b + sh}; draw(); TIP.style.display = "none"; return; }
+  OV.style.cursor = DRAG ? (DRAG.axis ? "ns-resize" : "grabbing") : onAxis(x) ? "ns-resize" : "";
+  if (DRAG && DRAG.axis) { yScale(DRAG.lo, DRAG.hi, Math.exp((e.clientY - DRAG.y) * 0.006)); draw(); TIP.style.display = "none"; return; }   // down = flatter, up = taller
+  if (DRAG) { const G = window._G; const sh = (DRAG.x - e.clientX) / G.cw; VP = {a: DRAG.a + sh, b: DRAG.b + sh};
+    if (YS) { const dp = (e.clientY - DRAG.y) * (DRAG.hi - DRAG.lo) / DRAG.ph; YS = {lo: DRAG.lo + dp, hi: DRAG.hi + dp}; }
+    draw(); TIP.style.display = "none"; return; }
   const hit = HITS.filter(h => x >= h.x0 - 2 && x <= h.x1 + 2 && y >= Math.min(h.y0, h.y1) - 1 && y <= Math.max(h.y0, h.y1) + 1)
     .sort((a, b) => a.area - b.area).slice(0, 3);
   if (!hit.length) { TIP.style.display = "none"; return; }
@@ -1522,15 +1532,19 @@ OV.addEventListener("mousemove", e => {
   TIP.style.left = Math.min(x + 14, r.width - TIP.offsetWidth - 6) + "px"; TIP.style.top = Math.min(y + 14, r.height - TIP.offsetHeight - 6) + "px";
 });
 OV.addEventListener("mouseleave", () => { TIP.style.display = "none"; DRAG = null; });
-OV.addEventListener("mousedown", e => { DRAG = {x: e.clientX, a: VP.a, b: VP.b}; });
+OV.addEventListener("mousedown", e => { const G = window._G; if (!G) return;
+  DRAG = {x: e.clientX, y: e.clientY, a: VP.a, b: VP.b, lo: G.lo, hi: G.hi, ph: G.H - G.PT - G.PB - G.OSC, axis: onAxis(e.clientX - OV.getBoundingClientRect().left)}; });
 window.addEventListener("mouseup", () => { DRAG = null; });
 OV.addEventListener("wheel", e => {
   e.preventDefault(); const G = window._G; if (!G) return;
   const r = OV.getBoundingClientRect(), at = VP.a + (e.clientX - r.left - G.PL) / G.cw, k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+  if (onAxis(e.clientX - r.left)) {                              // on the price axis: the height, around the price under the mouse
+    const py = e.clientY - r.top, mid = G.hi - (py - G.PT) / (G.H - G.PT - G.PB - G.OSC) * (G.hi - G.lo);
+    yScale(G.lo, G.hi, k, Math.min(G.hi, Math.max(G.lo, mid))); return draw(); }
   const w = Math.max(20, Math.min(D.bars.length + 50, (VP.b - VP.a) * k));
   VP = {a: at - (at - VP.a) * w / (VP.b - VP.a), b: at + (VP.b - at) * w / (VP.b - VP.a)}; draw();
 }, {passive: false});
-OV.addEventListener("dblclick", () => { VP = null; draw(); });
+OV.addEventListener("dblclick", e => { YS = null; if (!onAxis(e.clientX - OV.getBoundingClientRect().left)) VP = null; draw(); });   // on the axis: only the height is fitted again
 let TOUCH = null;
 OV.addEventListener("touchstart", e => { TOUCH = {x: e.touches[0].clientX, a: VP.a, b: VP.b}; }, {passive: true});
 OV.addEventListener("touchmove", e => { if (!TOUCH) return; const sh = (TOUCH.x - e.touches[0].clientX) / window._G.cw; VP = {a: TOUCH.a + sh, b: TOUCH.b + sh}; draw(); }, {passive: true});
