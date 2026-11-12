@@ -30,6 +30,9 @@ table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums 
 td { padding:2px 4px; white-space:nowrap } tr.r { cursor:pointer } tr.r:hover { background:#1a2030 }
 .bull { color:var(--bull) } .bear { color:var(--bear) } .note { color:var(--muted); font-size:11px; margin-top:4px }
 footer { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line); font-size:12px }
+#tools { width:34px; flex:none; display:flex; flex-direction:column; gap:4px; padding:6px 3px; border-left:1px solid var(--line); background:#0c1018 }
+#tools button { padding:0; width:28px; height:28px; display:grid; place-items:center; border-radius:6px } #tools button.on { border-color:#5b8def; background:#1a2540; color:#aab6ff }
+#tools button svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round } #tools hr { width:100%; border:0; border-top:1px solid var(--line); margin:2px 0 }
 #split { width:6px; flex:none; cursor:col-resize; background:var(--line) } #split:hover, #split.on { background:#5c6bc0 }
 table.trades td { padding:3px 4px } table.trades tr.hd td { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--line) }
 table.trades tr.r td { border-bottom:1px solid #1a2030 } tr.sel { background:#2a3350 !important; box-shadow:inset 3px 0 #ffd54f }
@@ -80,10 +83,20 @@ table.trades tr.r td { border-bottom:1px solid #1a2030 } tr.sel { background:#2a
 <div id="status">loading…</div>
 <main>
   <div id="wrap"><canvas id="cv"></canvas><canvas id="ov"></canvas><div id="tip"></div></div>
+  <div id="tools">
+    <button data-tool="" class="on" title="pointer: move the chart, click a drawing to select it, drag it or its corners (Esc)"><svg viewBox="0 0 18 18"><path d="M4 2l9 8-4.5.6L11 16l-2 1-2.4-5.3L4 14z"/></svg></button>
+    <button data-tool="h" title="horizontal line: one click at the price"><svg viewBox="0 0 18 18"><path d="M1 9h16"/><circle cx="9" cy="9" r="1.8"/></svg></button>
+    <button data-tool="t" title="trend line: click the first point, then the second"><svg viewBox="0 0 18 18"><path d="M3 14L15 4"/><circle cx="3" cy="14" r="1.8"/><circle cx="15" cy="4" r="1.8"/></svg></button>
+    <button data-tool="b" title="box: click one corner, then the opposite corner"><svg viewBox="0 0 18 18"><rect x="2.5" y="4.5" width="13" height="9"/></svg></button>
+    <button data-tool="f" title="Fib retracement (the class's levels 0 · 0.236 · 0.382 · 0.5 · 0.618 · 0.786 · 1 · 1.618): first click = 1, second click = 0"><svg viewBox="0 0 18 18"><path d="M2 3h14M2 7h14M2 10h14M2 15h14"/></svg></button>
+    <hr>
+    <button id="tool-del" title="delete the selected drawing (Delete key)"><svg viewBox="0 0 18 18"><path d="M3 5h12M7 5V3h4v2M5 5l1 10h6l1-10"/></svg></button>
+    <button id="tool-clear" title="remove every drawing on this symbol"><svg viewBox="0 0 18 18"><path d="M4 4l10 10M14 4L4 14"/></svg></button>
+  </div>
   <div id="split" title="drag left / right to make the list wider or narrower"></div>
   <aside id="side"></aside>
 </main>
-<footer>times IST · wheel in the chart = candle width · drag or wheel on the price axis (right) = candle height · drag = move · double-click = normal view again · hover a zone or line for its numbers · click a trade on the right to show only that one (click again = all) · drag the bar left of the list to resize it · everything is computed here from our own bars, nothing runs in MT5 ·
+<footer>times IST · wheel in the chart = candle width · drag or wheel on the price axis (right) = candle height · drag = move · double-click = normal view again · tools right of the chart: line, trend line, box, Fib (kept in this browser; Delete removes the selected one) · hover a zone or line for its numbers · click a trade on the right to show only that one (click again = all) · drag the bar left of the list to resize it · everything is computed here from our own bars, nothing runs in MT5 ·
 SMC Zones © Allan Niñal (PolyForm Noncommercial) · LuxAlgo SMC © LuxAlgo, MQL5 port by I. Ladjohounlou (CC BY-NC-SA 4.0)</footer>
 <script>
 "use strict";
@@ -134,6 +147,7 @@ async function load(keepView) {
   D = await api(`/api/smc?sym=${encodeURIComponent(SYM)}&tf=${TF}` + (BARS ? "&bars=all" : "")); LOADED = Date.now();
   if (D.error) { $("#status").textContent = D.error; $("#side").innerHTML = ""; D = null; draw(); return; }
   if (!keepView) { VP = null; YS = null; }
+  if (DSYM !== SYM) loadDraws();
   if (NEXT_SEL != null) { const k = NEXT_SEL; NEXT_SEL = null; focusZone(k); }
   if (!keepView && AT != null && D.bars.length) { const i = idxOf(AT); VP = {a: i - 100, b: i + 60}; AT = null; }
   const s = D.summary, age = Math.round((Date.now() - s.t_last) / 60000);
@@ -611,6 +625,7 @@ function draw() {
   if (LAYER.ew) drawElliott(g, G);
   if (LAYER.cdl || LAYER.cdlall) drawCandles(g, G);
   if (G.OSC) { g.restore(); if (LAYER.osc) drawOsc(g, G); if (ofOn()) drawFlowPanes(g, G); }
+  drawDraws(g, G);
   // last price
   const on = liveOn() && LIVE.bid != null, last = on ? LIVE.bid : B[B.length - 1][4], yl = G.y(last);
   g.strokeStyle = on ? "#2962ff" : "#8892b0"; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(G.PL, yl); g.lineTo(W - G.PR, yl); g.stroke(); g.setLineDash([]);
@@ -1512,6 +1527,70 @@ function sideTA(row) {
   return h;
 }
 
+// ── drawing tools (David 2026-11-13: "add the tools to draw the line and box, then trends, then the Fib retracement") ──
+// a drawing = {k: h | t | b | f, a: {t, p}, b: {t, p}} in time + price, so it stays put on every timeframe; kept per
+// symbol in this browser (localStorage). Points snap to the candle, and to its high / low when the mouse is near.
+let TOOL = "", DRAWS = [], DSEL = -1, DNEW = null, DMOVE = null, DSYM = null;
+const FIB_LV = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618];
+const FIB_COL = {0: "#9e9e9e", 0.236: "#ef5350", 0.382: "#ffa726", 0.5: "#66bb6a", 0.618: "#ffd54f", 0.786: "#4fc3f7", 1: "#9e9e9e", 1.618: "#ba68c8"};
+function loadDraws() { DSYM = SYM; DSEL = -1; DNEW = null; try { DRAWS = JSON.parse(localStorage.getItem("smc-draw-" + SYM) || "[]"); } catch (e) { DRAWS = []; } if (!Array.isArray(DRAWS)) DRAWS = []; }
+function saveDraws() { try { localStorage.setItem("smc-draw-" + SYM, JSON.stringify(DRAWS)); } catch (e) {} }
+function setTool(k) { TOOL = k; DNEW = null; document.querySelectorAll("#tools button[data-tool]").forEach(b => b.classList.toggle("on", b.dataset.tool === k)); OV.style.cursor = k ? "crosshair" : ""; if (D) draw(); }
+function ptAt(x, y) {                                       // mouse → {t, p}
+  const G = window._G, B = D.bars, N = B.length, step = TF_MS[TF];
+  const i = Math.round(VP.a + (x - G.PL) / G.cw - 0.5);
+  const t = i < 0 ? B[0][0] + i * step : i > N - 1 ? B[N - 1][0] + (i - N + 1) * step : B[i][0];
+  let p = G.hi - (y - G.PT) / (G.H - G.PT - G.PB - G.OSC) * (G.hi - G.lo);
+  if (i >= 0 && i <= N - 1) for (const q of [B[i][2], B[i][3]]) if (Math.abs(G.y(q) - y) <= 8) { p = q; break; }      // magnet
+  return {t, p};
+}
+const dXY = (G, q) => [G.xt(q.t), G.y(q.p)];
+function fibRows(G, d) {                                    // → [[level, price, y]], x0, x1
+  const [xa] = dXY(G, d.a), [xb] = dXY(G, d.b), x0 = Math.min(xa, xb), x1 = Math.max(Math.max(xa, xb), x0 + 140);
+  return {x0, x1, rows: FIB_LV.map(f => { const p = d.b.p + (d.a.p - d.b.p) * f; return [f, p, G.y(p)]; })};
+}
+function drawDraws(g, G) {
+  const all = DNEW ? [...DRAWS, DNEW] : DRAWS; if (!all.length) return;
+  g.save(); g.beginPath(); g.rect(G.PL, 0, G.W - G.PR - G.PL, G.yBot); g.clip(); g.font = "10px ui-monospace,monospace"; g.textBaseline = "middle";
+  all.forEach((d, n) => {
+    const sel = n === DSEL || d === DNEW, [xa, ya] = dXY(G, d.a), [xb, yb] = dXY(G, d.b), col = sel ? "#82b1ff" : "#5b8def";
+    g.lineWidth = sel ? 2 : 1.4; g.strokeStyle = col; g.setLineDash([]);
+    if (d.k === "h") { g.beginPath(); g.moveTo(G.PL, ya); g.lineTo(G.W - G.PR, ya); g.stroke(); g.fillStyle = col; g.textAlign = "right"; g.fillText(fx(d.a.p), G.W - G.PR - 4, ya - 7); }
+    else if (d.k === "t") { g.beginPath(); g.moveTo(xa, ya); g.lineTo(xb, yb); g.stroke(); }
+    else if (d.k === "b") { g.fillStyle = "rgba(91,141,239,.12)"; g.fillRect(xa, ya, xb - xa, yb - ya); g.strokeRect(xa, ya, xb - xa, yb - ya);
+      if (sel) { g.fillStyle = col; g.textAlign = "left"; g.fillText(`${fx(Math.max(d.a.p, d.b.p))} – ${fx(Math.min(d.a.p, d.b.p))}`, Math.min(xa, xb) + 4, Math.min(ya, yb) - 7); } }
+    else if (d.k === "f") { const F = fibRows(G, d), y5 = F.rows[3][2], y6 = F.rows[4][2];
+      g.fillStyle = "rgba(255,213,79,.10)"; g.fillRect(F.x0, Math.min(y5, y6), F.x1 - F.x0, Math.abs(y6 - y5));       // the golden zone 0.5 – 0.618
+      g.lineWidth = 1; g.strokeStyle = "rgba(160,170,190,.6)"; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(xa, ya); g.lineTo(xb, yb); g.stroke(); g.setLineDash([]);
+      g.lineWidth = sel ? 1.6 : 1.1; g.textAlign = "left";
+      for (const [f, p, y] of F.rows) { g.strokeStyle = g.fillStyle = FIB_COL[f]; g.beginPath(); g.moveTo(F.x0, y); g.lineTo(F.x1, y); g.stroke(); g.fillText(`${f}  ${fx(p)}`, F.x0 + 4, y - 7); } }
+    if (sel) { g.fillStyle = "#0b0e14"; g.strokeStyle = "#82b1ff"; g.lineWidth = 1.5; for (const [x, y] of d.k === "h" ? [[Math.max(G.PL + 8, Math.min(G.W - G.PR - 8, xa)), ya]] : [[xa, ya], [xb, yb]]) { g.beginPath(); g.arc(x, y, 4.5, 0, 6.3); g.fill(); g.stroke(); } }
+  });
+  g.restore(); g.lineWidth = 1; g.textAlign = "left";
+}
+const segDist = (x, y, x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1, L = dx * dx + dy * dy, u = L ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / L)) : 0; return Math.hypot(x - x1 - u * dx, y - y1 - u * dy); };
+function drawHit(x, y) {                                    // → {i, part: "a" | "b" | "all"} of the drawing under the mouse
+  const G = window._G; if (!G || x > G.W - G.PR || y > G.yBot) return null;
+  for (let i = DRAWS.length - 1; i >= 0; i--) {
+    const d = DRAWS[i], [xa, ya] = dXY(G, d.a), [xb, yb] = dXY(G, d.b);
+    if (d.k !== "h") { if (Math.hypot(x - xa, y - ya) <= 8) return {i, part: "a"}; if (Math.hypot(x - xb, y - yb) <= 8) return {i, part: "b"}; }
+    let near = false;
+    if (d.k === "h") near = Math.abs(y - ya) <= 5;
+    else if (d.k === "t") near = segDist(x, y, xa, ya, xb, yb) <= 5;
+    else if (d.k === "b") near = [[xa, ya, xb, ya], [xb, ya, xb, yb], [xb, yb, xa, yb], [xa, yb, xa, ya]].some(q => segDist(x, y, ...q) <= 5);
+    else { const F = fibRows(G, d); near = segDist(x, y, xa, ya, xb, yb) <= 5 || (x >= F.x0 - 3 && x <= F.x1 + 3 && F.rows.some(r => Math.abs(y - r[2]) <= 4)); }
+    if (near) return {i, part: "all"};
+  }
+  return null;
+}
+function delDraw() { if (DSEL < 0) return; DRAWS.splice(DSEL, 1); DSEL = -1; saveDraws(); draw(); }
+document.querySelectorAll("#tools button[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
+$("#tool-del").onclick = delDraw;
+$("#tool-clear").onclick = () => { if (!DRAWS.length) return; const b = $("#tool-clear"); if (b.dataset.sure) { DRAWS = []; DSEL = -1; saveDraws(); draw(); delete b.dataset.sure; b.classList.remove("on"); }
+  else { b.dataset.sure = 1; b.classList.add("on"); b.title = "click again to remove every drawing on " + SYM; setTimeout(() => { delete b.dataset.sure; b.classList.remove("on"); }, 3000); } };
+window.addEventListener("keydown", e => { if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (e.key === "Escape") { DSEL = -1; setTool(""); } else if ((e.key === "Delete" || e.key === "Backspace") && DSEL >= 0) { e.preventDefault(); delDraw(); } });
+
 // ── interaction ──
 const OV = $("#ov"), TIP = $("#tip");
 // like TradingView (David 2026-11-13): drag or wheel ON THE PRICE AXIS (right) = candle height; wheel in the chart =
@@ -1520,7 +1599,12 @@ const onAxis = x => window._G && x > window._G.W - window._G.PR;
 const yScale = (lo, hi, k, mid) => { if (mid == null) mid = (lo + hi) / 2; const h = Math.max((hi - lo) * k, 1e-9); YS = {lo: mid - (mid - lo) / (hi - lo) * h, hi: mid + (hi - mid) / (hi - lo) * h}; };
 OV.addEventListener("mousemove", e => {
   const r = OV.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-  OV.style.cursor = DRAG ? (DRAG.axis ? "ns-resize" : "grabbing") : onAxis(x) ? "ns-resize" : "";
+  if (DNEW) { DNEW.b = ptAt(x, y); if (DNEW.k === "h") DNEW.a = DNEW.b; draw(); TIP.style.display = "none"; return; }
+  if (DMOVE) { const q = ptAt(x, y), d = DRAWS[DMOVE.i];
+    if (DMOVE.part === "all") { const dt = q.t - DMOVE.q.t, dp = q.p - DMOVE.q.p; d.a = {t: DMOVE.a.t + dt, p: DMOVE.a.p + dp}; d.b = {t: DMOVE.b.t + dt, p: DMOVE.b.p + dp}; }
+    else { d[DMOVE.part] = q; if (d.k === "h") d.a = d.b = q; }
+    DMOVE.moved = true; draw(); TIP.style.display = "none"; return; }
+  OV.style.cursor = DRAG ? (DRAG.axis ? "ns-resize" : "grabbing") : onAxis(x) ? "ns-resize" : TOOL ? "crosshair" : drawHit(x, y) ? "pointer" : "";
   if (DRAG && DRAG.axis) { yScale(DRAG.lo, DRAG.hi, Math.exp((e.clientY - DRAG.y) * 0.006)); draw(); TIP.style.display = "none"; return; }   // down = flatter, up = taller
   if (DRAG) { const G = window._G; const sh = (DRAG.x - e.clientX) / G.cw; VP = {a: DRAG.a + sh, b: DRAG.b + sh};
     if (YS) { const dp = (e.clientY - DRAG.y) * (DRAG.hi - DRAG.lo) / DRAG.ph; YS = {lo: DRAG.lo + dp, hi: DRAG.hi + dp}; }
@@ -1531,10 +1615,22 @@ OV.addEventListener("mousemove", e => {
   TIP.textContent = hit.map(h => h.tip).join("\n────────\n"); TIP.style.display = "block";
   TIP.style.left = Math.min(x + 14, r.width - TIP.offsetWidth - 6) + "px"; TIP.style.top = Math.min(y + 14, r.height - TIP.offsetHeight - 6) + "px";
 });
-OV.addEventListener("mouseleave", () => { TIP.style.display = "none"; DRAG = null; });
+OV.addEventListener("mouseleave", () => { TIP.style.display = "none"; DRAG = null; if (DMOVE) { saveDraws(); DMOVE = null; } });
 OV.addEventListener("mousedown", e => { const G = window._G; if (!G) return;
+  const r0 = OV.getBoundingClientRect(), mx = e.clientX - r0.left, my = e.clientY - r0.top;
+  if (!onAxis(mx) && e.button === 0) {
+    if (TOOL) {                                             // click – click (or press – drag – release) makes the drawing
+      if (DNEW) return endDraw();
+      const q = ptAt(mx, my); DNEW = {k: TOOL, a: q, b: q, x: mx, y: my}; if (TOOL === "h") endDraw(); else draw(); return; }
+    const h = drawHit(mx, my);
+    if (h) { DSEL = h.i; const d = DRAWS[h.i]; DMOVE = {...h, q: ptAt(mx, my), a: {...d.a}, b: {...d.b}}; draw(); return; }
+    if (DSEL >= 0) { DSEL = -1; draw(); }
+  }
   DRAG = {x: e.clientX, y: e.clientY, a: VP.a, b: VP.b, lo: G.lo, hi: G.hi, ph: G.H - G.PT - G.PB - G.OSC, axis: onAxis(e.clientX - OV.getBoundingClientRect().left)}; });
-window.addEventListener("mouseup", () => { DRAG = null; });
+function endDraw() { const d = DNEW; DNEW = null; if (!d) return; DRAWS.push({k: d.k, a: d.a, b: d.b}); DSEL = DRAWS.length - 1; saveDraws(); setTool(""); }
+window.addEventListener("mouseup", e => { DRAG = null;
+  if (DMOVE) { if (DMOVE.moved) saveDraws(); DMOVE = null; }
+  if (DNEW) { const r = OV.getBoundingClientRect(); if (Math.hypot(e.clientX - r.left - DNEW.x, e.clientY - r.top - DNEW.y) > 6) endDraw(); } });
 OV.addEventListener("wheel", e => {
   e.preventDefault(); const G = window._G; if (!G) return;
   const r = OV.getBoundingClientRect(), at = VP.a + (e.clientX - r.left - G.PL) / G.cw, k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
@@ -1544,7 +1640,7 @@ OV.addEventListener("wheel", e => {
   const w = Math.max(20, Math.min(D.bars.length + 50, (VP.b - VP.a) * k));
   VP = {a: at - (at - VP.a) * w / (VP.b - VP.a), b: at + (VP.b - at) * w / (VP.b - VP.a)}; draw();
 }, {passive: false});
-OV.addEventListener("dblclick", e => { YS = null; if (!onAxis(e.clientX - OV.getBoundingClientRect().left)) VP = null; draw(); });   // on the axis: only the height is fitted again
+OV.addEventListener("dblclick", e => { if (TOOL || DNEW || drawHit(e.clientX - OV.getBoundingClientRect().left, e.clientY - OV.getBoundingClientRect().top)) return; YS = null; if (!onAxis(e.clientX - OV.getBoundingClientRect().left)) VP = null; draw(); });   // on the axis: only the height is fitted again
 let TOUCH = null;
 OV.addEventListener("touchstart", e => { TOUCH = {x: e.touches[0].clientX, a: VP.a, b: VP.b}; }, {passive: true});
 OV.addEventListener("touchmove", e => { if (!TOUCH) return; const sh = (TOUCH.x - e.touches[0].clientX) / window._G.cw; VP = {a: TOUCH.a + sh, b: TOUCH.b + sh}; draw(); }, {passive: true});
