@@ -45,6 +45,7 @@ class FakeBridge:
 @pytest.fixture
 def store(monkeypatch, tmp_path):
     monkeypatch.setattr(ticks, "TICK_DIR", str(tmp_path))
+    monkeypatch.setattr(ticks, "KEEP_DAYS", 10 ** 5)   # prune() uses the real clock: the fixed test days must not age out
     return ticks.Store()
 
 
