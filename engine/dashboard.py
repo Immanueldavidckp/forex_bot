@@ -30,7 +30,7 @@ from .config import COMMANDS_FILE, DATA_DIR, HERE, OVERVIEW_FILE, VIEW_DIR, PNL_
 
 BT_DIR = os.path.join(DATA_DIR, "backtest")          # written by engine.backtest / bt_report / bt_charts
 
-ACTIONS = {"trading", "cancel_setup", "close_setup", "close_ticket", "mt5", "kronos", "kronos_close", "sdd", "fib"}
+ACTIONS = {"trading", "cancel_setup", "close_setup", "close_ticket", "mt5", "kronos", "kronos_close", "sdd", "fib", "sdd_layers"}
 KRONOS_DIR = os.path.join(DATA_DIR, "kronos")
 SDD_STATE = os.path.join(DATA_DIR, "sdd", "state.json")                # engine/sdd_book.py → the /smc trade list
 FIB_STATE = os.path.join(DATA_DIR, "fib", "state.json")                # engine/fib_book.py → the /smc Fib list
@@ -311,6 +311,7 @@ ROOMS = {
     "Claude": {"files": ["engine/tools/claude_crypto.py", "engine/tools/claude_kscalp.py", "engine/tools/claude_night.sh"],
                "config": None, "control": None},
     "Fib trend": {"files": ["engine/fib_book.py", "engine/fib_trend.py"], "config": "FIB", "control": "fib"},
+    "S&D layers": {"files": ["engine/sdd_layers.py"], "config": "SDD_LAYERS", "control": "sdd_layers"},
 }
 _ROOM_GIT: Dict = {}
 
@@ -343,6 +344,48 @@ def room_info(name: str) -> bytes:
     return json.dumps({"name": name, "known": True, "version": len(hist), "latest": hist[0] if hist else None,
                        "history": hist[:8], "files": r["files"], "control": r["control"], "on": on,
                        "trading": bool(ctl.get("trading")), "settings": settings}).encode()
+
+
+def sdd_compare() -> bytes:
+    """S&D David (one entry at A's wick, all out at T1) vs S&D layers (3 entries, 3 targets) on the SAME zones, zone by
+    zone (David 2026-11-12: "track this vs now normal tp how this differ"). Only zones the layered book saw count: from
+    the day it went live. A zone is 'done' when neither side has anything waiting or open."""
+    nrm = (_read_json(SDD_STATE).get("orders") or {})
+    lay = (_read_json(os.path.join(DATA_DIR, "sdd_layers", "state.json")).get("orders") or {})
+    by: Dict[str, list] = {}
+    for o in lay.values():
+        by.setdefault(o["zone_id"], []).append(o)
+    rows = []
+    for zid, Ls in by.items():
+        n = nrm.get(zid)
+        Ls = sorted(Ls, key=lambda x: x["layer"])
+        live = lambda st: st in ("pending", "open")
+        real = [x for x in Ls if x["state"] not in ("skipped",)]
+        if not real and not n:
+            continue
+        r = {"zone_id": zid, "symbol": Ls[0]["symbol"], "side": Ls[0]["side"], "placed_ms": min(x.get("placed_ms") or 0 for x in Ls),
+             "normal": None if not n else {"state": n.get("state"), "pnl": n.get("pnl_usd"), "pnl_now": n.get("pnl_now"),
+                                            "end": n.get("end"), "entry": n.get("entry"), "price": n.get("price"), "tp": n.get("tp")},
+             "layers": [{"k": x["layer"], "state": x["state"], "pnl": x.get("pnl_usd"), "pnl_now": x.get("pnl_now"), "end": x.get("end"),
+                         "price": x.get("price"), "tp": x.get("tp")} for x in Ls]}
+        r["layers_pnl"] = round(sum(x.get("pnl_usd") or 0 for x in Ls if x["state"] == "closed"), 2)
+        r["layers_float"] = round(sum(x.get("pnl_now") or 0 for x in Ls if x["state"] == "open"), 2)
+        r["layers_filled"] = sum(1 for x in Ls if x["state"] in ("open", "closed"))
+        r["normal_pnl"] = (n or {}).get("pnl_usd") if (n or {}).get("state") == "closed" else (0.0 if n and n.get("state") == "cancelled" else None)
+        r["done"] = not any(live(x["state"]) for x in Ls) and not (n and live(n.get("state")))
+        rows.append(r)
+    rows.sort(key=lambda r: r["placed_ms"], reverse=True)
+    D = [r for r in rows if r["done"]]
+    tot = {"zones": len(rows), "done": len(D),
+           "normal_pnl": round(sum(r["normal_pnl"] or 0 for r in D), 2), "layers_pnl": round(sum(r["layers_pnl"] for r in D), 2),
+           "normal_traded": sum(1 for r in D if r["normal"] and r["normal"]["state"] == "closed"),
+           "layers_traded": sum(1 for r in D if r["layers_filled"]),
+           "layers_better": sum(1 for r in D if r["layers_pnl"] > (r["normal_pnl"] or 0) + 1e-9),
+           "normal_better": sum(1 for r in D if (r["normal_pnl"] or 0) > r["layers_pnl"] + 1e-9),
+           "normal_open_pnl": round(sum(((r["normal"] or {}).get("pnl_now") or 0) for r in rows
+                                        if not r["done"] and (r["normal"] or {}).get("state") == "open"), 2),
+           "layers_open_pnl": round(sum(r["layers_float"] for r in rows if not r["done"]), 2)}
+    return json.dumps({"totals": tot, "zones": rows[:300]}).encode()
 
 
 def trades_all() -> bytes:
@@ -431,6 +474,23 @@ def _trade_rows() -> Dict:
             waiting.append({**base, "entry": o.get("price"), "placed_ms": o.get("placed_ms")})
         elif st != "cancelled" and o.get("opened_ms"):
             opens.append({**base, "opened_ms": o.get("opened_ms"), "now": o.get("price_now"), "pnl": o.get("pnl_now")})
+    sl = _read_json(os.path.join(DATA_DIR, "sdd_layers", "state.json"))       # S&D David with layer entries (sdd_layers.py)
+    for o in (sl.get("orders") or {}).values():
+        st = o.get("state")
+        if st in ("skipped", "cancelled"):
+            continue
+        meta = {"zone": o.get("zone"), "zone_top": o.get("zone_top"), "zone_bottom": o.get("zone_bottom"), "t_a": o.get("t_a"),
+                "t_break": o.get("t_break"), "rr": o.get("rr"), "risk_usd": o.get("risk_usd"), "layer": o.get("layer"),
+                "zone_id": o.get("zone_id"), "checks": o.get("checks"), "marks": o.get("marks")}
+        base = row("S&D layers", {**o, "entry": o.get("entry", o.get("price"))}, id="Y" + o["id"], ticket=o.get("ticket"), meta=meta,
+                   why=f"S&D layer L{o.get('layer')} ({o.get('where')}) of zone {o.get('zone_id')}, one stop beyond A, TP{o.get('layer')}")
+        if st == "closed":
+            closed.append({**base, "opened_ms": o.get("opened_ms") or o.get("placed_ms"), "closed_ms": o.get("ended_ms"),
+                           "exit": o.get("exit"), "pnl": o.get("pnl_usd"), "reason": o.get("end")})
+        elif st == "pending":
+            waiting.append({**base, "entry": o.get("price"), "placed_ms": o.get("placed_ms")})
+        elif st == "open":
+            opens.append({**base, "opened_ms": o.get("opened_ms"), "now": o.get("price_now"), "pnl": o.get("pnl_now")})
     ov = _read_json(os.path.join(DATA_DIR, "overview.json"))
     pos = {p.get("ticket"): p for p in ov.get("positions", [])}
     for t in ov.get("trades", []):                          # V5 engine, open
@@ -448,7 +508,7 @@ def _trade_rows() -> Dict:
     closed.sort(key=lambda r: r.get("closed_ms") or r.get("opened_ms") or 0, reverse=True)
     opens.sort(key=lambda r: r.get("opened_ms") or 0, reverse=True)
     waiting.sort(key=lambda r: r.get("placed_ms") or 0, reverse=True)
-    names = ["V5 engine", "S&D David", "Kronos", "Claude"]
+    names = ["V5 engine", "S&D David", "S&D layers", "Kronos", "Claude"]
     tot = {n: {"open": sum(r["strategy"] == n for r in opens), "closed": sum(r["strategy"] == n for r in closed),
                "waiting": sum(r["strategy"] == n for r in waiting),
                "won": sum(r["strategy"] == n and (r.get("pnl") or 0) > 0 for r in closed),
@@ -555,6 +615,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.public:
                 html = html.replace(b"</head>", PUBLIC_CSS + b"</head>", 1)
             return self._send(200, html, "text/html; charset=utf-8")
+        if u.path == "/api/sdd/compare":
+            return self._send(200, sdd_compare())
         if u.path == "/api/room":
             return self._send(200, room_info(q.get("s", "")))
         if u.path == "/api/overview":
@@ -737,7 +799,7 @@ class Handler(BaseHTTPRequestHandler):
         if c.get("action") not in ACTIONS:
             return self._send(400, b'{"error":"unknown action"}')
         clean = {"action": c["action"]}
-        if c["action"] in ("trading", "kronos", "sdd", "fib"):
+        if c["action"] in ("trading", "kronos", "sdd", "fib", "sdd_layers"):
             clean["on"] = bool(c.get("on"))
         elif c["action"] == "mt5":
             if c.get("op") not in MT5_OPS:

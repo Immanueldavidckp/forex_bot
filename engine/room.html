@@ -76,6 +76,7 @@ h2 .muted{text-transform:none;letter-spacing:0;font-weight:400}
     </div>
   </section>
   <section class="sum" id="sum"></section>
+  <section class="box closed" id="box-cmp" style="display:none"></section>
   <section class="box open" id="box-open"></section>
   <section class="box closed" id="box-closed"></section>
   <section class="box wait" id="box-wait"></section>
@@ -106,6 +107,7 @@ const RULES = {
   "Kronos": "Kronos-base, 16 paths × 8 M15 bars · ≥ 75 % of the paths on one side · with the M15 BOS / CHoCH trend · a buy only in the pullback (≤ 60 % of the leg) · stop 1 ATR, at most $2 · target ≥ 2 × the stop · out after 8 bars.",
   "Claude": "Claude's crypto desk: H1 trend pullback / momentum (TP 2 R / 1.5 R) + the Kronos scalp · one trade per symbol · 0.01 lot · no new entries below −$40 a day · exits by the watcher (break-even at +1 R, trail at +1.5 R, 12 h).",
   "Fib trend": "The class's Fib rules (class video 5): Retracement + Go With Trend, with a reject checklist.",
+  "S&D layers": "The S&D David zones traded the class-6 way: L1 at the FVG's near edge, L2 at candle A's wick (= the normal entry), L3 at A's 50 % line · one stop beyond A · L1 → 50 %, L2 → 75 %, L3 → 100 % of the way from L1 to the leg's extreme · a target hit cancels the waiting layers and moves the open ones to break-even (the last one to TP1 after two targets) · 0.01 lot per layer.",
 };
 document.title = NAME + " room";
 $("#title").textContent = NAME + " — room";
@@ -305,7 +307,32 @@ function refreshOpen() {                       // same open trades: update P&L /
   select("open", BOX.open.sel, true);
 }
 addEventListener("resize", () => { for (const B of Object.values(BOX)) if (B.chart && B.chart.cv.isConnected) draw(B.chart.cv, B.chart.c); });
-loadRoom(); loadTrades();
+// S&D David vs S&D layers on the same zones (David 2026-11-12: "track this vs now normal tp how this differ")
+async function loadCompare() {
+  if (!["S&D David", "S&D layers"].includes(NAME)) return;
+  let d; try { d = await api("/api/sdd/compare"); } catch (e) { return; }
+  const el = $("#box-cmp"), T = d.totals || {}; el.style.display = "";
+  const st = x => x == null ? "–" : x;
+  const nTxt = n => !n ? '<span class="muted">no order</span>' : n.state === "closed" ? `${pm(n.pnl)} <span class="muted">${esc(n.end || "")}</span>`
+    : n.state === "open" ? `open ${pm(n.pnl_now)}` : `<span class="muted">${esc(n.state)}</span>`;
+  const lTxt = L => L.map(x => `<span title="${esc(x.end || x.state)}">L${x.k} ${x.state === "closed" ? pm(x.pnl) + ` <span class="muted">${esc(x.end || "")}</span>`
+    : x.state === "open" ? "open " + pm(x.pnl_now) : `<span class="muted">${esc(x.state)}</span>`}</span>`).join(" · ");
+  el.innerHTML = `<div class="bh"><b>Normal vs layers</b><span class="muted">the same zones, since the layers went live · finished zones only in the totals</span></div>
+    <div class="sum" style="padding:12px 14px">
+      <div class="stat"><div class="l">Normal (1 entry, T1)</div><div class="v num">${pm(T.normal_pnl)}</div><div class="s">${st(T.normal_traded)} traded of ${st(T.done)} finished zones · open ${money(T.normal_open_pnl)}</div></div>
+      <div class="stat"><div class="l">Layers (3 entries, 3 targets)</div><div class="v num">${pm(T.layers_pnl)}</div><div class="s">${st(T.layers_traded)} traded of ${st(T.done)} finished zones · open ${money(T.layers_open_pnl)}</div></div>
+      <div class="stat"><div class="l">Difference (layers − normal)</div><div class="v num">${pm((T.layers_pnl || 0) - (T.normal_pnl || 0))}</div><div class="s">layers better on ${st(T.layers_better)} zones · normal better on ${st(T.normal_better)}</div></div>
+      <div class="stat"><div class="l">Zones</div><div class="v num">${st(T.zones)}</div><div class="s">${st(T.done)} finished · ${(T.zones || 0) - (T.done || 0)} still running</div></div>
+    </div>
+    <div class="list" style="max-height:340px;border-right:0;border-top:1px solid var(--line)"><table class="num"><thead><tr><th>Zone</th><th>Side</th><th>Placed IST</th><th>Normal</th><th>Layers</th><th class="r">Layers total</th><th class="r">Difference</th></tr></thead><tbody>`
+    + ((d.zones || []).map(r => { const lt = r.layers_pnl + (r.done ? 0 : r.layers_float), nn = r.normal_pnl;
+        return `<tr><td><b>${esc(r.symbol)}</b> <span class="muted">${esc(r.zone_id.split("-").pop())}</span></td><td class="${r.side === "buy" ? "good" : "bad"}">${esc(r.side)}</td>`
+          + `<td>${tds(r.placed_ms)}</td><td>${nTxt(r.normal)}</td><td>${lTxt(r.layers)}</td><td class="r">${r.layers_filled ? pm(lt) : "–"}${r.done ? "" : ' <span class="muted">running</span>'}</td>`
+          + `<td class="r">${r.done ? pm(r.layers_pnl - (nn || 0)) : "–"}</td></tr>`; }).join("") || `<tr><td colspan="7" class="empty">no zone yet — the layers start on the next fresh zone</td></tr>`)
+    + `</tbody></table></div>`;
+}
+loadRoom(); loadTrades(); loadCompare();
+setInterval(loadCompare, 60000);
 setInterval(loadRoom, 30000);
 setInterval(loadTrades, 60000);
 </script>

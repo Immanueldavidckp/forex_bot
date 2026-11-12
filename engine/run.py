@@ -11,6 +11,7 @@ engine/run.py — the V5 engine's loop and commands. Run from ~/forex with the s
                                                     profile, or "profit" (no caps + the cost gate, David 2026-10-30)
     python3 -m engine.run kronos on|off|status       Kronos' trades (engine/kronos_book.py; forecasts: service kronos-signals)
     python3 -m engine.run sdd on|off|status          DAVID's S&D zones traded on M15 (engine/sdd_book.py)
+    python3 -m engine.run sdd_layers on|off|status   S&D David with layer entries, same zones (engine/sdd_layers.py)
     python3 -m engine.run fib on|off|status          the class's Fib rules, video 5, live versions (engine/fib_book.py)
 
 Every loop_sec: read the account / positions / pending layers, apply the dashboard's commands, manage
@@ -35,6 +36,8 @@ from . import kronos_book as KB
 from .sdd_book import SddBook
 from . import sdd_book as SB
 from .fib_book import FibBook
+from .sdd_layers import SddLayerBook
+from . import sdd_layers as SL
 from . import fib_book as FB
 from .terminal import Terminal
 
@@ -137,10 +140,13 @@ def cmd_run(a) -> int:
     sdd = SddBook(feed)
     log(f"S&D David: {len(sdd.symbols())} symbols on {SB.S['TF']}, limit orders at the zone, target T{SB.S['TARGET']}, "
         f"magic {sdd.magic}, {'ON' if SB.enabled() else 'off'}")
+    sdl = SddLayerBook(sdd)
+    log(f"S&D layers (class video 6): L1 FVG edge / L2 A's wick / L3 A's 50 %, targets {SL.S['TP_FRACS']} of the way to the "
+        f"leg's extreme, magic {sdl.magic}, {'ON' if SL.enabled() else 'off'}")
     fibb = FibBook(feed)
     log(f"Fib (class video 5): {', '.join(FB.RULES)}, {len(FB.S['SYMBOLS'])} symbols, "
         f"magic {fibb.magic}, {'ON' if FB.enabled() else 'off'}")
-    s_err = f_err = ""
+    s_err = f_err = l_err = ""
     k_err = l_err = ""
     errors = 0
     first = True
@@ -190,6 +196,14 @@ def cmd_run(a) -> int:
                     log(f"sdd: {type(e).__name__}: {e}")
                     traceback.print_exc()
                 s_err = str(e)
+            try:                                  # S&D David with layer entries (same zones): never stop V5 either
+                sdl.step(trading, book.account)
+                l_err = ""
+            except Exception as e:
+                if str(e) != l_err:
+                    log(f"sdd layers: {type(e).__name__}: {e}")
+                    traceback.print_exc()
+                l_err = str(e)
             try:                                  # the class's Fib rules: never stop V5 either
                 fibb.step(trading, book.account)
                 f_err = ""
@@ -257,6 +271,16 @@ def cmd_sdd(a) -> int:
     return 0
 
 
+def cmd_sdd_layers(a) -> int:
+    if a.state != "status":
+        save_control(sdd_layers=a.state == "on")
+        journal("sdd_layers", on=a.state == "on", by="cli")
+    c = load_control()
+    print(f"S&D layers trading {'ON' if SL.enabled() else 'off'} (control.json: {c.get('sdd_layers')}, config default: "
+          f"{SL.S['ENABLED']}); orders also need engine trading {'ON' if c['trading'] else 'off'}; targets {SL.S['TP_FRACS']}")
+    return 0
+
+
 def cmd_fib(a) -> int:
     if a.state != "status":
         save_control(fib=a.state == "on")
@@ -303,11 +327,13 @@ def main() -> int:
     kr.add_argument("state", choices=["on", "off", "status"])
     sd = sub.add_parser("sdd", help="DAVID's S&D trades (engine/sdd_book.py): on, off, status (control.json overrides config)")
     sd.add_argument("state", choices=["on", "off", "status"])
+    sl = sub.add_parser("sdd_layers", help="S&D David with layer entries (engine/sdd_layers.py): on, off, status")
+    sl.add_argument("state", choices=["on", "off", "status"])
     fb = sub.add_parser("fib", help="the class's Fib rules (engine/fib_book.py): on, off, status (control.json overrides config)")
     fb.add_argument("state", choices=["on", "off", "status"])
     a = ap.parse_args()
     return {"check": cmd_check, "once": cmd_once, "run": cmd_run, "trading": cmd_trading, "mt5": cmd_mt5, "filters": cmd_filters,
-            "kronos": cmd_kronos, "sdd": cmd_sdd, "fib": cmd_fib}[a.cmd](a)
+            "kronos": cmd_kronos, "sdd": cmd_sdd, "sdd_layers": cmd_sdd_layers, "fib": cmd_fib}[a.cmd](a)
 
 
 if __name__ == "__main__":

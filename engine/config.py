@@ -253,6 +253,22 @@ SDD = {
     "DIR": os.path.join(DATA_DIR, "sdd"),
 }
 
+# ── S&D David with LAYER entries (class video 6 [28:01–31:52], David 2026-11-12: "implement this into the live and we
+# have to track this vs now normal tp") — engine/sdd_layers.py. The SAME zones as S&D David (its bars and zones are
+# shared), traded a second way on its own magic so the two can be compared zone by zone (/api/sdd/compare):
+#   L1 limit at the FVG's near edge (first touch), L2 at candle A's wick (= the normal S&D entry), L3 at A's 50 % line;
+#   one stop for all, beyond A (as S&D David); targets measured from L1 to the leg's extreme (the Fib 0 = the class's
+#   "overall target"): L1 → 50 %, L2 → 75 %, L3 → 100 %. When one layer takes its target the waiting layers of that
+#   zone are cancelled and the open ones go to break-even; after the second target the last one's stop goes to TP1.
+#   Minimum lot per layer (0.01 can't be split): a full fill risks up to 3 × one S&D trade.
+# python3 -m engine.run sdd_layers on|off|status (control.json "sdd_layers"); orders also need trading ON.
+SDD_LAYERS = {
+    "ENABLED": True,
+    "MAGIC": 5050710,
+    "TP_FRACS": [0.5, 0.75, 1.0],        # L1, L2, L3: how far from L1 to the leg's extreme each layer's target sits
+    "DIR": os.path.join(DATA_DIR, "sdd_layers"),
+}
+
 # ── the class's Fib rules (class video 5, David 2026-11-12: "go with trend and fib retracement ... add that next to
 # the S&D David", then "now update these strategies to the live") — engine/fib_trend.py (rules), engine/fib_reject.py
 # (the LIVE versions + their reject checklist), engine/fib_book.py (orders), /smc layers "Fib trend" / "Fib retr.".

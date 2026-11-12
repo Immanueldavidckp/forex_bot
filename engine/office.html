@@ -11,7 +11,7 @@
 <style>
 :root{--bg:#0b0e14;--floor:#0e121b;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
 --good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff;
---v5:#4fc3f7;--sd:#3ddc97;--kr:#b388ff;--cl:#f5c542;--tool:#7aa2ff;--fib:#ff9800}
+--v5:#4fc3f7;--sd:#3ddc97;--sdl:#26c6da;--kr:#b388ff;--cl:#f5c542;--tool:#7aa2ff;--fib:#ff9800}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 .num{font-variant-numeric:tabular-nums}a{color:var(--accent)}
 .good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.muted{color:var(--ink3)}
@@ -130,6 +130,8 @@ const ROOMS = {
     staff: [["Employee", "V5 SMC engine — structure, setups, layered entries"], ["Manager", "structure filters on · profile from the control file · minimum lot"]]},
   "S&D David": {c: "--sd", door: "Room 2", enter: "/room?s=S%26D%20David",
     staff: [["Employee", "David's supply / demand zone finder (class video 6 rule)"], ["Manager", "limit at candle A's wick · stop beyond A · target T1 · minimum lot"]]},
+  "S&D layers": {c: "--sdl", door: "Room 2b", enter: "/room?s=S%26D%20layers",
+    staff: [["Employee", "the same S&D David zones, traded with 3 layer entries (class video 6)"], ["Manager", "L1 FVG edge · L2 A's wick · L3 A's 50 % · one stop beyond A · TP 50 / 75 / 100 % to the leg's extreme · break-even after a target"]]},
   "Kronos": {c: "--kr", door: "Room 3", enter: "/room?s=Kronos",
     staff: [["Employee", "Kronos-base forecaster — 16 symbols, M15, 16 paths"], ["Manager", "≥ 75 % paths · with the M15 BOS / CHoCH trend · buys only in the pullback · stop ≤ $2 · target ≥ 1:2"]]},
   "Claude": {c: "--cl", door: "Room 4", enter: "/room?s=Claude",
