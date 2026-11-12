@@ -60,6 +60,31 @@ def lot_for(info: Dict) -> float:
     return round(round(max(float(info.get("volume_min") or 0.01), 0.01) / step) * step, 8)
 
 
+# David 2026-11-12 "kronos failing because of trend ... add the CHOCH and BOS": a Kronos trade must agree with the M15
+# structure trend (the side of the last BOS / CHoCH of engine/major_structure.py, the structure S&D David uses), and a
+# buy must also sit in the pullback, not at the leg's high. Replay of 3,723 recorded forecasts, 16 symbols, 17 days
+# (engine/research/kronos_structure/backtest.py): Kronos alone −0.02 R a trade, with the trend +0.14 R, against −0.15 R;
+# buys with the trend lose near the leg's high (−0.31 R) and break even in the pullback.
+TREND_FILTER = K.get("TREND_FILTER", True)
+BUY_PULLBACK_MAX = K.get("BUY_PULLBACK_MAX", 0.6)      # a buy only in the lower 60 % of the leg (protected low → leg high)
+
+
+def structure(rows: List[list]) -> Optional[Dict]:
+    """The M15 structure at the last closed bar of feed rows [t, o, h, l, c, ...]: {"side" buy / sell (the trend),
+    "kind" BOS / CHoCH (the last event), "age" bars since it, "pos" where the close sits in the leg — 0 at the
+    protected level, 1 at the leg's extreme}. None before the first break."""
+    from .major_structure import major_structure
+    bars = [{"t": r[0], "o": r[1], "h": r[2], "l": r[3], "c": r[4]} for r in rows]
+    ev = major_structure(bars)["events"]
+    if not ev:
+        return None
+    e = ev[-1]
+    prot, seg = e["origin"]["price"], bars[e["origin"]["idx"]:]
+    ext = max(x["h"] for x in seg) if e["side"] == "buy" else min(x["l"] for x in seg)
+    return {"side": e["side"], "kind": e["kind"], "age": len(bars) - 1 - e["idx"],
+            "pos": (bars[-1]["c"] - prot) / (ext - prot) if ext != prot else 1.0}
+
+
 def decide(sig: Dict, rows: List[list], info: Dict, market: str, now: int, tick: Optional[Dict] = None) -> Dict:
     """One forecast → {"side": "buy" | "sell" | None, "why", and for a trade "entry", "sl", "tp", "atr"}.
     Without a tick the levels are estimated from the last close ± half the bar's spread (the pre-check)."""
@@ -72,6 +97,15 @@ def decide(sig: Dict, rows: List[list], info: Dict, market: str, now: int, tick:
     side = "buy" if p_up >= K["P_MIN"] else "sell"
     if (move > 0) != (side == "buy"):
         return {**out, "why": f"the median path ends against the {side} side"}
+    st = structure(rows) if TREND_FILTER else None
+    if TREND_FILTER:
+        if not st:
+            return {**out, "why": "no M15 trend yet (no BOS / CHoCH in the bars)"}
+        if st["side"] != side:
+            return {**out, "why": f"M15 trend is {'up' if st['side'] == 'buy' else 'down'} (last {st['kind']} "
+                                  f"{st['age']} bars ago): a Kronos {side} is against it"}
+        if side == "buy" and st["pos"] > BUY_PULLBACK_MAX:
+            return {**out, "why": f"buy at {st['pos']:.0%} of the up leg: only in the pullback (≤ {BUY_PULLBACK_MAX:.0%})"}
     spread = float(tick["ask"]) - float(tick["bid"]) if tick else float(rows[-1][6] or 0)
     if abs(move) < K["MIN_MOVE_SPREAD_X"] * spread:
         return {**out, "why": f"median move {abs(move):g} is under {K['MIN_MOVE_SPREAD_X']:g} × the spread {spread:g}"}
@@ -112,6 +146,10 @@ def decide(sig: Dict, rows: List[list], info: Dict, market: str, now: int, tick:
         chk("Setup", "Kronos paths agreeing", f"{agree:.0%} of {sig.get('paths', K['PATHS'])} paths {'up' if side == 'buy' else 'down'} (P up {p_up:.0%})",
             f"≥ {K['P_MIN']:.0%} on one side", True),
         chk("Setup", "Median path ends on that side", f"{move:+.6g} in {K['HORIZON']} bars", "up for a buy, down for a sell", True),
+        *([chk("Setup", "M15 trend (last BOS / CHoCH)", f"{'up' if st['side'] == 'buy' else 'down'}: {st['kind']} {st['age']} bars ago",
+               "the same side as Kronos", True),
+           chk("Setup", "Place in the leg", f"{st['pos']:.0%} from the protected level to the leg's extreme",
+               f"a buy: ≤ {BUY_PULLBACK_MAX:.0%} (in the pullback); a sell: anywhere", True)] if st else []),
         chk("Setup", "Median move vs spread", f"{g(abs(move))} = {abs(move) / spread:.1f} × spread {g(spread)}" if spread else f"{g(abs(move))}, spread 0",
             f"≥ {K['MIN_MOVE_SPREAD_X']:g} × the spread", True),
         chk("Guard", "Friday late (forex / gold)", "crypto: trades all week" if market == "crypto" else "not Friday late",

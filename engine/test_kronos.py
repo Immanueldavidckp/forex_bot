@@ -19,6 +19,30 @@ INFO = {"digits": 2, "point": 0.01, "volume_min": 0.01, "volume_step": 0.01, "vo
         "trade_tick_value": 0.01, "trade_tick_size": 0.01, "trade_contract_size": 1}
 
 
+@pytest.fixture(autouse=True)
+def _no_trend_filter(monkeypatch):
+    """the older tests use flat bars (no BOS / CHoCH): the M15 trend filter is tested on its own below"""
+    monkeypatch.setattr(KB, "TREND_FILTER", False)
+
+
+def trend_rows(up=True, pullback=0.0, n=520, end=T0):
+    """closed M15 bars in steps (rally 30, dip 14) → BOS after BOS; the last leg ends `pullback` (0..1) of the way
+    back from its high to its protected low. up=False: the mirror image."""
+    px, out, k = 4000.0, [], 0
+    path = []
+    while len(path) < n:
+        path += [px + 30 * (j + 1) / 10 for j in range(10)]; px += 30
+        path += [px - 14 * (j + 1) / 7 for j in range(7)]; px -= 14
+    path = path[:n]
+    hi = max(path[-17:]); lo = path[-18] if len(path) > 18 else path[0]
+    path[-1] = hi - pullback * (hi - lo) if pullback else path[-1]
+    for i, c in enumerate(path):
+        c = c if up else 8000.0 - c
+        o = (path[i - 1] if up else 8000.0 - path[i - 1]) if i else c
+        out.append([end - (n - i) * BAR, o, max(o, c) + 1, min(o, c) - 1, c, 100, 0.3])
+    return out
+
+
 def rows(n=520, end=T0, price=4000.0, rng=4.0):
     """n closed M15 bars ending with the one that opened at `end` - BAR: each 4.0 high-low (ATR 4.0)."""
     return [[end - (n - i) * BAR, price, price + rng / 2, price - rng / 2, price, 100, 0.3] for i in range(n)]
@@ -290,3 +314,33 @@ def test_live_quote_and_forming_bar_in_the_view(kb):
     g = json.load(open(KB.VIEW_FILE))["symbols"][0]
     assert g["live"] == {"bid": 4000.0, "ask": 4000.3, "t_ms": T0 + 300_000, "bar": [(T0 + BAR) // 1000, 4000.0, 4003.0, 3998.0, 4000.0]}
     assert g["bars"][-1][0] == T0 // 1000 - BAR // 1000                   # closed bars stay closed-only
+
+
+# ── the M15 trend filter (David 2026-11-12) ──
+
+def test_structure_reads_the_trend():
+    up, dn = KB.structure(trend_rows(True)), KB.structure(trend_rows(False))
+    assert up["side"] == "buy" and dn["side"] == "sell" and up["kind"] in ("BOS", "CHoCH") and 0 <= up["pos"] <= 1
+    assert KB.structure(rows()) is None                              # flat bars: no break yet
+
+
+def test_kronos_must_agree_with_the_m15_trend(monkeypatch):
+    monkeypatch.setattr(KB, "TREND_FILTER", True)
+    dn = trend_rows(False)
+    last = dn[-1][4]
+    d = KB.decide(sig(0.1, last=last, move=-6.0), dn, INFO, "metal", T0)
+    assert d["side"] == "sell" and any(c["name"].startswith("M15 trend") for c in d["checks"])
+    d = KB.decide(sig(0.9, last=last, move=6.0), dn, INFO, "metal", T0)
+    assert d["side"] is None and "against" in d["why"]
+    assert "no M15 trend" in KB.decide(sig(0.9), rows(), INFO, "metal", T0)["why"]
+
+
+def test_buy_only_in_the_pullback(monkeypatch):
+    monkeypatch.setattr(KB, "TREND_FILTER", True)
+    top = trend_rows(True)                                           # the last bar: near the leg's high
+    st = KB.structure(top)
+    d = KB.decide(sig(0.9, last=top[-1][4], move=6.0), top, INFO, "metal", T0)
+    if st["pos"] > KB.BUY_PULLBACK_MAX:
+        assert d["side"] is None and "pullback" in d["why"]
+    monkeypatch.setattr(KB, "BUY_PULLBACK_MAX", 1.01)
+    assert KB.decide(sig(0.9, last=top[-1][4], move=6.0), top, INFO, "metal", T0)["side"] == "buy"
