@@ -77,6 +77,7 @@ main{padding:4px 16px 40px;display:flex;flex-direction:column;gap:12px}
 </head>
 <body>
 <header>
+  <a href="/" title="back to the office floor">← Floor</a>
   <h1><b>V5</b> ENGINE</h1>
   <a href="/backtest">Backtest →</a>
   <a href="/learn" title="draw the structure as it should be (BOS, CHoCH, FVG, supply/demand); the engine is trained from it">Learn →</a>
@@ -690,7 +691,7 @@ load(); setInterval(load, 10000);
 </script>
 <script>
 // ---- all trades (every strategy), open + closed, click → entry / SL / TP on the candles (/api/trades, /api/trade/bars)
-let TR = null, TF_STRAT = "all", TSHOW = 60, TC = null;
+let TR = null, TF_STRAT = new URLSearchParams(location.search).get("s") || "all", TSHOW = 60, TC = null;   // /desk?s=Kronos: one strategy (a room's Enter)
 const TCLS = {"V5 engine": "v5", "S&D David": "sd", "Kronos": "kr", "Claude": "cl"};
 const tdt = ms => ms ? new Date(ms + IST_MS).toISOString().slice(5, 16).replace("T", " ") + " IST" : "–";
 const tpx = (x, r) => x == null ? "–" : fmt(x);

@@ -498,8 +498,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if u.path == "/":
-            with open(os.path.join(HERE, "dashboard.html"), "rb") as f:
+        if u.path in ("/", "/desk"):        # David 2026-11-12: "/" = the office floor (office.html), the old home page = /desk
+            with open(os.path.join(HERE, "office.html" if u.path == "/" else "dashboard.html"), "rb") as f:
                 html = f.read()
             if self.public:
                 html = html.replace(b"</head>", PUBLIC_CSS + b"</head>", 1)

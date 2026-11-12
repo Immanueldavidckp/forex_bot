@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trading Floor</title>
+<!-- David 2026-11-12: "change the ui ... show as the work station like office floor, every room has the employee and
+     managers": the owner's office (every strategy's P&L today + since the start) and one room per strategy / tool,
+     each with an Enter button. Reads the same files as the old home page (now /desk): /api/overview, /api/trades,
+     /api/kronos/status. A strategy that appears in /api/trades without a room below gets a room of its own. -->
+<style>
+:root{--bg:#0b0e14;--floor:#0e121b;--panel:#121722;--panel2:#171d2b;--ink:#e6e9ef;--ink2:#9aa3b2;--ink3:#667085;--line:#232a3a;
+--good:#3ddc97;--warn:#f5c542;--bad:#ff6b6b;--accent:#7aa2ff;
+--v5:#4fc3f7;--sd:#3ddc97;--kr:#b388ff;--cl:#f5c542;--tool:#7aa2ff;--fib:#ff9800}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.num{font-variant-numeric:tabular-nums}a{color:var(--accent)}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.muted{color:var(--ink3)}
+button,.btn{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 12px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.btn:hover{border-color:var(--accent)}button.danger{border-color:#5a2a2e;color:#ffb3b3}button.arm{background:#5a2a2e;color:#fff}
+.toggle.on{background:#123a2c;border-color:var(--good);color:var(--good)}.toggle.off{color:var(--warn)}
+header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.96);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+h1{font-size:15px;margin:0;letter-spacing:.04em}h1 b{color:var(--accent)}
+.kv{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink2)}.kv b{color:var(--ink)}
+main{padding:16px;display:flex;flex-direction:column;gap:18px;max-width:1500px;margin:0 auto}
+h2{font-size:12px;letter-spacing:.1em;color:var(--ink2);margin:0 0 10px;text-transform:uppercase;font-weight:600}
+h2 .muted{text-transform:none;letter-spacing:0;font-weight:400}
+
+/* the owner's office */
+.owner{background:linear-gradient(180deg,#151b2a,#111622);border:1px solid #2d3a5c;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.owner-top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between}
+.nameplate{display:flex;gap:12px;align-items:center}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:18px;background:#1f2a44;border:2px solid var(--accent);color:var(--accent)}
+.nameplate b{font-size:16px;display:block}.nameplate span{color:var(--ink2)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat .l{color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.stat .v{font-size:24px;font-weight:650;margin-top:2px}.stat .s{color:var(--ink2);font-size:12px}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--ink3);font-weight:500;font-size:12px}tr:last-child td{border-bottom:0}td.r,th.r{text-align:right}
+tfoot td{font-weight:650;border-top:1px solid var(--line)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+
+/* the floor */
+.floor{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.room{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--c,var(--tool));border-radius:12px;display:flex;flex-direction:column;min-height:100%}
+.room-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:12px 14px 8px}
+.room-h b{font-size:15px}.room-h .door{color:var(--ink3);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.status{font-size:12px;padding:2px 9px;border-radius:20px;border:1px solid var(--line);white-space:nowrap}
+.status.work{color:var(--good);border-color:#1f5c45;background:#10291f}.status.idle{color:var(--warn);border-color:#5c4d1f;background:#29230f}
+.status.off{color:var(--bad);border-color:#5c2a2a;background:#2a1414}.status.tool{color:var(--ink2)}
+.staff{padding:0 14px 8px;display:flex;flex-direction:column;gap:3px;color:var(--ink2);font-size:12px}
+.staff span b{color:var(--ink);font-weight:500}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 14px 10px}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.chip .l{color:var(--ink3);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em}.chip .v{font-size:16px;font-weight:600}
+.chip .s{color:var(--ink3);font-size:11px}
+.desk{margin:0 14px 10px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.desk table td,.desk table th{padding:4px 8px;font-size:12px}
+.desk .empty{padding:8px;color:var(--ink3);font-size:12px}
+.room-f{margin-top:auto;padding:10px 14px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.enter{background:#1f2a44;border-color:var(--c,var(--accent));color:var(--ink);font-weight:600}
+.about{padding:0 14px 10px;color:var(--ink2);font-size:12.5px}
+@media (max-width:520px){.chips{grid-template-columns:repeat(2,1fr)}.stat .v{font-size:20px}}
+</style>
+</head>
+<body>
+<header>
+  <h1><b>TRADING</b> FLOOR</h1>
+  <div class="kv num" id="acct">loading…</div>
+</header>
+<main>
+  <section class="owner" aria-label="Owner's office">
+    <div class="owner-top">
+      <div class="nameplate"><div class="avatar">D</div><div><b>Owner's office — David</b><span>every strategy together</span></div></div>
+      <div class="controls">
+        <button id="trading" class="toggle off" title="Watch mode records signals only; trading sends orders">trading …</button>
+        <span class="kv num" id="mt5">MT5 …</span>
+        <button id="mt5-restart" title="The engine closes the MT5 terminal and starts it again">restart MT5</button>
+        <button id="mt5-stop" class="danger" title="Close MT5; the engine leaves it off until Start">stop MT5</button>
+        <button id="mt5-start" title="Start MT5; the engine keeps it running again">start MT5</button>
+      </div>
+    </div>
+    <div class="big" id="big"></div>
+    <div>
+      <h2>Each strategy <span class="muted">(closed trades, from the broker's P&amp;L; today = Indian time, since midnight IST)</span></h2>
+      <div class="tw"><table class="num">
+        <thead><tr><th>Strategy</th><th class="r">Today P&amp;L</th><th class="r">Today closed</th><th class="r">Won / lost today</th>
+          <th class="r">In trade</th><th class="r">Floating</th><th class="r">Waiting</th><th class="r">Since start P&amp;L</th><th class="r">Closed since start</th><th class="r">Win %</th></tr></thead>
+        <tbody id="owner-rows"><tr><td colspan="10" class="muted">loading…</td></tr></tbody>
+        <tfoot id="owner-foot"></tfoot>
+      </table></div>
+    </div>
+  </section>
+
+  <section aria-label="Strategy rooms">
+    <h2>Strategy rooms <span class="muted">(each strategy's desk: what is in trade, waiting, entered and closed today)</span></h2>
+    <div class="floor" id="rooms"></div>
+  </section>
+
+  <section aria-label="Tool rooms">
+    <h2>Tool rooms</h2>
+    <div class="floor" id="tools"></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = x => x == null ? "–" : (x < 0 ? "−$" : "$") + Math.abs(+x).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const pm = x => x == null ? "–" : `<span class="${x > 0 ? "good" : x < 0 ? "bad" : ""}">${x > 0 ? "+" : ""}${money(x)}</span>`;
+const IST_MS = 19800000;                                  // every time on the page in Indian time (UTC+5:30)
+const hm = ms => new Date(ms + IST_MS).toISOString().slice(11, 16) + " IST";
+const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+const fmt = x => x == null ? "–" : (Math.abs(x) >= 100 ? (+x).toFixed(2) : Math.abs(x) >= 1 ? (+x).toFixed(4) : (+x).toPrecision(5));
+async function api(path, opts) { const r = await fetch(path, {cache: "no-store", ...(opts || {})}); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
+async function cmd(body) { return api("/api/cmd", {method: "POST", headers: {"Content-Type": "application/json", "X-V5": "1"}, body: JSON.stringify(body)}); }
+function armed(btn, label, action) {                      // two-step buttons: first click arms (3 s), second acts — no dialogs
+  btn.onclick = async () => {
+    if (btn.dataset.armed) { btn.disabled = true; btn.textContent = "sent…"; try { await action(); } finally { setTimeout(load, 1500); } return; }
+    btn.dataset.armed = 1; const old = btn.textContent; btn.textContent = label; btn.classList.add("arm");
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; btn.classList.remove("arm"); }, 3000);
+  };
+}
+
+// the rooms: who works there (the employee), what it answers to (the manager = its rule), where Enter goes
+const ROOMS = {
+  "V5 engine": {c: "--v5", door: "Room 1", enter: "/desk?s=V5%20engine",
+    staff: [["Employee", "V5 SMC engine — structure, setups, layered entries"], ["Manager", "structure filters on · profile from the control file · minimum lot"]]},
+  "S&D David": {c: "--sd", door: "Room 2", enter: "/smc",
+    staff: [["Employee", "David's supply / demand zone finder (class video 6 rule)"], ["Manager", "limit at candle A's wick · stop beyond A · target T1 · minimum lot"]]},
+  "Kronos": {c: "--kr", door: "Room 3", enter: "/kronos",
+    staff: [["Employee", "Kronos-base forecaster — 16 symbols, M15, 16 paths"], ["Manager", "≥ 75 % paths · with the M15 BOS / CHoCH trend · buys only in the pullback · stop ≤ $2 · target ≥ 1:2"]]},
+  "Claude": {c: "--cl", door: "Room 4", enter: "/desk?s=Claude",
+    staff: [["Employee", "Claude's crypto desk — H1 trend pullback + Kronos scalp"], ["Manager", "one trade per symbol · 0.01 lot · no new entries below −$40 a day"]]},
+};
+const NEW_ROOM = n => ({c: "--fib", door: "New room", enter: "/desk?s=" + encodeURIComponent(n), staff: [["Employee", n], ["Manager", "its own rule"]]});
+const TOOLS = [
+  {name: "Trading desk", c: "--tool", enter: "/desk", about: "Every trade of every strategy in one list — click a trade for its entry, stop and target on the candles, and the checklist it passed. The V5 setups and charts."},
+  {name: "Backtest", c: "--tool", enter: "/backtest", about: "The V5 engine replayed on past candles: every setup, its result and its chart."},
+  {name: "Learn", c: "--tool", enter: "/learn", about: "Draw the structure as it should be (BOS, CHoCH, FVG, supply / demand, fib) — the engine is trained from your drawings."},
+  {name: "SMC", c: "--tool", enter: "/smc", about: "The SMC concept table and charts: S&D David zones, BOS / CHoCH, FVG, order flow — and the S&D trade list."},
+  {name: "Kronos × zones", c: "--tool", enter: "/kzones", about: "Kronos' 50-candle forecast for each fresh S&D David zone: will price touch it? With its scoreboard."},
+];
+
+let OV = null, TR = null, KS = null;
+const istDay = ms => Math.floor((ms + IST_MS) / 86400000);
+const closedAt = r => r.closed_ms || r.opened_ms || 0;
+
+function stats(name) {
+  const today = istDay(Date.now());
+  const C = TR.closed.filter(r => r.strategy === name && r.pnl != null);
+  const Ct = C.filter(r => istDay(closedAt(r)) === today);
+  const O = TR.open.filter(r => r.strategy === name), W = TR.waiting.filter(r => r.strategy === name);
+  const E = [...O, ...TR.closed.filter(r => r.strategy === name)].filter(r => r.opened_ms && istDay(r.opened_ms) === today);
+  const sum = a => a.reduce((x, r) => x + (r.pnl || 0), 0);
+  const last = Math.max(0, ...[...O, ...TR.closed.filter(r => r.strategy === name)].map(r => r.opened_ms || 0));
+  return {C, Ct, O, W, E, last, todayPnl: sum(Ct), allPnl: sum(C), float: sum(O),
+          wonT: Ct.filter(r => r.pnl > 0).length, lostT: Ct.filter(r => r.pnl < 0).length,
+          win: C.length ? 100 * C.filter(r => r.pnl > 0).length / C.length : null};
+}
+
+function status(name, s) {
+  const fresh = OV && Date.now() - OV.at < 120000;
+  if (!fresh) return ["off", "engine stopped"];
+  if (name === "Claude") return s.last && Date.now() - s.last < 86400000 ? ["work", "working"] : ["idle", "away — scripts not running"];
+  if (!OV.trading) return ["idle", "watch mode"];
+  if (name === "Kronos") { if (OV.kronos === false) return ["idle", "Kronos trading off"]; if (KS && !KS.alive) return ["off", "forecaster down"]; }
+  if (name === "S&D David" && OV.sdd === false) return ["idle", "S&D trading off"];
+  return ["work", "working"];
+}
+
+function renderHeader() {
+  const a = OV.account || {};
+  $("#acct").innerHTML = `<span>${esc(a.server || "")} ${esc(a.login || "")} ${a.demo ? '<b class="good">demo</b>' : '<b class="bad">REAL</b>'}</span>
+    <span>equity <b>${money(a.equity)}</b></span><span>balance <b>${money(a.balance)}</b></span>
+    <span>Algo Trading ${a.algo_trading ? '<b class="good">on</b>' : '<b class="bad">OFF</b>'}</span>
+    ${Date.now() - OV.at > 120000 ? `<b class="bad">ENGINE STOPPED? last update ${hm(OV.at)}</b>` : `<span class="muted">updated ${hm(OV.at)}</span>`}`;
+  const m = OV.mt5 || {}, off = m.mode === "off";
+  $("#mt5").innerHTML = `<span>MT5 ${off ? '<b class="warn">OFF (stopped by hand)</b>' : m.running === false ? '<b class="bad">down</b>'
+      : m.connected ? '<b class="good">connected</b>' : '<b class="bad">not connected</b>'}</span>`;
+  $("#mt5-start").style.display = off ? "" : "none";
+  $("#mt5-stop").style.display = off ? "none" : "";
+  for (const [id, op, label] of [["mt5-restart", "restart", "confirm: restart MT5"], ["mt5-stop", "stop", "confirm: close MT5"], ["mt5-start", "start", "confirm: start MT5"]]) {
+    const b = $("#" + id); b.disabled = false; if (!b.dataset.armed) b.textContent = op + " MT5";
+    armed(b, label, () => cmd({action: "mt5", op}));
+  }
+  const t = $("#trading");
+  t.disabled = false;
+  if (!t.dataset.armed) { t.className = "toggle " + (OV.trading ? "on" : "off"); t.textContent = OV.trading ? "TRADING ON — click to stop" : "WATCH MODE — click to trade"; }
+  armed(t, OV.trading ? "confirm: stop trading" : "confirm: start trading", () => cmd({action: "trading", on: !OV.trading}));
+}
+
+function renderOwner(names) {
+  const S = Object.fromEntries(names.map(n => [n, stats(n)]));
+  const tot = k => names.reduce((x, n) => x + (S[n][k] || 0), 0);
+  const nT = names.reduce((x, n) => x + S[n].Ct.length, 0), nC = names.reduce((x, n) => x + S[n].C.length, 0);
+  const wonT = tot("wonT"), lostT = tot("lostT"), nO = names.reduce((x, n) => x + S[n].O.length, 0);
+  const nE = names.reduce((x, n) => x + S[n].E.length, 0);
+  $("#big").innerHTML = [
+    ["Today P&L", pm(tot("todayPnl")), `${nT} closed today · ${wonT} won / ${lostT} lost · ${nE} entries`],
+    ["Since start P&L", pm(tot("allPnl")), `${nC} closed trades, every strategy`],
+    ["In trade now", `${nO}`, `floating ${money(tot("float"))}`],
+    ["Equity", money((OV.account || {}).equity), `balance ${money((OV.account || {}).balance)}`],
+  ].map(([l, v, s]) => `<div class="stat"><div class="l">${l}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join("");
+  const cvar = n => `var(${(ROOMS[n] || NEW_ROOM(n)).c})`;
+  $("#owner-rows").innerHTML = names.map(n => { const s = S[n];
+    return `<tr><td><span class="dot" style="background:${cvar(n)}"></span><b>${esc(n)}</b></td><td class="r">${pm(s.todayPnl)}</td><td class="r">${s.Ct.length}</td>`
+      + `<td class="r"><span class="good">${s.wonT}</span> / <span class="bad">${s.lostT}</span></td><td class="r">${s.O.length}</td><td class="r">${s.O.length ? pm(s.float) : "–"}</td>`
+      + `<td class="r">${s.W.length}</td><td class="r">${pm(s.allPnl)}</td><td class="r">${s.C.length}</td><td class="r">${s.win == null ? "–" : s.win.toFixed(0) + " %"}</td></tr>`; }).join("");
+  $("#owner-foot").innerHTML = `<tr><td>All strategies</td><td class="r">${pm(tot("todayPnl"))}</td><td class="r">${nT}</td>`
+    + `<td class="r"><span class="good">${wonT}</span> / <span class="bad">${lostT}</span></td><td class="r">${nO}</td><td class="r">${pm(tot("float"))}</td>`
+    + `<td class="r">${names.reduce((x, n) => x + S[n].W.length, 0)}</td><td class="r">${pm(tot("allPnl"))}</td><td class="r">${nC}</td><td></td></tr>`;
+  return S;
+}
+
+function deskRows(s) {
+  const O = s.O.slice(0, 4);
+  if (!O.length && !s.W.length) return `<div class="empty">nobody at the desk — no open trade, nothing waiting</div>`;
+  let h = "";
+  if (O.length) h += `<table class="num"><thead><tr><th>In trade</th><th>Side</th><th>Entry</th><th class="r">P&amp;L</th><th>Opened</th></tr></thead><tbody>`
+    + O.map(t => `<tr><td><b>${esc(t.symbol)}</b></td><td class="${t.side === "buy" ? "good" : "bad"}">${esc(t.side)}</td><td>${fmt(t.entry)}</td><td class="r">${pm(t.pnl)}</td><td class="muted">${t.opened_ms ? hm(t.opened_ms) : "–"}</td></tr>`).join("")
+    + `</tbody></table>`;
+  if (s.O.length > O.length) h += `<div class="empty">+ ${s.O.length - O.length} more in trade</div>`;
+  if (!s.O.length && s.W.length) h += `<div class="empty">${s.W.length} limit order(s) waiting for price</div>`;
+  return h;
+}
+
+function renderRooms(names, S) {
+  $("#rooms").innerHTML = names.map(n => {
+    const R = ROOMS[n] || NEW_ROOM(n), s = S[n], [cls, txt] = status(n, s);
+    const chip = (l, v, sub) => `<div class="chip"><div class="l">${l}</div><div class="v num">${v}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`;
+    return `<article class="room" style="--c:var(${R.c})">
+      <div class="room-h"><div><div class="door">${esc(R.door)}</div><b>${esc(n)}</b></div><span class="status ${cls}">${esc(txt)}</span></div>
+      <div class="staff">${R.staff.map(([k, v]) => `<span>${k}: <b>${esc(v)}</b></span>`).join("")}</div>
+      <div class="chips">
+        ${chip("Today P&L", pm(s.todayPnl), `${s.Ct.length} closed`)}
+        ${chip("Won / lost", `<span class="good">${s.wonT}</span> / <span class="bad">${s.lostT}</span>`, "today")}
+        ${chip("Entries", s.E.length, "today")}
+        ${chip("In trade", s.O.length, s.O.length ? "floating " + money(s.float) : "")}
+        ${chip("Waiting", s.W.length, s.W.length ? "limit orders" : "")}
+        ${chip("Since start", pm(s.allPnl), `${s.C.length} closed · ${s.win == null ? "–" : s.win.toFixed(0) + " % won"}`)}
+      </div>
+      <div class="desk">${deskRows(s)}</div>
+      <div class="room-f"><span class="muted">${s.last ? "last entry " + ago(s.last) : "no trades yet"}</span>
+        <a class="btn enter" href="${R.enter}">Enter room →</a></div>
+    </article>`; }).join("");
+}
+
+function renderTools() {
+  $("#tools").innerHTML = TOOLS.map(t => `<article class="room" style="--c:var(${t.c})">
+      <div class="room-h"><div><div class="door">Tool room</div><b>${esc(t.name)}</b></div><span class="status tool">open</span></div>
+      <div class="about">${esc(t.about)}</div>
+      <div class="room-f"><span></span><a class="btn enter" href="${t.enter}">Enter room →</a></div>
+    </article>`).join("");
+}
+
+async function load() {
+  try { [OV, TR] = await Promise.all([api("/api/overview"), api("/api/trades")]); }
+  catch (e) { $("#acct").textContent = "engine has not written its files yet…"; return; }
+  try { KS = await api("/api/kronos/status"); } catch (e) { KS = null; }
+  renderHeader();
+  const names = [...new Set([...Object.keys(ROOMS), ...Object.keys(TR.totals || {}),
+                             ...TR.open.map(r => r.strategy), ...TR.closed.map(r => r.strategy), ...TR.waiting.map(r => r.strategy)])].filter(Boolean);
+  const S = renderOwner(names);
+  renderRooms(names, S);
+}
+renderTools();
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>
